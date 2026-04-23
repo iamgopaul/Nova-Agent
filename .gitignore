@@ -27,6 +27,8 @@ data/notes/
 *.onnx
 *.bin
 *.safetensors
+*.tflite
+*.task
 models/
 ~/.cache/huggingface/
 

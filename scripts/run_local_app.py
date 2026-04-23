@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = ROOT / "frontend"
 BACKEND_CMD = [sys.executable, "scripts/run_server_only.py"]
-FRONTEND_CMD = ["npm", "run", "dev:desktop"]
+FRONTEND_CMD = ["pnpm", "run", "dev"]
 
 
 def _wait_for_port(host: str, port: int, timeout_s: float = 8.0) -> bool:
@@ -44,7 +44,7 @@ def main() -> int:
         frontend_env.setdefault("NOVA_API_BASE", "http://127.0.0.1:8765")
         frontend = subprocess.Popen(FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
 
-        # Keep process alive while desktop frontend runs.
+        # Keep process alive while the web frontend runs.
         return frontend.wait()
     except KeyboardInterrupt:
         return 130
