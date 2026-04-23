@@ -153,18 +153,12 @@ cd ..
 
 ### 5. Run
 
-**Web UI (recommended):**
 ```bash
-./run-web.sh
+./run.sh
 # Opens at http://localhost:3000
 ```
 
-**Desktop app (customtkinter):**
-```bash
-./run.sh
-```
-
-**Backend API only:**
+**Backend API only (no frontend):**
 ```bash
 source .venv/bin/activate
 python scripts/run_server_only.py
@@ -259,8 +253,7 @@ Nova Agent/
 │   └── test_*.py             # Smoke tests (no Ollama needed for test_e2e.py)
 ├── data/                     # Runtime data — gitignored
 ├── tests/                    # Test suite
-├── run.sh                    # Launch desktop app
-├── run-web.sh                # Launch web UI (backend + frontend)
+├── run.sh                    # Launch Nova (backend + Next.js frontend)
 └── pyproject.toml            # Python package metadata + dependencies
 ```
 
