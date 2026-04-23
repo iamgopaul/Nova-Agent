@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+import warnings
+from contextlib import asynccontextmanager
+
+# ── Suppress noisy third-party deprecation warnings ───────────────────────────
+# These come from torch internals (weight_norm, jit.script), mediapipe Swig
+# bindings, HuggingFace Hub auth hints, and Kokoro LSTM dropout.
+# None of them affect Nova's behaviour — they are upstream library issues.
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="torch")
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+warnings.filterwarnings("ignore", message=".*builtin type Swig.*")
+warnings.filterwarnings("ignore", message=".*dropout option adds dropout.*")
+warnings.filterwarnings("ignore", message=".*repo_id.*Kokoro.*")
+warnings.filterwarnings("ignore", message=".*unauthenticated requests to the HF Hub.*")
+warnings.filterwarnings("ignore", message=".*HF_TOKEN.*")
+warnings.filterwarnings("ignore", message=".*duckduckgo_search.*renamed.*ddgs.*")
+
+import os
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+# Silence HuggingFace Hub auth warning entirely
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from config.settings import get_settings
+from nova.bootstrap import build_nova
+from nova.server.routers import camera, chart, chat, document, image, memory, music, stats, voice
+from nova.services.knowledge_feed import KnowledgeFeedScheduler
+from nova.services.location import get_location, location_context
+from nova.services import resource_advisor
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Probe hardware once and start background refresh thread
+    resource_advisor.initialize()
+
+    settings = get_settings()
+    mem, orchestrator, approval = build_nova(settings)
+
+    app.state.settings    = settings
+    app.state.memory      = mem
+    app.state.orchestrator = orchestrator
+    app.state.approval    = approval
+
+    from nova.services.face_identity import FaceIdentityStore
+    from pathlib import Path
+    cam_cfg = settings.camera
+    face_cfg = cam_cfg.get("face_recognition", {})
+    app.state.face_identity = FaceIdentityStore(
+        db_path=Path(face_cfg.get("db_path", "~/Nova/face_db")).expanduser(),
+        model_name=face_cfg.get("model", "ArcFace"),
+        distance_metric=face_cfg.get("distance_metric", "cosine"),
+        threshold=float(face_cfg.get("threshold", 0.40)),
+        enabled=bool(cam_cfg.get("enabled", True)),
+        detector_backend=face_cfg.get("detector_backend", "opencv"),
+    )
+
+    loc = await get_location()
+    loc_ctx = location_context(loc)
+    app.state.location_context = loc_ctx
+    orchestrator._location_ctx = loc_ctx
+    if loc:
+        print(f"[Nova] Location: {loc.get('city')}, {loc.get('regionName')}, {loc.get('country')}", flush=True)
+    else:
+        print("[Nova] Location unavailable — will ask user if needed.", flush=True)
+
+    # ── Auto knowledge feed — fetches fresh web content every hour ────────────
+    feed_cfg = settings.knowledge_feed
+    feed_interval = int(feed_cfg.get("interval_minutes", 60)) * 60
+    feed_feeds = feed_cfg.get("feeds") or None  # None = use defaults
+    knowledge_scheduler = KnowledgeFeedScheduler(mem, interval_seconds=feed_interval, feeds=feed_feeds)
+    knowledge_scheduler.start()
+    app.state.knowledge_scheduler = knowledge_scheduler
+
+    # Pre-warm Kokoro in the background — don't block Uvicorn from starting.
+    # The first voice request will wait if it arrives before warm-up finishes,
+    # but the server accepts connections immediately.
+    tts_engine = settings.voice.get("tts", {}).get("engine", "macos_say")
+    if tts_engine == "kokoro":
+        import asyncio
+        from nova.server.routers.voice import warmup_kokoro_inference
+        print("[Nova] Pre-warming Kokoro TTS (runs in background)...", flush=True)
+
+        async def _warm_kokoro() -> None:
+            # warmup_kokoro_inference is synchronous and potentially slow (model load +
+            # first inference), so run it in a thread to avoid blocking the event loop.
+            await asyncio.to_thread(warmup_kokoro_inference, settings)
+
+        asyncio.create_task(_warm_kokoro())
+
+    yield
+
+    # ── Shutdown ───────────────────────────────────────────────────────────────
+    try:
+        knowledge_scheduler.stop()
+    except Exception:
+        pass
+
+    # Do NOT clear chat history, face DB, or voice profiles on exit — that data lives under
+    # `app.data_dir` and must survive application restarts. (Previously this block wiped
+    # everything on every shutdown; opt-in with NOVA_WIPE_DATA_ON_EXIT=1 for a clean test slate.)
+    if os.environ.get("NOVA_WIPE_DATA_ON_EXIT", "").lower() in ("1", "true", "yes"):
+        try:
+            app.state.memory.clear_all()
+        except Exception as exc:
+            print(f"[Nova] Memory clear on exit: {exc}", flush=True)
+        try:
+            face_store = getattr(app.state, "face_identity", None)
+            if face_store is not None:
+                import shutil
+                fpath = face_store.db_path
+                if fpath.exists():
+                    shutil.rmtree(fpath, ignore_errors=True)
+                    fpath.mkdir(parents=True, exist_ok=True)
+                print("[Nova] Face data wiped (NOVA_WIPE_DATA_ON_EXIT).", flush=True)
+        except Exception as exc:
+            print(f"[Nova] Face wipe on exit: {exc}", flush=True)
+        try:
+            import nova.server.routers.voice as _vr
+            if _vr._speaker_identity is not None:  # noqa: SLF001
+                _vr._speaker_identity._profiles = {}
+                _vr._speaker_identity._counter = 0
+                if _vr._speaker_identity._path.exists():
+                    _vr._speaker_identity._path.unlink()
+            print("[Nova] Voice profile file wiped (NOVA_WIPE_DATA_ON_EXIT).", flush=True)
+        except Exception as exc:
+            print(f"[Nova] Voice wipe on exit: {exc}", flush=True)
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Nova API",
+        version="0.1.0",
+        description="Nova personal AI — local REST + SSE interface",
+        lifespan=lifespan,
+    )
+
+    # Allow the desktop UI (same machine) and future mobile clients
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:*", "http://127.0.0.1:*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(chat.router,   prefix="/chat",   tags=["Chat"])
+    app.include_router(voice.router,  prefix="/voice",  tags=["Voice"])
+    app.include_router(memory.router, prefix="/memory", tags=["Memory"])
+    app.include_router(camera.router, prefix="/camera", tags=["Camera"])
+    app.include_router(stats.router,  prefix="/stats",  tags=["Stats"])
+    app.include_router(music.router,    prefix="/music",    tags=["Music"])
+    app.include_router(image.router,    prefix="/image",    tags=["Image"])
+    app.include_router(document.router, prefix="/document", tags=["Document"])
+    app.include_router(chart.router,    prefix="/chart",    tags=["Chart"])
+
+    @app.get("/health")
+    def health() -> dict:
+        return {"status": "ok", "model": app.state.settings.model.get("name")}
+
+    return app

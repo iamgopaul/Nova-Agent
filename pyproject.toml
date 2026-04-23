@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nova-agent"
+version = "0.1.0"
+description = "Nova — personal AI chief of staff"
+requires-python = ">=3.12"
+dependencies = [
+    # Core AI — local LLM via Ollama (free, no API key)
+    "ollama>=0.3.0",
+    "openai>=1.40.0",  # optional: OpenAI-compat client for Ollama
+
+    # Config
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.1",
+
+    # Web server
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "httpx>=0.27.0",
+    "sse-starlette>=2.1.0",
+
+    # Database
+    "sqlalchemy>=2.0.30",
+    "aiosqlite>=0.20.0",
+
+    # Voice — STT
+    "faster-whisper>=1.0.3",
+
+    # Voice — TTS
+    "kokoro>=0.9.0",
+
+    # Voice — Audio I/O
+    "sounddevice>=0.4.7",
+    "soundfile>=0.12.1",
+    "numpy>=1.26.0",
+
+    # Hotkey
+    "pynput>=1.7.7",
+
+    # Desktop UI
+    "customtkinter>=5.2.2",
+    "Pillow>=10.3.0",
+    "pystray>=0.19.5",
+
+    # Web research — free, no API key required
+    # primp must stay <1.0 — ddgs 9.x uses primp.Client which was removed in 1.0
+    "primp>=0.15.0,<1.0.0",
+    "ddgs>=1.0.0",
+    "feedparser>=6.0.11",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.32.0",
+
+    # Media
+    "yt-dlp>=2024.5.1",
+
+    # Utilities
+    "rich>=13.7.1",
+    "python-multipart>=0.0.9",
+
+    # Vision stack (camera overlays + identity)
+    "opencv-python>=4.10.0",
+    "mediapipe>=0.10.14",
+    "ultralytics>=8.2.0",
+    "deepface>=0.0.93",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+]
+# Optional: RTMPose hands (see https://mmpose.readthedocs.io/en/latest/installation.html — mmcv wheel must match PyTorch/CUDA).
+mmpose = [
+    "mmengine>=0.10.0",
+    "mmpose>=1.3.0",
+]
+# Optional: stronger speaker embeddings (ECAPA-TDNN via SpeechBrain).
+speakerid = [
+    "speechbrain>=1.0.0",
+]
+# Optional: MusicGen beat/instrumental generation via HuggingFace Transformers.
+# transformers + torch are already in the standard install; this extra set ensures torchaudio.
+musicgen = [
+    "torchaudio>=2.0.0",
+]
+# Optional: Image generation (Stable Diffusion v1.5) via HuggingFace Diffusers.
+imagegen = [
+    "diffusers>=0.26.0",
+    "accelerate>=0.27.0",
+]
+# Optional: Document generation (Word, Excel, PDF, PowerPoint, CSV, plain text).
+docgen = [
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "reportlab>=4.0.0",
+    "python-pptx>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nova*", "config*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

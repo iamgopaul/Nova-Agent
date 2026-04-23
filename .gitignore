@@ -1,0 +1,54 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Data
+data/nova.db
+data/nova.db-wal
+data/nova.db-shm
+data/notes/
+
+# ML model binaries (large — download via ollama pull / scripts/ensure_models.py)
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+models/
+~/.cache/huggingface/
+
+# Claude Code session files
+.claude/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

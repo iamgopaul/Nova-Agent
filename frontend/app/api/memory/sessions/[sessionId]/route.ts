@@ -1,0 +1,67 @@
+import { NextRequest } from "next/server"
+
+export const runtime = "nodejs"
+
+const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> },
+) {
+  const { sessionId } = await params
+  const upstream = await fetch(`${NOVA_API_BASE}/memory/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  })
+
+  if (upstream.status === 204) {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Cache-Control": "no-cache",
+      },
+    })
+  }
+
+  const body = await upstream.text()
+  return new Response(body, {
+    status: upstream.status,
+    headers: {
+      "Content-Type": upstream.headers.get("content-type") || "application/json",
+      "Cache-Control": "no-cache",
+    },
+  })
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> },
+) {
+  const { sessionId } = await params
+  const payload = await req.json()
+
+  const upstream = await fetch(`${NOVA_API_BASE}/memory/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  })
+
+  if (upstream.status === 204) {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Cache-Control": "no-cache",
+      },
+    })
+  }
+
+  const body = await upstream.text()
+  return new Response(body, {
+    status: upstream.status,
+    headers: {
+      "Content-Type": upstream.headers.get("content-type") || "application/json",
+      "Cache-Control": "no-cache",
+    },
+  })
+}
