@@ -1137,6 +1137,7 @@ Your job:
 
         # ── Model selection ───────────────────────────────────────────────────────
         # _is_code / _use_auto already computed above alongside the parallel tasks.
+        print(f"[Router] mode={mode!r} model_key={model_key!r} _use_auto={_use_auto} _is_code={_is_code} msg={_clean_msg[:80]!r}", flush=True)
         if _is_code:
             selected_model = self._code_model
             signal_category = "code"
@@ -1166,10 +1167,13 @@ Your job:
 
             # Staged long-form: vague topic → Core; named essay → Pro; named story/poem/song → Creative
             _prev_m = (selected_model, signal_category)
-            if _wants_composition_without_topic(_clean_msg):
+            _wants_no_topic = _wants_composition_without_topic(_clean_msg)
+            _essay_spec = _extract_essay_or_creative_topic(_clean_msg)
+            print(f"[Router] wants_no_topic={_wants_no_topic} essay_spec={_essay_spec} selected={selected_model}", flush=True)
+            if _wants_no_topic:
                 selected_model, signal_category = self._core_model, "composition_clarify"
             else:
-                _spec = _extract_essay_or_creative_topic(_clean_msg)
+                _spec = _essay_spec
                 if _spec is not None:
                     if _spec[0] == "essay":
                         selected_model, signal_category = self._heavy_model, "staged_essay"
@@ -1302,7 +1306,11 @@ Your job:
         llm_cache_ok: bool = False,
     ) -> str:
         # Downgrade model if RAM is under pressure before building options
+        import nova.services.resource_advisor as _ra
+        _tier = _ra.get_model_tier()
+        print(f"[Router] _run_loop model={model} RAM tier={_tier}", flush=True)
         model = self._safe_model_for_pressure(model)
+        print(f"[Router] _run_loop after pressure check: model={model}", flush=True)
 
         client = ollama.Client(host=self._host)
         options = self._build_options(model)
