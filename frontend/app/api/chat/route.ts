@@ -6,6 +6,14 @@ const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+  const rawModelKey = (body?.model_key ?? null) as string | null
+  const normalizedModelKey = (
+    !rawModelKey ||
+    rawModelKey === "auto" ||
+    rawModelKey === "default" ||
+    rawModelKey === "basic" ||
+    rawModelKey === "swift"
+  ) ? null : rawModelKey
 
   const upstream = await fetch(`${NOVA_API_BASE}/chat`, {
     method: "POST",
@@ -14,7 +22,7 @@ export async function POST(req: NextRequest) {
       message: body?.message || "",
       session_id: body?.session_id || null,
       mode: body?.mode || "default",
-      model_key: body?.model_key || null,
+      model_key: normalizedModelKey,
       attachments: body?.attachments || [],
     }),
   })

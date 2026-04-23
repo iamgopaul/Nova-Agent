@@ -56,6 +56,7 @@ function isCorruptMessage(content: string): boolean {
 const VALID_MODEL_KEYS = new Set<ChatModelKey>([
   "auto", "spark", "air", "core", "pro", "code", "vision", "mind",
   "creative", "insight", "sage", "chat", "logic", "mini", "star", "open",
+  "quant", "reason",
   // legacy aliases kept for localStorage compatibility
   "basic", "swift",
 ])
@@ -362,7 +363,7 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [isLoadingSessions, setIsLoadingSessions] = useState(true)
   const [activeSessionId, setActiveSessionId] = useState("")
-  const [selectedModelKey, setSelectedModelKey] = useState<ChatModelKey>("basic")
+  const [selectedModelKey, setSelectedModelKey] = useState<ChatModelKey>("auto")
   const [showVoiceMode, setShowVoiceMode] = useState(false)
   const [showProfilePanel, setShowProfilePanel] = useState(false)
 
@@ -620,7 +621,10 @@ export default function ChatPage() {
 
     const savedModelKey = window.localStorage.getItem(MODEL_STORAGE_KEY)
     if (isChatModelKey(savedModelKey)) {
-      setSelectedModelKey(savedModelKey)
+      const migrated = (savedModelKey === "basic" || savedModelKey === "swift")
+        ? "auto"
+        : savedModelKey
+      setSelectedModelKey(migrated)
     }
 
     const savedSessionId = window.localStorage.getItem(SESSION_STORAGE_KEY)
@@ -778,7 +782,7 @@ export default function ChatPage() {
         message: text,
         session_id: sessionId,
         mode: "default",
-        model_key: selectedModelKey,
+        model_key: selectedModelKey === "auto" ? null : selectedModelKey,
         attachments,
       }),
       signal: controller.signal,

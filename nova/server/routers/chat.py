@@ -1041,6 +1041,7 @@ async def _llm_essay_image_placements(
     use_web: bool,
     ollama_host: str,
     core_model: str,
+    max_images: int | None = None,
 ) -> list[dict]:
     """
     Ask Nova Core (Ollama) to *after* the essay is written — decide which sections
@@ -1054,10 +1055,12 @@ async def _llm_essay_image_placements(
     n = len(section_headings)
     if n < 1:
         return []
-    # Target: one image per section, up to 6 total.
+    # Target: one image per section, capped by caller or 6 total.
     # Nova Core's prompt already tells it to skip bare intros/conclusions,
     # so the LLM naturally won't fill every slot — we just give it room to.
-    k = min(6, n)
+    _cap = max_images if isinstance(max_images, int) else 6
+    _cap = max(1, min(6, _cap))
+    k = min(_cap, n)
 
     outline = "\n".join(
         f"  {i}: {h}" for i, h in enumerate(section_headings) if h.strip()
@@ -1536,10 +1539,11 @@ async def _web_titles_for_image_enhance(query: str, count: int = 4) -> str:
 # ── Multi-image count detection ───────────────────────────────────────────────
 
 _MULTI_IMAGE_COUNT_RE = re.compile(
-    r"\b(generate|create|make|draw|produce|show)\s+"
+    r"\b(generate|generated|create|make|draw|produce|show|include|with|add)\s+"
     r"(?P<count>[2-9]|ten|two|three|four|five|six|seven|eight|nine|"
     r"multiple|several|a\s+few|a\s+couple(\s+of)?|some)\s+"
-    r"(different\s+)?(images|photos|pictures|illustrations|artworks|drawings)\b",
+    r"(?:different\s+|generated\s+|ai\s+generated\s+)?"
+    r"(images|photos|pictures|illustrations|artworks|drawings)\b",
     re.IGNORECASE,
 )
 
@@ -1589,6 +1593,46 @@ def _is_story_with_visuals(text: str) -> bool:
     has_story = bool(_STORY_VISUAL_RE.search(text or ""))
     has_visuals = any(kw in low for kw in _STORY_IMAGE_KEYWORDS)
     return has_story and has_visuals
+
+
+def _is_inline_composed_visual_request(text: str) -> bool:
+    """
+    True when the user asks for a substantive write-up and explicitly wants
+    visuals embedded in that response (not as a separate trailing gallery).
+    """
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    has_longform = bool(re.search(
+        r"\b(essay|article|report|paper|story|narrative|write\s+about|"
+        r"explain|guide|walk\s+me\s+through|breakdown|compare|overview)\b",
+        t,
+    ))
+    has_visual_embed = bool(re.search(
+        r"\b(include|with|add|embed)\b.{0,60}\b(images?|photos?|pictures?|"
+        r"illustrations?|charts?|graphs?|diagrams?)\b",
+        t,
+    ))
+    return has_longform and has_visual_embed
+
+
+def _requested_visual_source_mode(text: str) -> str:
+    """
+    Return one of: "generated", "web", "both".
+    """
+    t = (text or "").lower()
+    wants_web = bool(re.search(
+        r"\b(online|web|internet|google|search)\b", t
+    ))
+    wants_generated = bool(re.search(
+        r"\b(generated|generate|ai\s*generated|create|draw|illustrate|render)\b",
+        t,
+    ))
+    if wants_web and wants_generated:
+        return "both"
+    if wants_web:
+        return "web"
+    return "generated"
 
 
 def _build_story_sections(response: str, user_message: str) -> list[dict]:
@@ -1876,8 +1920,24 @@ async def chat(
     _music_prompt: str | None = (
         _extract_music_prompt(body.message) if _is_music_gen_request(body.message) else None
     )
+    _is_essay_mode: bool = _is_document_essay_with_embedded_images_request(body.message)
+    _wants_story: bool = (
+        _is_story_with_visuals(body.message)
+        or _is_inline_composed_visual_request(body.message)
+    )
+    _visual_source_mode: str = _requested_visual_source_mode(body.message)
+    _requested_inline_image_count: int = (
+        _extract_image_count(body.message)
+        if _MULTI_IMAGE_COUNT_RE.search(body.message or "")
+        else 0
+    )
+
+    # Standalone image generation is only for direct image requests.
+    # Composed long-form requests (story/essay with visuals) are planned inline.
     _raw_image_prompt: str | None = (
-        _extract_image_prompt(body.message) if _is_image_gen_request(body.message) else None
+        _extract_image_prompt(body.message)
+        if (_is_image_gen_request(body.message) and not (_is_essay_mode or _wants_story))
+        else None
     )
     _image_count: int = _extract_image_count(body.message) if _raw_image_prompt else 1
 
@@ -1921,7 +1981,6 @@ async def chat(
     _image_prompt: str | None = _raw_image_prompt  # will be replaced when task resolves
     _wants_chart:        bool = _is_chart_request(body.message)
     _wants_mermaid:      bool = _is_mermaid_request(body.message)
-    _wants_story:        bool = _is_story_with_visuals(body.message)
     _web_intent_msg:     str = _user_message_for_web_results(body.message)
     # Don't show a web-results panel when the request is for AI image generation —
     # the SD pipeline handles that path. Also suppress when it's an illustrated essay
@@ -1939,8 +1998,6 @@ async def chat(
     _doc_formats: list[str] = _detect_doc_formats(body.message)
     # Essay + images mode: suppress text streaming so the user sees the completed
     # illustrated essay (with images inline) all at once instead of text first then images.
-    # Does NOT require a doc format — applies any time an essay with images is requested.
-    _is_essay_mode: bool = _is_document_essay_with_embedded_images_request(body.message)
 
     # ── Weather: start fetching immediately so data is ready before the LLM ────
     # Priority: explicit place in message → app user_home_location → memory "I live in…" →
@@ -2314,6 +2371,14 @@ async def chat(
 
             if _wants_story:
                 _story_sections = _build_story_sections(full_response, body.message)
+                if _requested_inline_image_count > 0 and len(_story_sections) > 0:
+                    # Keep the full written story, but cap visual slots to what the
+                    # user asked for (e.g., "include 4 images").
+                    for i, sec in enumerate(_story_sections):
+                        if i >= _requested_inline_image_count:
+                            sec["image_prompt"] = ""
+                            sec.pop("imageUrl", None)
+
                 # Enhance each section's image prompt with the LLM enhancer (concurrently)
                 if _story_sections:
                     _ollama_host = getattr(orchestrator, "_host", "http://localhost:11434")
@@ -2344,6 +2409,41 @@ async def chat(
                                     sec["image_prompt"] = result
                     except Exception as _se:
                         print(f"[Chat] Story prompt enhancement failed: {_se}", flush=True)
+
+                    # When the user asks for online/web images (or both), fetch real
+                    # web images per section and attach them inline.
+                    if _visual_source_mode in {"web", "both"}:
+                        emit_status("Finding web images…")
+
+                        async def _fetch_story_web(section: dict) -> str:
+                            heading = str(section.get("heading") or "").strip()
+                            text = str(section.get("text") or "").strip()
+                            lead = " ".join(text.split()[:14])
+                            query = _normalize_web_image_query(
+                                f"{heading} {lead}".strip()
+                            )
+                            if not query:
+                                return ""
+                            try:
+                                imgs = await asyncio.wait_for(fetch_web_images(query, count=4), timeout=10.0)
+                            except Exception:
+                                return ""
+                            for img in imgs:
+                                url = img.get("image_url") or img.get("thumbnail_url")
+                                if isinstance(url, str) and url.startswith("http"):
+                                    return url
+                            return ""
+
+                        _urls = await asyncio.gather(
+                            *[_fetch_story_web(s) for s in _story_sections],
+                            return_exceptions=True,
+                        )
+                        for sec, u in zip(_story_sections, _urls):
+                            if isinstance(u, str) and u:
+                                sec["imageUrl"] = u
+                                if _visual_source_mode == "web":
+                                    sec["image_prompt"] = ""
+
                 if len(_story_sections) >= 2:
                     import json as _story_json
                     print(
@@ -2444,6 +2544,7 @@ async def chat(
                         _use_web_imgs,
                         _nc_host,
                         _nc_model,
+                        max_images=(_requested_inline_image_count or None),
                     )
                     print(
                         f"[Chat] Nova Core essay placements: {len(_placements)} "
@@ -2695,6 +2796,10 @@ async def _parse_chat_request(request: Request) -> ChatRequest:
         payload = await request.json()
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid chat request body.") from exc
+
+    raw_model_key = str(payload.get("model_key") or "").strip().lower()
+    if raw_model_key in {"", "auto", "default", "basic", "swift"}:
+        payload["model_key"] = None
 
     return ChatRequest.model_validate(payload)
 

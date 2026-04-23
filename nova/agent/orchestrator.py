@@ -985,17 +985,23 @@ Your job:
             return direct_memory_response
 
         # ── Compute clean message early — needed for both routing and search ────
-        _clean_msg = re.sub(r"\[.*?\]", "", user_message).strip()
         _search_msg = _effective_search_query_message(user_message)
+        _clean_msg = re.sub(r"\[.*?\]", "", _search_msg).strip()
+
+        # Treat legacy/default keys as auto-routing so old UI state cannot pin
+        # the model and bypass Nova Core's router.
+        _normalized_model_key = model_key
+        if _normalized_model_key in (None, "", "auto", "default", "basic", "swift"):
+            _normalized_model_key = None
 
         # Determine routing mode early so we can launch routing in parallel with search.
-        _is_code = mode == "code" or model_key == "code"
+        _is_code = mode == "code" or _normalized_model_key == "code"
         _use_auto = (
-            model_key in (None, "", "auto", "default")
+            _normalized_model_key is None
             and not _is_code
         ) or (
             mode == "fast"
-            and model_key not in ("code", "pro", "insight", "creative", "sage")
+            and _normalized_model_key not in ("code", "pro", "insight", "creative", "sage")
             and self._auto_select_model(_clean_msg)[1] == "code"
         )
 
@@ -1137,7 +1143,6 @@ Your job:
 
         # ── Model selection ───────────────────────────────────────────────────────
         # _is_code / _use_auto already computed above alongside the parallel tasks.
-        print(f"[Router] mode={mode!r} model_key={model_key!r} _use_auto={_use_auto} _is_code={_is_code} msg={_clean_msg[:80]!r}", flush=True)
         if _is_code:
             selected_model = self._code_model
             signal_category = "code"
@@ -1169,7 +1174,6 @@ Your job:
             _prev_m = (selected_model, signal_category)
             _wants_no_topic = _wants_composition_without_topic(_clean_msg)
             _essay_spec = _extract_essay_or_creative_topic(_clean_msg)
-            print(f"[Router] wants_no_topic={_wants_no_topic} essay_spec={_essay_spec} selected={selected_model}", flush=True)
             if _wants_no_topic:
                 selected_model, signal_category = self._core_model, "composition_clarify"
             else:
@@ -1186,7 +1190,7 @@ Your job:
                     f"Staged long-form: {model_name} ({signal_category})",
                 )
         else:
-            selected_model = self._select_model(mode, model_key)
+            selected_model = self._select_model(mode, _normalized_model_key)
             model_name = self._get_model_name(selected_model)
             self._emit_status(status_callback, f"Using {model_name}")
 
@@ -1308,9 +1312,7 @@ Your job:
         # Downgrade model if RAM is under pressure before building options
         import nova.services.resource_advisor as _ra
         _tier = _ra.get_model_tier()
-        print(f"[Router] _run_loop model={model} RAM tier={_tier}", flush=True)
         model = self._safe_model_for_pressure(model)
-        print(f"[Router] _run_loop after pressure check: model={model}", flush=True)
 
         client = ollama.Client(host=self._host)
         options = self._build_options(model)
