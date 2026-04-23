@@ -262,7 +262,7 @@ camera:
   swap_handedness_for_mirrored_camera: true
   # Object detector (Ultralytics). Default: COCO YOLOv8n. Alternatives: yolov8s.pt, yolov8m.pt.
   # YOLOE (open-vocab, Ultralytics 8.4+): e.g. yoloe-26n-seg-pf.pt — prompt-free, 1200+ categories; heavier than v8n.
-  yolo_model: "yolov8n.pt"
+  yolo_model: "nova/services/models/yolov8n.pt"
   yolo_conf: 0.26
   # Hands: mediapipe (default, fast) | mmpose (RTMPose hand — needs mmengine+mmcv+mmpose installed).
   hand_backend: mediapipe

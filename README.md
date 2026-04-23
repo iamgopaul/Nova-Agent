@@ -211,50 +211,60 @@ All behavior is controlled by [`config/config.yaml`](config/config.yaml). Key se
 ```
 Nova Agent/
 ├── config/
-│   ├── config.yaml           # All settings — models, voice, camera, memory
-│   └── settings.py           # Pydantic settings loader
+│   ├── config.yaml             # All settings — models, voice, camera, memory
+│   └── settings.py             # Pydantic settings loader
 ├── nova/
 │   ├── agent/
-│   │   ├── orchestrator.py   # Core agentic loop, model routing, tool dispatch
-│   │   ├── personality.py    # System prompt builder (Nova's character & rules)
-│   │   └── tool_registry.py  # Tool registration & JSON schema generation
+│   │   ├── orchestrator.py     # Core agentic loop, model routing, tool dispatch
+│   │   ├── personality.py      # System prompt builder (Nova's character & rules)
+│   │   └── tool_registry.py    # Tool registration & JSON schema generation
 │   ├── engines/
-│   │   ├── research.py       # Web search (DuckDuckGo) + news (RSS)
-│   │   ├── media.py          # YouTube playback, music controls
-│   │   ├── communication.py  # Email & message drafts
-│   │   └── dev.py            # File ops, git status, code search
+│   │   ├── research.py         # Web search (DuckDuckGo) + news (RSS)
+│   │   ├── media.py            # YouTube playback, music controls
+│   │   ├── communication.py    # Email & message drafts
+│   │   └── dev.py              # File ops, git status, code search
 │   ├── memory/
-│   │   ├── store.py          # SQLite conversation + fact storage
-│   │   ├── context_builder.py# Injects memory & facts into LLM context
-│   │   └── models.py         # SQLAlchemy ORM models
+│   │   ├── store.py            # SQLite conversation + fact storage
+│   │   ├── context_builder.py  # Injects memory & facts into LLM context
+│   │   └── models.py           # SQLAlchemy ORM models
 │   ├── server/
-│   │   ├── main.py           # FastAPI app entrypoint & lifespan
-│   │   └── routers/          # API routes: chat, voice, image, music, document…
+│   │   ├── main.py             # FastAPI app entrypoint & lifespan
+│   │   └── routers/            # API routes: chat, voice, image, music, document…
 │   ├── services/
-│   │   ├── image_gen_service.py    # Stable Diffusion pipeline
-│   │   ├── musicgen_service.py     # MusicGen pipeline
-│   │   ├── document_gen_service.py # Word / Excel / PDF / PPTX generation
-│   │   ├── chart_gen_service.py    # Chart rendering (matplotlib → PNG)
-│   │   ├── camera_vision.py        # Vision LLM scene description
-│   │   ├── frame_detection.py      # YOLO + MediaPipe frame processing
-│   │   ├── face_identity.py        # DeepFace enrollment & recognition
-│   │   └── speaker_identity.py     # Voice enrollment & recognition
-│   ├── tools/                # Individual tool implementations
-│   ├── voice/                # STT (Whisper) + TTS (Kokoro) pipelines
-│   └── desktop/              # CustomTkinter desktop app
-├── frontend/                 # Next.js web UI
-│   └── app/
-│       ├── page.tsx          # Main chat interface
-│       └── api/              # Next.js API routes (proxy to backend)
+│   │   ├── image_generator.py  # Stable Diffusion pipeline
+│   │   ├── music_generator.py  # MusicGen pipeline
+│   │   ├── document_generator.py # Word / Excel / PDF / PPTX generation
+│   │   ├── chart_generator.py  # Chart rendering (matplotlib → PNG)
+│   │   ├── camera_vision.py    # Vision LLM scene description
+│   │   ├── frame_detection.py  # YOLO + MediaPipe frame processing
+│   │   ├── hand_tracker.py     # MediaPipe hand landmark detection
+│   │   ├── mmpose_tracker.py   # MMPose RTMPose hand backend
+│   │   ├── camera_buffer.py    # Live camera frame buffer
+│   │   ├── camera_context.py   # Camera context line formatting
+│   │   ├── mediapipe_runtime.py # MediaPipe Tasks runtime wrapper
+│   │   ├── mediapipe_resources.py # MediaPipe model asset manager
+│   │   ├── face_identity.py    # DeepFace enrollment & recognition
+│   │   └── speaker_identity.py # Voice enrollment & recognition
+│   ├── tools/                  # Individual tool implementations
+│   └── voice/                  # STT (Whisper) + TTS (Kokoro) pipelines
+├── frontend/                   # Next.js web UI
+│   ├── app/
+│   │   ├── page.tsx            # Main chat interface
+│   │   └── api/                # Next.js API routes (proxy to backend)
+│   ├── components/             # React components (shadcn/ui + custom)
+│   └── hooks/                  # Custom React hooks
 ├── scripts/
-│   ├── run_desktop.py        # Desktop app launcher
-│   ├── run_server_only.py    # Backend-only launcher
-│   ├── ensure_models.py      # Pre-fetch MediaPipe / model assets
-│   └── test_*.py             # Smoke tests (no Ollama needed for test_e2e.py)
-├── data/                     # Runtime data — gitignored
-├── tests/                    # Test suite
-├── run.sh                    # Launch Nova (backend + Next.js frontend)
-└── pyproject.toml            # Python package metadata + dependencies
+│   ├── run_local_app.py        # Backend + frontend process manager
+│   ├── run_server_only.py      # Backend-only launcher
+│   ├── ensure_models.py        # Pre-fetch MediaPipe / model assets
+│   ├── test_conversation.py    # Smoke test: basic conversation
+│   ├── test_tools.py           # Smoke test: tool loop (search, notes, screenshot)
+│   ├── test_memory.py          # Smoke test: memory & context
+│   ├── test_voice.py           # Smoke test: voice pipeline
+│   └── test_e2e.py             # Full stack validation (no Ollama required)
+├── data/                       # Runtime data — gitignored
+├── run.sh                      # Launch Nova (backend + Next.js frontend)
+└── pyproject.toml              # Python package metadata + dependencies
 ```
 
 ---
