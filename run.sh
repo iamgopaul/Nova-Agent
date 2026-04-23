@@ -36,7 +36,43 @@ kill_port_listener 3000
 kill_port_listener 3001
 kill_port_listener 3002
 
+# ── Python venv — create and install if missing ───────────────────────────────
+if [[ ! -f "$ROOT_DIR/.venv/bin/activate" ]]; then
+    echo "[Nova] Creating Python virtual environment..."
+    python3 -m venv "$ROOT_DIR/.venv"
+fi
+
 source "$ROOT_DIR/.venv/bin/activate"
+
+# Install/update Python dependencies if pyproject.toml changed since last install.
+STAMP="$ROOT_DIR/.venv/.nova_install_stamp"
+PYPROJECT="$ROOT_DIR/pyproject.toml"
+if [[ ! -f "$STAMP" || "$PYPROJECT" -nt "$STAMP" ]]; then
+    echo "[Nova] Installing Python dependencies..."
+    pip install --quiet --upgrade pip
+    pip install --quiet -e "$ROOT_DIR"
+    touch "$STAMP"
+    echo "[Nova] Python dependencies ready."
+fi
+
+# ── Node / pnpm — install frontend deps if node_modules missing or stale ─────
+PKGJSON="$ROOT_DIR/frontend/package.json"
+NODE_MODULES="$ROOT_DIR/frontend/node_modules"
+PNPM_LOCK="$ROOT_DIR/frontend/pnpm-lock.yaml"
+NODE_STAMP="$ROOT_DIR/frontend/node_modules/.nova_install_stamp"
+
+if ! command -v pnpm &>/dev/null; then
+    echo "[Nova] pnpm not found — installing via npm..."
+    npm install -g pnpm
+fi
+
+if [[ ! -d "$NODE_MODULES" || ! -f "$NODE_STAMP" || "$PKGJSON" -nt "$NODE_STAMP" || ( -f "$PNPM_LOCK" && "$PNPM_LOCK" -nt "$NODE_STAMP" ) ]]; then
+    echo "[Nova] Installing frontend dependencies..."
+    pnpm install --dir "$ROOT_DIR/frontend" --frozen-lockfile 2>/dev/null \
+        || pnpm install --dir "$ROOT_DIR/frontend"
+    touch "$NODE_STAMP"
+    echo "[Nova] Frontend dependencies ready."
+fi
 
 # ── Detect available RAM and set Ollama limits accordingly ────────────────────
 AVAIL_RAM_GB=$(python3 -c "import psutil; print(int(psutil.virtual_memory().available / 1024**3))" 2>/dev/null || echo "8")
