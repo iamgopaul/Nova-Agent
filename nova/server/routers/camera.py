@@ -100,7 +100,7 @@ async def ingest_live_frame(
     face_store = getattr(request.app.state, "face_identity", None)
 
     def _work() -> None:
-        from nova.services.live_camera_buffer import refresh_from_frame
+        from nova.services.camera_buffer import refresh_from_frame
 
         refresh_from_frame(sid, settings, raw, face_store)
 
@@ -119,7 +119,7 @@ async def clear_live_buffer(
     if not sid:
         raise HTTPException(status_code=400, detail="session_id is required.")
 
-    from nova.services.live_camera_buffer import clear_session
+    from nova.services.camera_buffer import clear_session
 
     clear_session(sid)
     return {"ok": True}

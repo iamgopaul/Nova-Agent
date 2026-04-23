@@ -38,7 +38,7 @@ class ImageRequest(BaseModel):
 @router.get("/model")
 async def get_image_model() -> dict:
     """Return the currently loaded (or to-be-loaded) image model tier."""
-    import nova.services.image_gen_service as _svc
+    import nova.services.image_generator as _svc
     pipe_type   = _svc._pipe_type
     pipe_device = _svc._pipe_device
     if pipe_type == "sdxl":
@@ -61,7 +61,7 @@ async def generate_image_endpoint(body: ImageRequest) -> Response:
     Tier is auto-selected at first call based on available RAM.
     First call may trigger a model download.
     """
-    from nova.services.image_gen_service import generate_image
+    from nova.services.image_generator import generate_image
 
     try:
         png_bytes = await asyncio.to_thread(

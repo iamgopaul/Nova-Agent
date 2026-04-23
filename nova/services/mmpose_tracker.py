@@ -132,7 +132,7 @@ def _get_inferencer(device: str):
 
 def detect_hands_mmpose(img_rgb, *, device: str = "cpu") -> list[tuple[Any, str, float]]:
     """
-    Returns the same structure as ``hand_landmarker_runner.detect_hands_task_or_legacy``:
+    Returns the same structure as ``hand_tracker.detect_hands_task_or_legacy``:
     ``[(hand_adapter, Left|Right, confidence), ...]`` with 21 landmarks normalized to image size.
     """
     if img_rgb is None or img_rgb.size == 0:

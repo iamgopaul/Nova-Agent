@@ -27,7 +27,7 @@ class ChartRequest(BaseModel):
 @router.post("/generate")
 async def generate_chart_endpoint(body: ChartRequest) -> Response:
     """Render a chart from a spec dict and return a PNG image."""
-    from nova.services.chart_gen_service import generate_chart
+    from nova.services.chart_generator import generate_chart
 
     if not body.spec or not body.spec.get("type"):
         raise HTTPException(status_code=400, detail="spec.type is required")

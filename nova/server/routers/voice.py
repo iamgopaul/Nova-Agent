@@ -21,14 +21,14 @@ from nova.memory.store import MemoryStore
 from nova.server.dependencies import get_memory, get_orchestrator
 from nova.server.schemas import VoiceResponse
 from nova.services.body_detector import pick_frame_best_hands
-from nova.services.camera_context_lines import (
+from nova.services.camera_context import (
     SCENE_UNAVAILABLE,
     camera_who_line,
     hands_ground_truth_block,
 )
 from nova.services.camera_vision import describe_scene_frame
 from nova.services.frame_detection import summarize_detections_for_voice
-from nova.services.live_camera_buffer import get_live_prefix_for_prompt
+from nova.services.camera_buffer import get_live_prefix_for_prompt
 from nova.services.video_camera import jpeg_frames_from_video_bytes
 from nova.services.speaker_identity import SpeakerIdentityStore, extract_declared_name
 from nova.services.voice_personalization import compose_stt_prompt, build_whisper_prompt, refresh_stt_prompt

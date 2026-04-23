@@ -30,7 +30,7 @@ async def generate_music_endpoint(body: MusicRequest) -> Response:
     Uses MusicGen (facebook/musicgen-small) via audiocraft.
     Generation runs in a thread pool to avoid blocking the event loop.
     """
-    from nova.services.musicgen_service import generate_music
+    from nova.services.music_generator import generate_music
 
     try:
         wav_bytes = await asyncio.to_thread(

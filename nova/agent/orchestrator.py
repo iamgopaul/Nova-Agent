@@ -733,8 +733,9 @@ class Orchestrator:
         if scores["quant"] >= 3 and scores["quant"] >= scores["heavy"]:
             return self._quant_model, "quant"
 
-        # Nova Pro only activates for genuinely heavy queries (threshold ≥ 4).
-        if scores["heavy"] >= 4:
+        # Nova Pro activates for any substantive query — quality over speed.
+        # Threshold ≥ 3 so "essay", "analyze", "explain in depth" all go Pro.
+        if scores["heavy"] >= 3:
             return self._heavy_model, "reasoning"
 
         if scores["creative"] == best_score and scores["creative"] >= 2:
@@ -753,40 +754,36 @@ class Orchestrator:
 
     # ── LLM-based router ─────────────────────────────────────────────────────
 
-    _ROUTER_PROMPT = """You are a routing assistant for Nova AI. Classify the user message and pick the best Nova model.
+    _ROUTER_PROMPT = """You are a routing assistant for Nova AI. Your priority is quality and accuracy. When in doubt, pick the most capable model.
 
 Available models:
-- spark   : Greetings, tiny yes/no, trivial short lookups (under 6 words)
-- air     : Casual chat, simple conversation, no tools needed
-- core    : General questions, advice, news, everyday topics, current events — AND all generation requests → use this most often
-- pro     : Essays, long-form writing, deep research, complex multi-step analysis
-- code    : Anything involving code, programming, debugging, scripts, algorithms
-- creative: Fiction stories, poems, song lyrics, rap, creative writing, marketing copy — NOT essays or reports
-- insight : Statistics, data analysis, numbers, comparisons, structured reasoning, charts
-- sage    : Precise formatting, strict instructions, structured output, bullet reports, tables
-- vision  : Understanding/describing an EXISTING image the user has shared
-- quant   : Pure mathematics, calculus, algebra, statistics, quantitative finance, numerical computations, probability distributions, regression, eigenvalues, integrals, derivatives, hypothesis tests, financial modelling
-- reason  : Formal mathematical proofs, theorems, derivations from first principles, proof by induction, logical reasoning step-by-step, chain-of-thought problem solving, show your work
+- spark   : Greetings only — "hi", "hey nova", tiny yes/no with no real question (under 5 words)
+- air     : Casual small-talk, simple chitchat — no information or task needed
+- core    : Tool-requiring tasks: news, weather, web search, current events, AND all media generation requests (image, music, charts, documents)
+- pro     : Any substantive question, explanation, advice, analysis, research, summaries, named-topic essays, articles, reports — DEFAULT for anything non-trivial
+- code    : Any coding, programming, debugging, scripts, algorithms, or technical implementation
+- creative: Fiction stories, poems, song lyrics, rap, creative writing, marketing copy — NOT essays or factual reports
+- insight : Data analysis, statistics, charts with explanation, numbers, structured comparisons
+- sage    : Strict formatting, tables, bullet reports, structured output, precise instructions
+- vision  : Understanding/describing an image the user has ALREADY shared
+- quant   : Pure maths — calculus, algebra, probability, financial modelling, integrals, eigenvalues
+- reason  : Formal proofs, theorems, derivations, step-by-step logical reasoning
 
-Critical routing rules:
-1. IMAGE / DRAWING / SKETCH requests (generate an image, draw X, create a photo, sketch, watercolor, pixel art, anime, portrait, paint X) → "core"
-2. CHART / GRAPH / DATA VISUALIZATION requests (bar chart, pie chart, line graph, scatter plot, visualize data, plot X) → "insight"
-3. DIAGRAM / FLOWCHART requests (flowchart, sequence diagram, ER diagram, architecture diagram, mind map) → "core"
-4. MUSIC requests (beat, melody, piano music, generate audio, compose) → "core"
-5. DOCUMENT requests (Word doc, PDF, Excel, PowerPoint, spreadsheet, CSV) → "core"
-6. STORY requests with images in documents → "creative" for story, "core" handles image generation
-7. CODE requests → "code" always
-8. Complex analysis with data → "insight"
-9. Full **named-topic** essay / article / report (they say *on* or *about* a specific subject) → "pro" — the actual draft, not a questionnaire. If they only say "write an essay" with **no** subject, use "core" to help them pick a topic first.
-10. **Named** poem, short story, song, lyrics (topic given) → "creative". Vague "write a poem" with no topic → "core" first.
-11. Short chat, wake words only ("hey", "hi nova", "hello" with no question) → "spark" (not "core")
-12. MATH / CALCULATION requests (solve equation, compute integral, statistics, calculus, probability, financial math, regression, eigenvalue, portfolio analysis) → "quant"
-13. PROOF / DERIVATION requests (prove that, theorem, derive from first principles, show your work, proof by induction, formal logical reasoning) → "reason"
+Routing priority (QUALITY FIRST):
+1. CODE → "code" always — never "core" for programming
+2. MATH COMPUTATION → "quant" — equations, statistics, financial modelling
+3. FORMAL PROOF / DERIVATION → "reason"
+4. Named-topic ESSAY / ARTICLE / REPORT (on, about, of, regarding a specific subject) → "pro"
+5. Named STORY / POEM / LYRICS → "creative"
+6. IMAGE / DRAWING / SKETCH generation → "core" (media pipeline handles it)
+7. CHART / GRAPH → "insight"
+8. MUSIC / DOCUMENT / DIAGRAM generation → "core"
+9. Any question requiring tools (news, weather, web) → "core"
+10. Pure greeting ("hi", "hey", "hello" with no question/task) → "spark"
+11. Everything else substantive — explanation, advice, research, "what is", "how does", "tell me about", "why", "describe", "compare" — → "pro"
 
-If the message is only a greeting or wake (under ~4 words, no how/what/why/task), prefer "spark" or "air", not "core".
-Default to "core" when unsure (but never for pure greetings — use "spark" there). Never pick "vision" for generating new images.
-Prefer "quant" over "pro" or "insight" when the query is primarily mathematical computation.
-Prefer "reason" over "pro" when the query asks for a formal proof or step-by-step derivation.
+IMPORTANT: Use "pro" liberally for any non-trivial question. Only use "core" for tool-requiring tasks or media generation. Only use "spark"/"air" for pure social greetings.
+Default to "pro" when unsure. Never use "vision" for generating new images.
 
 Respond ONLY with valid JSON, no other text:
 {"model": "<key>", "reason": "<3-5 word reason>"}"""

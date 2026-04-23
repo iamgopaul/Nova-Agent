@@ -1,7 +1,7 @@
 """
 Lazy singletons for MediaPipe **Tasks** (no `mediapipe.solutions` — removed in recent pip wheels).
 
-Used by body_detector and hand_landmarker_runner.
+Used by body_detector and hand_tracker.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def get_hand_landmarker():
         from mediapipe.tasks.python.vision import hand_landmarker as hl
         from mediapipe.tasks.python.vision.core import vision_task_running_mode as vrm
 
-        from nova.services.mp_resources import hand_landmarker_model_path
+        from nova.services.mediapipe_resources import hand_landmarker_model_path
 
         p = str(hand_landmarker_model_path())
         opts = hl.HandLandmarkerOptions(
@@ -61,7 +61,7 @@ def get_face_detector():
         from mediapipe.tasks.python.vision import face_detector as fd
         from mediapipe.tasks.python.vision.core import vision_task_running_mode as vrm
 
-        from nova.services.mp_resources import face_detector_model_path
+        from nova.services.mediapipe_resources import face_detector_model_path
 
         p = str(face_detector_model_path())
         opts = fd.FaceDetectorOptions(
@@ -84,7 +84,7 @@ def get_pose_landmarker():
             return _pose_lm
         from mediapipe.tasks.python.vision import pose_landmarker as pl
 
-        from nova.services.mp_resources import pose_landmarker_model_path
+        from nova.services.mediapipe_resources import pose_landmarker_model_path
 
         _pose_lm = pl.PoseLandmarker.create_from_model_path(str(pose_landmarker_model_path()))
         print("[Nova] MediaPipe PoseLandmarker (Tasks) ready.", flush=True)

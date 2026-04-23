@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { Download, ImageIcon, Maximize2, X, ZoomIn, ZoomOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -14,21 +14,39 @@ interface ImagePreviewProps {
 /** Strips quality/style SD tags and truncates to a human-readable label */
 function _cleanPromptLabel(raw?: string): string {
   if (!raw) return ""
-  // Take everything before the first comma (the subject description)
   const subject = raw.split(",")[0].trim()
-  // Capitalise first letter
   return subject.charAt(0).toUpperCase() + subject.slice(1)
+}
+
+/**
+ * Route external http(s) URLs through the local proxy to bypass hotlink
+ * protection and CORS restrictions.  Base64 data URIs and blob URLs are
+ * returned unchanged.
+ */
+function _resolveImageSrc(url: string): string {
+  if (!url) return url
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return `/api/proxy-image?url=${encodeURIComponent(url)}`
+  }
+  return url
 }
 
 export function ImagePreview({ url, prompt, caption, className }: ImagePreviewProps) {
   const displayLabel = caption || _cleanPromptLabel(prompt)
   const [lightbox, setLightbox] = useState(false)
   const [zoom, setZoom]         = useState(1)
+  const [imgError, setImgError] = useState(false)
+
+  const src = _resolveImageSrc(url)
 
   // Reset zoom when lightbox closes
   useEffect(() => {
     if (!lightbox) setZoom(1)
   }, [lightbox])
+
+  // Reset error state when url changes
+  useEffect(() => { setImgError(false) }, [url])
 
   // Close lightbox on Escape
   useEffect(() => {
@@ -48,19 +66,29 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
         {/* Image */}
         <div
           className="relative cursor-zoom-in group"
-          onClick={() => setLightbox(true)}
-          title="Click to enlarge"
+          onClick={() => !imgError && setLightbox(true)}
+          title={imgError ? "Image unavailable" : "Click to enlarge"}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={url}
-            alt={prompt ?? "Generated image"}
-            className="w-full h-auto object-cover max-h-80"
-          />
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-            <Maximize2 className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-          </div>
+          {imgError ? (
+            <div className="w-full h-32 flex flex-col items-center justify-center gap-2 bg-muted/50 text-muted-foreground">
+              <ImageIcon className="w-8 h-8 opacity-40" />
+              <span className="text-xs opacity-60">Image unavailable</span>
+            </div>
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={prompt ?? "Generated image"}
+                className="w-full h-auto object-cover max-h-80"
+                onError={() => setImgError(true)}
+              />
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                <Maximize2 className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer bar */}
@@ -144,7 +172,7 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
             <div className="overflow-auto rounded-lg max-w-[95vw] max-h-[85vh]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={url}
+                src={src}
                 alt={prompt ?? "Generated image"}
                 style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}
                 className="transition-transform duration-200"

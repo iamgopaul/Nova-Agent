@@ -16,7 +16,7 @@ from nova.attachments import build_attachment_context
 from nova.engines.research import fetch_web_images, fetch_article_snippets, fetch_weather_data
 from nova.memory.store import MemoryStore
 from nova.services.location import is_vague_weather_location_phrase, resolve_weather_location
-from nova.services.live_camera_buffer import get_live_prefix_for_prompt
+from nova.services.camera_buffer import get_live_prefix_for_prompt
 from nova.services import stats_tracker
 from nova.services.prompt_enhancer import enhance_image_prompt
 from nova.server.dependencies import get_memory, get_orchestrator
@@ -514,20 +514,24 @@ def _strip_sd_leakage(text: str) -> str:
 _SUGGESTION_SYSTEM_PROMPT = """\
 You generate short follow-up suggestions for a chat assistant app.
 
-You are given both what the user asked and what the assistant answered. Suggestions must be the **natural next steps** for *this* exchange — tied to the same topic, scope, and intent (e.g. if the user asked about Canadian spring traditions, follow-ups should deepen *that*, not switch to unrelated economics or random topics).
+You are given both what the user asked and what the assistant answered. Suggestions must be the **natural next steps** for *this* exchange — tied to the same topic, scope, and intent.
 
 Rules:
 - Exactly 3 suggestions. Each under 10 words.
 - **Ground in the user question and the assistant reply** — not generic filler ("Tell me more", "Make it shorter", "What else?") unless the reply is truly too thin to be more specific.
 - Write from the user's perspective (e.g. "Add a section on Quebec" not "The user may want Quebec").
 - NEVER suggest reading aloud, listening, or speaking — the read-aloud button is already in the UI.
+- If the topic is visual (fashion, places, food, people, design, art, style, decor, nature, travel) include at least one suggestion that starts with "Show me photos of" or "Search for images of" so the user can see visuals.
 - Return ONLY a valid JSON array of 3 strings, no other text.
 
-Example (user asked for essay on X, assistant gave an essay or outline):
-["Tighten the intro for my class", "Add sources for the maple section", "Shorter version in bullet points"]
+Example (essay about South Beach Miami):
+["Show me photos of South Beach in summer", "Add a section on the Art Deco district", "Make it longer with more detail"]
 
 Example (factual help):
 ["What if we change the API schema?", "Show a minimal code example", "What breaks in production?"]
+
+Example (fashion / style topic):
+["Show me photos of this style", "Search for images of the outfit", "Where can I buy similar pieces?"]
 """
 
 
@@ -976,11 +980,11 @@ def _wants_web_for_doc_images(text: str) -> bool:
 def _extract_essay_topic(user_message: str) -> str:
     """Extract the main essay subject as a short phrase for image search queries."""
     t = (user_message or "").strip()
-    # Patterns: "essay on X", "essay about X", "write about X", "write an essay about X"
+    # Patterns: "essay on/about/of X", "write about X", "write an essay about/of X"
     for pat in (
-        r"essay\s+(?:on|about|regarding)\s+(.+?)(?:\s*[.,]|\s+include|\s+with|\s+and\s+create|$)",
+        r"essay\s+(?:on|about|of|regarding)\s+(.+?)(?:\s*[.,]|\s+include|\s+with|\s+and\s+create|$)",
         r"write\s+(?:about|on)\s+(.+?)(?:\s*[.,]|\s+include|\s+with|\s+and\s+create|$)",
-        r"(?:write|make|create|compose)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:\w+\s+){0,4}?(?:essay|paper|report|article)\s+(?:for\s+me\s+)?(?:about|on|regarding)\s+(.+?)(?:\s*[.,]|\s+include|\s+with|\s+and\s+create|$)",
+        r"(?:write|make|create|compose)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:\w+\s+){0,4}?(?:essay|paper|report|article)\s+(?:for\s+me\s+)?(?:about|on|of|regarding)\s+(.+?)(?:\s*[.,]|\s+include|\s+with|\s+and\s+create|$)",
     ):
         m = re.search(pat, t, re.IGNORECASE)
         if m:
@@ -1918,9 +1922,16 @@ async def chat(
     _wants_mermaid:      bool = _is_mermaid_request(body.message)
     _wants_story:        bool = _is_story_with_visuals(body.message)
     _web_intent_msg:     str = _user_message_for_web_results(body.message)
-    _wants_web_results:  bool = _is_visual_show_request(
-        _web_intent_msg,
-    ) or _is_web_image_browse_request(_web_intent_msg)
+    # Don't show a web-results panel when the request is for AI image generation —
+    # the SD pipeline handles that path. Also suppress when it's an illustrated essay
+    # (images appear inline via story_sections instead).
+    _wants_web_results:  bool = (
+        not bool(_raw_image_prompt)
+        and (
+            _is_visual_show_request(_web_intent_msg)
+            or _is_web_image_browse_request(_web_intent_msg)
+        )
+    )
     _wants_weather:      bool = _is_weather_widget_request(body.message)
     _wants_clock:        bool = _is_clock_widget_request(body.message)
     # Multiple formats can be requested in one message (e.g. "word doc and a pdf")

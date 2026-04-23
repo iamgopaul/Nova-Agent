@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 def main() -> int:
     try:
-        from nova.services.mp_resources import hand_landmarker_model_path
+        from nova.services.mediapipe_resources import hand_landmarker_model_path
 
         p = hand_landmarker_model_path()
         print(f"[Nova] Hand Landmarker model ready: {p} ({p.stat().st_size // 1024} KB)", flush=True)

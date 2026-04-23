@@ -9,7 +9,7 @@ POST /document/generate  { "prompt": "...", "format": "docx|xlsx|pdf|pptx|txt|cs
 Flow:
   1. Call Nova Core (mistral:7b) to produce structured JSON content from the user prompt.
   2. Optionally generate images per section/slide using Stable Diffusion.
-  3. Pass the JSON (+images) to document_gen_service which formats it into the requested file type.
+  3. Pass the JSON (+images) to document_generator which formats it into the requested file type.
   4. Return the raw file bytes with the correct Content-Type + Content-Disposition headers.
 """
 
@@ -199,7 +199,7 @@ async def _generate_images_for_content(content: dict, fmt: str) -> None:
     concurrent access to the SD pipeline which is not thread-safe.
     Each generation is capped at _IMG_TIMEOUT seconds.
     """
-    from nova.services.image_gen_service import generate_image
+    from nova.services.image_generator import generate_image
 
     max_imgs = _MAX_IMAGES.get(fmt, 0)
     if max_imgs == 0:
@@ -577,7 +577,7 @@ def _parse_markdown_to_structure(
 ) -> dict:
     """
     Convert the assistant's markdown response into the structured JSON schema
-    expected by document_gen_service — without calling the LLM again.
+    expected by document_generator — without calling the LLM again.
 
     Handles:
       • Standard markdown headings  (## Heading)
@@ -854,7 +854,7 @@ async def generate_document_endpoint(
       3. Format JSON (+images) into the requested file type.
       4. Return file bytes.
     """
-    from nova.services.document_gen_service import generate_document
+    from nova.services.document_generator import generate_document
 
     fmt = body.format.lower().lstrip(".")
     if fmt not in _SUPPORTED_FORMATS:

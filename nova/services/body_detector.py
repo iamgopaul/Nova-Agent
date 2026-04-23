@@ -94,12 +94,12 @@ def _detect_hands_for_frame(img_rgb):
     """Resolve hand_backend: MMPose (optional) or MediaPipe (+ legacy Tasks)."""
     backend, mp_dev, mp_fallback = _hand_pipeline_settings()
     if backend == "mmpose":
-        from nova.services.mmpose_hand_runner import detect_hands_mmpose
+        from nova.services.mmpose_tracker import detect_hands_mmpose
 
         rows = detect_hands_mmpose(img_rgb, device=mp_dev)
         if rows or not mp_fallback:
             return rows
-    from nova.services.hand_landmarker_runner import detect_hands_task_or_legacy
+    from nova.services.hand_tracker import detect_hands_task_or_legacy
 
     return detect_hands_task_or_legacy(img_rgb)
 
@@ -388,7 +388,7 @@ def detect(image_bytes: bytes) -> tuple[list[BodyDetection], str]:
     hand_parts: list[str] = []
 
     with _lock:
-        from nova.services.mediapipe_tasks_runtime import (
+        from nova.services.mediapipe_runtime import (
             get_face_detector,
             get_pose_landmarker,
             numpy_rgb_to_mp_image,

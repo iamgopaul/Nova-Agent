@@ -77,7 +77,7 @@ def _run_hand_tasks(work_rgb, ww: int, wh: int, w0: int, h0: int, mirror_x_outpu
     import numpy as np
     from mediapipe.tasks.python.vision.core.image import Image, ImageFormat
 
-    from nova.services.mediapipe_tasks_runtime import get_hand_landmarker
+    from nova.services.mediapipe_runtime import get_hand_landmarker
 
     mp_image = Image(ImageFormat.SRGB, np.ascontiguousarray(work_rgb))
     with _lock:

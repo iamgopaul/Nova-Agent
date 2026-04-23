@@ -162,7 +162,7 @@ def get_live_prefix_for_prompt(session_id: str, ref_name: str = "") -> str:
 
     ``ref_name`` is the display name from voice (for Person line when face-id is weak).
     """
-    from nova.services.camera_context_lines import (
+    from nova.services.camera_context import (
         SCENE_UNAVAILABLE,
         camera_who_line,
         hands_ground_truth_block,
