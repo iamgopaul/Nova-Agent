@@ -85,12 +85,25 @@ def _compute_profile() -> PerfProfile:
     apple           = _is_apple_silicon()
 
     # ── RAM pressure ─────────────────────────────────────────────────────────
-    if avail_ram_gb < 1.5 or ram_used_pct >= 90:
-        ram_pressure: RamPressure = "critical"
-    elif avail_ram_gb < 4.0 or ram_used_pct >= 75:
-        ram_pressure = "moderate"
+    # Apple Silicon unified memory: the OS always reports high usage because
+    # GPU and CPU share the same pool.  The percentage is meaningless — only
+    # the *available* headroom matters.  Use much more generous thresholds so
+    # a 64 GB M-series machine never downgrades Nova Pro due to a misleading
+    # 80 %+ usage reading while 20+ GB are actually free.
+    if apple:
+        if avail_ram_gb < 2.0:
+            ram_pressure: RamPressure = "critical"
+        elif avail_ram_gb < 6.0:
+            ram_pressure = "moderate"
+        else:
+            ram_pressure = "ok"
     else:
-        ram_pressure = "ok"
+        if avail_ram_gb < 1.5 or ram_used_pct >= 92:
+            ram_pressure = "critical"
+        elif avail_ram_gb < 4.0 or ram_used_pct >= 85:
+            ram_pressure = "moderate"
+        else:
+            ram_pressure = "ok"
 
     # ── Model tier recommendation ─────────────────────────────────────────────
     # Tells the orchestrator which size class to prefer.

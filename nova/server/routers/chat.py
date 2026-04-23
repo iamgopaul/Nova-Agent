@@ -157,8 +157,7 @@ _VISUAL_SHOW_RE = re.compile(
     r"(?:give\s+me\s+)?(?:some\s+)?(?:more\s+)?(?:info(?:rmation)?|details?)\s+(?:on|about)\b|"
     r"what\s+(?:do\s+you\s+know|can\s+you\s+tell\s+me)\s+about\b|"
     r"(?:can\s+you\s+)?(?:look\s+up|search\s+(?:up|for))\b|"
-    r"who\s+(?:exactly\s+)?is\s+(?:he|she|they|this|that)\b|"
-    r"include\s+.*\b(images?|photos?|pictures?|illustrations?)\b"
+    r"who\s+(?:exactly\s+)?is\s+(?:he|she|they|this|that)\b"
     r")\b",
     re.IGNORECASE,
 )
@@ -1055,8 +1054,10 @@ async def _llm_essay_image_placements(
     n = len(section_headings)
     if n < 1:
         return []
-    # Target number of image slots (capped by section count)
-    k = min(6, n, max(1, (n + 1) // 2))
+    # Target: one image per section, up to 6 total.
+    # Nova Core's prompt already tells it to skip bare intros/conclusions,
+    # so the LLM naturally won't fill every slot — we just give it room to.
+    k = min(6, n)
 
     outline = "\n".join(
         f"  {i}: {h}" for i, h in enumerate(section_headings) if h.strip()
@@ -2582,7 +2583,7 @@ async def chat(
             # ── Web results (images + articles) for visual show requests ────────
             # Skip generic web_results panel for essay+images requests — images are
             # already shown inline via story_sections and embedded in the document.
-            if _wants_web_results and not _is_essay_mode:
+            if _wants_web_results and not _is_essay_mode and not _wants_story:
                 import json as _wj
                 _raw_vq = _build_visual_query(_web_intent_msg, full_response)
                 _visual_query = _normalize_web_image_query(_raw_vq) or _raw_vq
