@@ -15,13 +15,9 @@ export async function POST(req: NextRequest) {
     rawModelKey === "swift"
   ) ? null : rawModelKey
 
-  const token = req.cookies.get("nova_token")?.value
   const upstream = await fetch(`${NOVA_API_BASE}/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Cookie: `nova_token=${token}` } : {}),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message: body?.message || "",
       session_id: body?.session_id || null,
