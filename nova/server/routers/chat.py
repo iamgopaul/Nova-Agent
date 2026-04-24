@@ -19,7 +19,8 @@ from nova.services.location import is_vague_weather_location_phrase, resolve_wea
 from nova.services.camera_buffer import get_live_prefix_for_prompt
 from nova.services import stats_tracker
 from nova.services.prompt_enhancer import enhance_image_prompt
-from nova.server.dependencies import get_memory, get_orchestrator
+from nova.server.dependencies import get_current_user, get_memory, get_orchestrator
+from nova.memory.models import User
 from nova.server.schemas import ChatRequest
 
 router = APIRouter()
@@ -1901,6 +1902,7 @@ async def chat(
     request: Request,
     orchestrator: Orchestrator = Depends(get_orchestrator),
     memory: MemoryStore = Depends(get_memory),
+    current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """
     Stream a Nova response as Server-Sent Events.
@@ -1914,7 +1916,10 @@ async def chat(
       const es = new EventSource('/chat');   // or use fetch + ReadableStream
     """
     body = await _parse_chat_request(request)
-    session_id = memory.get_or_create_session(body.session_id)
+    try:
+        session_id = memory.get_or_create_session(body.session_id, user_id=current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     # Detect generation intents early — used to emit SSE side-car events after the LLM response
     _music_prompt: str | None = (
@@ -1950,7 +1955,7 @@ async def chat(
         _ollama_host = getattr(orchestrator, "_host", "http://localhost:11434")
         _fast_model  = getattr(orchestrator, "_fast_model",  "llama3.2:3b")
         _mini_model  = getattr(orchestrator, "_mini_model",  "phi:2.7b")
-        _recent_for_enh = memory.get_recent_turns(session_id, 16)
+        _recent_for_enh = memory.get_recent_turns(session_id, 16, user_id=current_user.id)
         _q_web = _normalize_web_image_query(_raw_image_prompt) or _raw_image_prompt
         _web_hint = await _web_titles_for_image_enhance(_q_web)
         if not _web_hint and (body.message or "").strip():
@@ -2053,7 +2058,7 @@ async def chat(
     # look back through recent history to find the last image request and reuse
     # its subject as the base for a colourful re-generation.
     if _raw_image_prompt is None and _IMAGE_COLOUR_FOLLOWUP_RE.search(body.message or ""):
-        recent_turns = memory.get_recent_turns(session_id, 10)
+        recent_turns = memory.get_recent_turns(session_id, 10, user_id=current_user.id)
         _last_img_subject: str = ""
         for turn in reversed(recent_turns):
             if turn.get("role") == "user":

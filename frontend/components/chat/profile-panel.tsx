@@ -37,9 +37,13 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   const [cameraActive, setCameraActive] = useState(false)
   const [enrolling, setEnrolling] = useState(false)
   const [voiceEnrolling, setVoiceEnrolling] = useState(false)
-  const [enrollName, setEnrollName] = useState("Josh Gopaul")
+  const [enrollName, setEnrollName] = useState("")
   const [status, setStatus] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null)
   const [loadingProfiles, setLoadingProfiles] = useState(true)
+  const [linkedProviders, setLinkedProviders] = useState<{ google: boolean; github: boolean }>({
+    google: false,
+    github: false,
+  })
 
   type Detection = { label: string; type: string; confidence: number; box: { x: number; y: number; w: number; h: number } }
 
@@ -140,6 +144,24 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   useEffect(() => {
     void fetchProfiles()
   }, [fetchProfiles])
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.display_name) setEnrollName(data.display_name) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/auth/providers")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && typeof data.google === "boolean" && typeof data.github === "boolean") {
+          setLinkedProviders({ google: data.google, github: data.github })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const captureFrame = useCallback((): Promise<Blob | null> => {
     return new Promise(resolve => {
@@ -387,6 +409,41 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
             <p className="mt-2 text-xs text-muted-foreground">
               You only need to do this once on this device. Nova will keep the face profile locally.
             </p>
+          </section>
+
+          <section>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Linked Accounts
+            </h3>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Link social providers to sign in without a password on this device.
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              <a
+                href="http://127.0.0.1:8765/auth/oauth/google?link=1"
+                className={cn(
+                  "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
+                  linkedProviders.google
+                    ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                    : "border-border bg-muted/40 hover:bg-muted/70"
+                )}
+              >
+                <span>Google</span>
+                <span className="text-xs">{linkedProviders.google ? "Linked" : "Link"}</span>
+              </a>
+              <a
+                href="http://127.0.0.1:8765/auth/oauth/github?link=1"
+                className={cn(
+                  "flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors",
+                  linkedProviders.github
+                    ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                    : "border-border bg-muted/40 hover:bg-muted/70"
+                )}
+              >
+                <span>GitHub</span>
+                <span className="text-xs">{linkedProviders.github ? "Linked" : "Link"}</span>
+              </a>
+            </div>
           </section>
 
           {/* Enrolled profiles */}

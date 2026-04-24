@@ -67,8 +67,9 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
       <div className="max-w-3xl mx-auto">
         <div
           className={cn(
-            "relative flex items-end gap-2 rounded-2xl border border-border bg-input p-3 transition-all duration-150",
-            "focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20"
+            "relative flex items-end gap-2 rounded-2xl border border-border bg-input/85 backdrop-blur-md p-3 transition-all duration-200",
+            "focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/25",
+            "focus-within:shadow-[0_0_24px_oklch(0.72_0.14_220_/_0.20)]"
           )}
         >
           {/* Attachment button */}

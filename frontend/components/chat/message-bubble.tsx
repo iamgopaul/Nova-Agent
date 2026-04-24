@@ -3,9 +3,10 @@
 import { useRef, useState, useEffect, createContext, useContext, useMemo } from "react"
 import type { ElementType } from "react"
 import {
-  Copy, Check, ThumbsUp, ThumbsDown, RefreshCw, Bot, User, Paperclip, Volume2, Square,
+  Copy, Check, ThumbsUp, ThumbsDown, RefreshCw, User, Paperclip, Volume2, Square,
   BarChart2, GitBranch, Download, Maximize2, X, ExternalLink, ChevronDown, ChevronUp,
 } from "lucide-react"
+import { NovaIcon } from "@/components/icons/nova-icon"
 import { cn } from "@/lib/utils"
 import { MusicGenerating, MusicPlayer } from "@/components/chat/music-player"
 import { DocumentCard, DocumentGenerating } from "@/components/chat/document-card"
@@ -1986,9 +1987,9 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     const steps = message.statusSteps || []
     const recentSteps = steps.slice(-6)
     return (
-      <div className="flex items-start gap-3 px-4 py-4 max-w-3xl mx-auto w-full">
-        <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0">
-          <Bot className="w-4 h-4 text-primary" />
+      <div className="flex items-start gap-3 px-4 py-4 max-w-3xl mx-auto w-full msg-in">
+        <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 shadow-[0_0_10px_oklch(0.72_0.14_220_/_0.25)]">
+          <NovaIcon size={20} />
         </div>
         <div className="pt-1.5 text-sm text-muted-foreground min-w-0">
           <div className="flex items-center gap-2">
@@ -2018,11 +2019,11 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
   }
 
   return (
-    <div className={cn("group w-full px-4 py-3", isUser ? "flex justify-end" : "")}>
+    <div className={cn("group w-full px-4 py-3 msg-in", isUser ? "flex justify-end" : "")}>
       {isUser ? (
         /* ── User message box ── */
         <div className="flex items-end gap-2 max-w-[75%]">
-          <div className="relative rounded-2xl rounded-br-sm border border-border/50 bg-secondary overflow-hidden text-sm leading-relaxed">
+          <div className="relative rounded-2xl rounded-br-sm border border-border/50 bg-secondary/80 backdrop-blur-sm overflow-hidden text-sm leading-relaxed">
             {/* Header: label + copy */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/30 bg-muted/30">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1">
@@ -2073,16 +2074,16 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
       ) : (
         /* ── Assistant message box ── */
         <div className="flex items-start gap-3 max-w-3xl mx-auto w-full">
-          <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 mt-0.5">
-            <Bot className="w-4 h-4 text-primary" />
+          <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_12px_oklch(0.72_0.14_220_/_0.30)]">
+            <NovaIcon size={22} />
           </div>
           <WebEmbedContext.Provider value={webEmbedApi}>
-          <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm border border-border/50 bg-card/40 overflow-hidden">
+          <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm border border-primary/20 bg-card/60 backdrop-blur-sm overflow-hidden shadow-[0_2px_20px_oklch(0.72_0.14_220_/_0.08)]">
 
             {/* Card header: Nova label + action icons */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/30 bg-muted/20">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/70 flex items-center gap-1">
-                <Bot className="w-3 h-3" /> Nova
+                <NovaIcon size={12} /> Nova
               </span>
               <div className="flex items-center gap-0.5">
                 {/* Read aloud */}

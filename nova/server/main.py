@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
 from nova.bootstrap import build_nova
-from nova.server.routers import camera, chart, chat, document, image, memory, music, stats, voice
+from nova.server.routers import auth, camera, chart, chat, document, image, memory, music, oauth, stats, voice
 from nova.services.knowledge_feed import KnowledgeFeedScheduler
 from nova.services.location import get_location, location_context
 from nova.services import resource_advisor
@@ -140,14 +140,18 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Allow the desktop UI (same machine) and future mobile clients
+    # Allow the desktop UI (same machine); credentials=True required for cookie auth
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:*", "http://127.0.0.1:*"],
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000",
+                       "http://localhost:8765", "http://127.0.0.1:8765"],
         allow_methods=["*"],
         allow_headers=["*"],
+        allow_credentials=True,
     )
 
+    app.include_router(auth.router,        prefix="/auth",            tags=["Auth"])
+    app.include_router(oauth.router,       prefix="/auth/oauth",      tags=["OAuth"])
     app.include_router(chat.router,   prefix="/chat",   tags=["Chat"])
     app.include_router(voice.router,  prefix="/voice",  tags=["Voice"])
     app.include_router(memory.router, prefix="/memory", tags=["Memory"])

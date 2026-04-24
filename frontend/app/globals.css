@@ -166,3 +166,31 @@
   color: var(--primary);
   margin-left: 2px;
 }
+
+/* ── Aurora animated background ──────────────────────────────────────────── */
+@keyframes aurora-drift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.aurora-bg {
+  background: linear-gradient(
+    -45deg,
+    oklch(0.13 0.005 240) 0%,
+    oklch(0.17 0.050 210) 25%,
+    oklch(0.14 0.030 265) 50%,
+    oklch(0.16 0.055 195) 75%,
+    oklch(0.13 0.005 240) 100%
+  );
+  background-size: 400% 400%;
+  animation: aurora-drift 22s ease-in-out infinite;
+}
+
+/* ── Message entrance animation ───────────────────────────────────────────── */
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-in {
+  animation: msg-in 0.25s ease-out forwards;
+}

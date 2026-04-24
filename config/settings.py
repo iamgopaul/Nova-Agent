@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # DuckDuckGo is used as fallback when this is blank.
     brave_search_api_key: str = ""
 
+    # Social OAuth — optional, see .env.example for setup instructions
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+
     # ── YAML config (loaded separately, attached at construction) ─────
     _yaml: dict[str, Any] = {}
 

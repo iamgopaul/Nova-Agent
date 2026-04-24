@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, Settings, Share2, MoreHorizontal, Mic, UserCircle } from "lucide-react"
+import { ChevronDown, Mic } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
@@ -57,10 +57,9 @@ interface ChatHeaderProps {
   selectedModelKey: ChatModelKey
   onModelChange: (modelKey: ChatModelKey) => void
   onVoiceMode?: () => void
-  onProfilePanel?: () => void
 }
 
-export function ChatHeader({ selectedModelKey, onModelChange, onVoiceMode, onProfilePanel }: ChatHeaderProps) {
+export function ChatHeader({ selectedModelKey, onModelChange, onVoiceMode }: ChatHeaderProps) {
   const [showModelPicker, setShowModelPicker] = useState(false)
   const selectedModel = MODELS.find(model => model.key === selectedModelKey) ?? MODELS[0]
 
@@ -152,24 +151,6 @@ export function ChatHeader({ selectedModelKey, onModelChange, onVoiceMode, onPro
             <span className="hidden sm:inline">Voice</span>
           </button>
         )}
-        <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Share">
-          <Share2 className="w-4 h-4" />
-        </button>
-        {onProfilePanel && (
-          <button
-            onClick={onProfilePanel}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Identity & Recognition"
-          >
-            <UserCircle className="w-4 h-4" />
-          </button>
-        )}
-        <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Settings">
-          <Settings className="w-4 h-4" />
-        </button>
-        <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
       </div>
     </header>
   )

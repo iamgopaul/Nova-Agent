@@ -8,6 +8,12 @@ import sys
 import time
 from pathlib import Path
 
+# Load .env into os.environ early so all subprocesses and modules inherit it
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
+except ImportError:
+    pass
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = ROOT / "frontend"

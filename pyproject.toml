@@ -58,6 +58,12 @@ dependencies = [
     # Media
     "yt-dlp>=2024.5.1",
 
+    # Auth
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "email-validator>=2.0",
+    "authlib>=1.3",
+
     # Utilities
     "rich>=13.7.1",
     "python-multipart>=0.0.9",

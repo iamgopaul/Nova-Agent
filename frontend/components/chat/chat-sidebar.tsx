@@ -1,20 +1,21 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
-  Bot,
   ChevronLeft,
   ChevronRight,
+  Cog,
   FolderInput,
   FolderPlus,
+  LogOut,
   MessageSquare,
-  MoreHorizontal,
   Pencil,
   Plus,
   Search,
   Trash2,
   X,
 } from "lucide-react"
+import { NovaIcon } from "@/components/icons/nova-icon"
 import { cn } from "@/lib/utils"
 
 export interface ChatSessionSummary {
@@ -44,6 +45,7 @@ interface ChatSidebarProps {
   onCreateFolder: (name: string) => void
   onDeleteFolder: (name: string) => void
   onDelete: (id: string) => void
+  onOpenSettings?: () => void
 }
 
 function getGroupLabel(session: ChatSessionSummary) {
@@ -85,6 +87,7 @@ export function ChatSidebar({
   onCreateFolder,
   onDeleteFolder,
   onDelete,
+  onOpenSettings,
 }: ChatSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -94,6 +97,15 @@ export function ChatSidebar({
   const [renameValue, setRenameValue] = useState("")
   const [moveTarget, setMoveTarget] = useState<ChatSessionSummary | null>(null)
   const [moveValue, setMoveValue] = useState<string>("(no folder)")
+  const [user, setUser] = useState<{ display_name: string; avatar_color: string } | null>(null)
+  const [showAccountMenu, setShowAccountMenu] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.display_name) setUser({ display_name: data.display_name, avatar_color: data.avatar_color || "#0ea5e9" }) })
+      .catch(() => {})
+  }, [])
 
   const sessionSwitchLocked = isStreaming
   const newChatLocked = isStreaming
@@ -128,16 +140,14 @@ export function ChatSidebar({
     <aside
       className={cn(
         "flex flex-col h-full transition-all duration-300 ease-in-out border-r border-border",
-        "bg-sidebar text-sidebar-foreground",
+        "bg-sidebar/90 backdrop-blur-xl text-sidebar-foreground",
         collapsed ? "w-48" : "w-64"
       )}
     >
       <div className="flex items-center justify-between px-3 py-4 border-b border-border">
         {!collapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-              <Bot className="w-4 h-4 text-primary-foreground" />
-            </div>
+            <NovaIcon size={28} />
             <span className="font-semibold text-sm text-foreground tracking-wide">Nova</span>
           </div>
         )}
@@ -397,17 +407,51 @@ export function ChatSidebar({
       )}
 
       {!collapsed && (
-        <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-sidebar-accent cursor-pointer transition-colors">
-            <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-primary text-xs font-bold">
-              U
+        <div className="p-3 border-t border-border relative">
+          <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+              style={{ backgroundColor: user?.avatar_color ?? "#0ea5e9" }}
+            >
+              {(user?.display_name?.[0] ?? "U").toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">User</p>
-              <p className="text-[10px] text-muted-foreground">Nova Pro</p>
+              <p className="text-xs font-medium text-foreground truncate">{user?.display_name ?? "Account"}</p>
             </div>
-            <MoreHorizontal className="w-4 h-4 text-muted-foreground shrink-0" />
+            <button
+              onClick={() => setShowAccountMenu(prev => !prev)}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+              title="Settings"
+            >
+              <Cog className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST" })
+                window.location.href = "/login"
+              }}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-destructive/20 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
+          {showAccountMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowAccountMenu(false)} />
+              <div className="absolute bottom-16 left-3 right-3 z-40 rounded-xl border border-border bg-popover shadow-2xl p-1.5">
+                <button
+                  onClick={() => {
+                    setShowAccountMenu(false)
+                    onOpenSettings?.()
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs text-foreground hover:bg-muted transition-colors"
+                >
+                  Profile & Identity
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
