@@ -25,11 +25,13 @@ os.environ.setdefault("HF_HUB_VERBOSITY", "error")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from nova.server.security import SecurityHeadersMiddleware
 
 from config.settings import get_settings
 from nova.bootstrap import build_nova
-from nova.server.routers import auth, camera, chart, chat, document, image, memory, music, oauth, stats, voice
+from nova.server.routers import auth, camera, chart, chat, document, education, image, memory, music, oauth, stats, voice, watcher
 from nova.services.knowledge_feed import KnowledgeFeedScheduler
+from nova.services.web_watcher import WatcherScheduler
 from nova.services.location import get_location, location_context
 from nova.services import resource_advisor
 
@@ -77,6 +79,11 @@ async def lifespan(app: FastAPI):
     knowledge_scheduler.start()
     app.state.knowledge_scheduler = knowledge_scheduler
 
+    # ── Web Watcher — user-defined topic refresh (once per hour) ─────────────
+    watcher_scheduler = WatcherScheduler(mem, interval_seconds=3600)
+    watcher_scheduler.start()
+    app.state.watcher_scheduler = watcher_scheduler
+
     # Pre-warm Kokoro in the background — don't block Uvicorn from starting.
     # The first voice request will wait if it arrives before warm-up finishes,
     # but the server accepts connections immediately.
@@ -98,6 +105,10 @@ async def lifespan(app: FastAPI):
     # ── Shutdown ───────────────────────────────────────────────────────────────
     try:
         knowledge_scheduler.stop()
+    except Exception:
+        pass
+    try:
+        watcher_scheduler.stop()
     except Exception:
         pass
 
@@ -140,19 +151,23 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Security headers on every response (XSS, clickjacking, CSP, etc.)
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # Allow the desktop UI (same machine); credentials=True required for cookie auth
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000", "http://127.0.0.1:3000",
                        "http://localhost:8765", "http://127.0.0.1:8765"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
         allow_credentials=True,
     )
 
     app.include_router(auth.router,        prefix="/auth",            tags=["Auth"])
     app.include_router(oauth.router,       prefix="/auth/oauth",      tags=["OAuth"])
-    app.include_router(chat.router,   prefix="/chat",   tags=["Chat"])
+    app.include_router(chat.router,       prefix="/chat",       tags=["Chat"])
+    app.include_router(education.router,  prefix="/education",  tags=["Education"])
     app.include_router(voice.router,  prefix="/voice",  tags=["Voice"])
     app.include_router(memory.router, prefix="/memory", tags=["Memory"])
     app.include_router(camera.router, prefix="/camera", tags=["Camera"])
@@ -161,6 +176,7 @@ def create_app() -> FastAPI:
     app.include_router(image.router,    prefix="/image",    tags=["Image"])
     app.include_router(document.router, prefix="/document", tags=["Document"])
     app.include_router(chart.router,    prefix="/chart",    tags=["Chart"])
+    app.include_router(watcher.router,  prefix="/watcher",  tags=["Watcher"])
 
     @app.get("/health")
     def health() -> dict:

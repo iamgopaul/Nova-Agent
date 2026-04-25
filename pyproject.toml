@@ -91,8 +91,10 @@ speakerid = [
     "speechbrain>=1.0.0",
 ]
 # Optional: MusicGen beat/instrumental generation via HuggingFace Transformers.
-# transformers + torch are already in the standard install; this extra set ensures torchaudio.
+# Install: pip install -e ".[musicgen]"
 musicgen = [
+    "transformers>=4.40.0",
+    "torch>=2.0.0",
     "torchaudio>=2.0.0",
 ]
 # Optional: Image generation (Stable Diffusion v1.5) via HuggingFace Diffusers.

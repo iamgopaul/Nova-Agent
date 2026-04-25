@@ -91,12 +91,49 @@ class UserResponse(BaseModel):
     email: str
     display_name: str
     avatar_color: str
+    has_password: bool
     created_at: datetime
 
 
 class UpdateProfileRequest(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=80)
     avatar_color: str | None = Field(default=None, max_length=20)
+
+
+class SetPasswordRequest(BaseModel):
+    """Set or change the account password.
+
+    - ``current_password`` is required only when the account already has a
+      password (i.e. ``has_password`` is True).  OAuth-only accounts may omit
+      it when creating a password for the first time.
+    - ``new_password`` must be at least 8 characters.
+    """
+    current_password: str | None = Field(default=None)
+    new_password: str = Field(..., min_length=8, max_length=128)
+    confirm_password: str = Field(..., min_length=8, max_length=128)
+
+
+# ── Web Watcher ──────────────────────────────────────────────────────
+
+class WatchedTopicCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=200)
+    query: str = Field(..., min_length=1, max_length=500)
+    category: str = Field(default="custom", max_length=50)
+
+
+class WatchedTopicToggle(BaseModel):
+    enabled: bool
+
+
+class WatchedTopicResponse(BaseModel):
+    id: str
+    label: str
+    query: str
+    category: str
+    enabled: bool
+    last_fetched_at: datetime | None = None
+    last_result: str | None = None
+    created_at: datetime
 
 
 # ── Voice ────────────────────────────────────────────────────────────

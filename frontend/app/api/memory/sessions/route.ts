@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server"
+import { novaApiBase } from "@/lib/nova-api-base"
 
 export const runtime = "nodejs"
 
-const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
 
 function cookieHeader(req: NextRequest): Record<string, string> {
   const token = req.cookies.get("nova_token")?.value
@@ -10,7 +10,7 @@ function cookieHeader(req: NextRequest): Record<string, string> {
 }
 
 export async function GET(req: NextRequest) {
-  const upstream = await fetch(`${NOVA_API_BASE}/memory/sessions`, {
+  const upstream = await fetch(`${novaApiBase()}/memory/sessions`, {
     headers: cookieHeader(req),
   })
   const body = await upstream.text()

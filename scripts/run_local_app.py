@@ -47,7 +47,10 @@ def main() -> int:
             return 1
 
         frontend_env = os.environ.copy()
-        frontend_env.setdefault("NOVA_API_BASE", "http://127.0.0.1:8765")
+        _base = (frontend_env.get("NOVA_API_BASE") or "http://127.0.0.1:8765").strip().rstrip("/")
+        if _base.lower().endswith("/api"):
+            _base = _base[:-4].rstrip("/")
+        frontend_env["NOVA_API_BASE"] = _base or "http://127.0.0.1:8765"
         frontend = subprocess.Popen(FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
 
         # Keep process alive while the web frontend runs.

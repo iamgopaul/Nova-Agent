@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react"
 import { Mic, MicOff, X, Volume2, VolumeX, Settings, Camera, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fingerSegmentDisplayLabel, mapNormBoxToDisplayPixels } from "@/lib/camera-overlay"
 import { VoiceOrb } from "./voice-orb"
+import { NovaIcon } from "@/components/icons/nova-icon"
 import type { ChatModelKey } from "./chat-header"
 
 interface VoiceConversationProps {
@@ -13,6 +14,10 @@ interface VoiceConversationProps {
   sessionId: string
   modelKey: ChatModelKey
   onConversationTurn: (userText: string, assistantText: string) => void
+  /** Render as an embedded panel (no fixed overlay) instead of full-screen. */
+  embedded?: boolean
+  /** Called when the internal camera stream starts or stops. Use to mirror the feed externally. */
+  onCameraStream?: (stream: MediaStream | null) => void
 }
 
 type VoiceState = "idle" | "listening" | "thinking" | "speaking"
@@ -31,6 +36,311 @@ type VoiceApiResponse = {
   transcript: string
   response: string
   session_id: string
+}
+
+type VoiceStreamEvent =
+  | { type: "transcript"; text: string; session_id: string }
+  | { type: "sentence"; text: string }
+  | { type: "done"; response: string; session_id: string }
+  | { type: "error"; detail: string }
+
+/**
+ * Open `/api/voice/stream` as an NDJSON stream and yield parsed events.
+ * The stream surfaces the transcript the instant STT finishes, then each
+ * sentence from the LLM as soon as it completes — so TTS can start while
+ * Nova is still generating the rest of her reply.
+ */
+async function* streamVoiceTurn(
+  audioBlob: Blob,
+  sessionId: string,
+  modelKey: string | undefined,
+  signal: AbortSignal,
+  camFrame: Blob | null,
+): AsyncGenerator<VoiceStreamEvent> {
+  const form = new FormData()
+  form.append("audio", audioBlob, "turn.wav")
+  form.append("session_id", sessionId)
+  form.append("mode", "fast")
+  // Voice UX: pin a small tier when the UI is on Auto — Air (swift) balances
+  // speed and quality; explicit model choice is always respected.
+  const resolvedModel = !modelKey || modelKey === "auto" ? "air" : modelKey
+  form.append("model_key", resolvedModel)
+  if (camFrame && camFrame.size > 400) {
+    form.append("camera_frame", camFrame, "turn_frame.jpg")
+  }
+
+  const response = await fetch("/api/voice/stream", {
+    method: "POST",
+    body: form,
+    signal,
+  })
+
+  if (!response.ok || !response.body) {
+    const detail = await response.text().catch(() => "")
+    yield { type: "error", detail: detail || `Voice stream failed (${response.status})` }
+    return
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (value) {
+        buffer += decoder.decode(value, { stream: true })
+      }
+      let newlineIdx = buffer.indexOf("\n")
+      while (newlineIdx >= 0) {
+        const line = buffer.slice(0, newlineIdx).trim()
+        buffer = buffer.slice(newlineIdx + 1)
+        if (line) {
+          try {
+            yield JSON.parse(line) as VoiceStreamEvent
+          } catch {
+            // Skip malformed chunks.
+          }
+        }
+        newlineIdx = buffer.indexOf("\n")
+      }
+      if (done) {
+        break
+      }
+    }
+    // Flush any trailing line (server may omit the final "\n").
+    const tail = buffer.trim()
+    if (tail) {
+      try {
+        yield JSON.parse(tail) as VoiceStreamEvent
+      } catch {
+        // Ignore.
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock()
+    } catch {
+      // Already released.
+    }
+  }
+}
+
+type TtsSessionRefs = {
+  stopRequestedRef: { current: boolean }
+  bargeInRef: { current: boolean }
+}
+
+type TtsSession = {
+  enqueue: (sentence: string) => void
+  finish: () => void
+  abort: () => void
+  drain: () => Promise<void>
+}
+
+type TtsSessionOpts = { isMuted: boolean } & TtsSessionRefs & {
+  /** If set, reuse this context (from a user-gesture unlock) instead of creating a new one. */
+  playbackCtxRef?: MutableRefObject<AudioContext | null>
+}
+
+/**
+ * Streaming TTS queue that plays sentences gap-lessly on a single
+ * AudioContext. `enqueue` fires a request to `/api/voice/speak/stream`
+ * for each sentence; the resulting WAV chunks are decoded and scheduled
+ * back-to-back so consecutive sentences play without a perceptible gap.
+ */
+function createTtsSession(opts: TtsSessionOpts): TtsSession {
+  const AC =
+    typeof window !== "undefined"
+      ? window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      : null
+
+  const pendingSentences: string[] = []
+  let ctx: AudioContext | null = null
+  let ctxOwned = false
+  let nextTime = 0
+  let done = false
+  let aborted = false
+  let notifyWork: (() => void) | null = null
+
+  const ensureContext = async (): Promise<AudioContext | null> => {
+    if (aborted || opts.isMuted) return null
+    if (ctx) return ctx
+    const ext = opts.playbackCtxRef?.current
+    if (ext && ext.state !== "closed") {
+      try {
+        if (ext.state === "suspended") {
+          await ext.resume()
+        }
+      } catch {
+        // ignore — playback will just be silent
+      }
+      ctx = ext
+      ctxOwned = false
+      nextTime = ctx.currentTime + 0.04
+      return ctx
+    }
+    if (!AC) return null
+    ctx = new AC()
+    ctxOwned = true
+    try {
+      if (ctx.state === "suspended") {
+        await ctx.resume()
+      }
+    } catch {
+      // ignore — playback will just be silent
+    }
+    nextTime = ctx.currentTime + 0.04
+    return ctx
+  }
+
+  const shouldStop = () =>
+    aborted || opts.stopRequestedRef.current || opts.bargeInRef.current
+
+  const playSentenceStream = async (text: string) => {
+    if (!text || opts.isMuted || shouldStop()) return
+    const audioCtx = await ensureContext()
+    if (!audioCtx) return
+
+    const controller = new AbortController()
+    let response: Response
+    try {
+      response = await fetch("/api/voice/speak/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      })
+    } catch {
+      return
+    }
+
+    if (!response.ok || !response.body) {
+      try {
+        await response.text()
+      } catch {
+        // ignore
+      }
+      return
+    }
+
+    const reader = response.body.getReader()
+    let buf = new Uint8Array(0)
+
+    try {
+      while (true) {
+        if (shouldStop()) {
+          try {
+            controller.abort()
+          } catch {
+            // ignore
+          }
+          break
+        }
+        const { done: streamDone, value } = await reader.read()
+        if (value) {
+          const next = new Uint8Array(buf.length + value.length)
+          next.set(buf)
+          next.set(value, buf.length)
+          buf = next
+        }
+        while (buf.length >= 4) {
+          const size = new DataView(buf.buffer, buf.byteOffset, 4).getUint32(0, true)
+          if (buf.length < 4 + size) break
+          const wavBytes = buf.slice(4, 4 + size)
+          buf = buf.slice(4 + size)
+          try {
+            const audioBuffer = await audioCtx.decodeAudioData(wavBytes.slice(0).buffer)
+            if (shouldStop()) break
+            const startAt = Math.max(nextTime, audioCtx.currentTime)
+            const source = audioCtx.createBufferSource()
+            source.buffer = audioBuffer
+            source.connect(audioCtx.destination)
+            source.start(startAt)
+            nextTime = startAt + audioBuffer.duration
+          } catch {
+            // malformed WAV chunk; skip
+          }
+        }
+        if (streamDone) break
+      }
+    } finally {
+      try {
+        reader.releaseLock()
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const processor = (async () => {
+    while (!aborted) {
+      while (pendingSentences.length === 0 && !done && !aborted) {
+        await new Promise<void>((r) => {
+          notifyWork = r
+        })
+      }
+      if (aborted) break
+      if (pendingSentences.length === 0 && done) break
+      const next = pendingSentences.shift()!
+      await playSentenceStream(next)
+      if (shouldStop()) break
+    }
+
+    // Wait for scheduled audio to finish before closing the context so the
+    // last sentence isn't cut off. We cache `ctx` to a local because TS's
+    // closure flow analysis narrows the outer `ctx` to `null`.
+    const tail = ctx as AudioContext | null
+    if (tail) {
+      try {
+        const waitMs = Math.max(0, (nextTime - tail.currentTime) * 1000) + 60
+        await new Promise<void>((r) => setTimeout(r, waitMs))
+      } catch {
+        // ignore
+      }
+      if (ctxOwned) {
+        try {
+          await tail.close()
+        } catch {
+          // ignore
+        }
+      }
+      ctx = null
+    }
+  })()
+
+  return {
+    enqueue(sentence: string) {
+      if (aborted || !sentence) return
+      const trimmed = sentence.trim()
+      if (!trimmed) return
+      pendingSentences.push(trimmed)
+      notifyWork?.()
+      notifyWork = null
+    },
+    finish() {
+      done = true
+      notifyWork?.()
+      notifyWork = null
+    },
+    abort() {
+      aborted = true
+      done = true
+      notifyWork?.()
+      notifyWork = null
+      if (ctx && ctxOwned) {
+        try {
+          void ctx.close()
+        } catch {
+          // ignore
+        }
+      }
+      ctx = null
+    },
+    drain() {
+      return processor
+    },
+  }
 }
 
 async function getSpeechVoices(): Promise<SpeechSynthesisVoice[]> {
@@ -121,11 +431,19 @@ function cleanSpokenText(input: string) {
 
 const TURN_MAX_MS = 18000
 const PRE_SPEECH_TIMEOUT_MS = 6000
-const SILENCE_TIMEOUT_MS = 650
-const MIN_VOICE_TURN_MS = 320
+// Real-time conversation: shorter end-of-utterance silence so Nova doesn't
+// feel like she's "waiting" after you stop talking. 400 ms is aggressive
+// but still safer than 300 ms against mid-sentence pauses.
+const SILENCE_TIMEOUT_MS = 400
+const MIN_VOICE_TURN_MS = 280
 const SPEECH_RMS_THRESHOLD = 0.0003
 const MAX_POST_SPEECH_MS = 7000
 const MIN_SPEECH_STREAK = 1
+// Barge-in: while Nova is speaking, user speech above this RMS for this many
+// consecutive audio chunks will cut her off and flip to listening. Chosen
+// higher than SPEECH_RMS_THRESHOLD to reject residual TTS bleed-through.
+const BARGEIN_RMS_THRESHOLD = 0.015
+const BARGEIN_MIN_STREAK = 3
 
 /** Set `true` to draw detection boxes on the camera preview. */
 const SHOW_CAMERA_DETECTION_BOXES = true
@@ -137,7 +455,7 @@ function getDesktopLikeVoiceMode(): "fast" {
   return "fast"
 }
 
-export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey, onConversationTurn }: VoiceConversationProps) {
+export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey, onConversationTurn, embedded = false, onCameraStream }: VoiceConversationProps) {
   const [state, setState] = useState<VoiceState>("idle")
   const [diagnosticStage, setDiagnosticStage] = useState<VoiceDiagnosticStage>("Idle")
   const [transcript, setTranscript] = useState("")
@@ -157,6 +475,14 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
   const stopRequestedRef = useRef(false)
   const requestAbortRef = useRef<AbortController | null>(null)
   const forceFinalizeRef = useRef(false)
+  /** Set to true when a barge-in detector catches user speech mid-TTS. */
+  const bargeInRef = useRef(false)
+  /** Active TTS streaming session; `abort()` stops all in-flight audio. */
+  const ttsSessionRef = useRef<TtsSession | null>(null)
+  /** Dedicated mic stream + analyser that listens while Nova is speaking. */
+  const bargeInStreamRef = useRef<MediaStream | null>(null)
+  const bargeInCtxRef = useRef<AudioContext | null>(null)
+  const bargeInRafRef = useRef<number | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -167,9 +493,13 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
   const activeAudioUrlRef = useRef<string | null>(null)
   /** TTS read-back from Nova (separate from capture `audioCtxRef`) */
   const speakTtsContextRef = useRef<AudioContext | null>(null)
+  /** Output AudioContext created/resumed on Start (user gesture) for autoplay policy. */
+  const playbackAudioCtxRef = useRef<AudioContext | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
+  const onCameraStreamRef = useRef(onCameraStream)
+  useEffect(() => { onCameraStreamRef.current = onCameraStream }, [onCameraStream])
   const identifyIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const detectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const enrollFramesRef = useRef<Blob[]>([])
@@ -326,6 +656,7 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach(t => t.stop())
       cameraStreamRef.current = null
+      onCameraStreamRef.current?.(null)
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null
@@ -352,6 +683,7 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
         audio: false,
       })
       cameraStreamRef.current = stream
+      onCameraStreamRef.current?.(stream)
       setCameraStatus("Camera live")
       if (videoRef.current) {
         videoRef.current.srcObject = stream
@@ -484,6 +816,90 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
     }
   }, [])
 
+  const stopBargeInListener = useCallback(() => {
+    if (bargeInRafRef.current !== null) {
+      cancelAnimationFrame(bargeInRafRef.current)
+      bargeInRafRef.current = null
+    }
+    if (bargeInCtxRef.current) {
+      try {
+        void bargeInCtxRef.current.close()
+      } catch {
+        // ignore
+      }
+      bargeInCtxRef.current = null
+    }
+    if (bargeInStreamRef.current) {
+      bargeInStreamRef.current.getTracks().forEach((t) => t.stop())
+      bargeInStreamRef.current = null
+    }
+  }, [])
+
+  /**
+   * While Nova is speaking, keep a lightweight mic analyser running so we can
+   * detect when the user starts talking again and cut her off instantly. The
+   * analyser uses a *higher* RMS threshold than normal listening so Nova's
+   * own TTS bleeding through the mic (no echo cancellation during capture)
+   * won't false-trigger.
+   */
+  const startBargeInListener = useCallback(async (onSpeech: () => void) => {
+    stopBargeInListener()
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          // Echo cancellation + noise suppression here are fine: we don't
+          // need pristine audio for VAD, and they help suppress TTS spill.
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+        },
+      })
+      bargeInStreamRef.current = stream
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!AC) return
+      const ctx = new AC()
+      bargeInCtxRef.current = ctx
+      if (ctx.state === "suspended") {
+        try {
+          await ctx.resume()
+        } catch {
+          // ignore
+        }
+      }
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 1024
+      source.connect(analyser)
+      const data = new Float32Array(analyser.fftSize)
+      let streak = 0
+
+      const tick = () => {
+        if (!bargeInCtxRef.current || bargeInCtxRef.current !== ctx) return
+        analyser.getFloatTimeDomainData(data)
+        let sum = 0
+        for (let i = 0; i < data.length; i += 1) {
+          sum += data[i] * data[i]
+        }
+        const rms = Math.sqrt(sum / data.length)
+        if (rms >= BARGEIN_RMS_THRESHOLD) {
+          streak += 1
+          if (streak >= BARGEIN_MIN_STREAK) {
+            onSpeech()
+            return
+          }
+        } else {
+          streak = 0
+        }
+        bargeInRafRef.current = requestAnimationFrame(tick)
+      }
+      bargeInRafRef.current = requestAnimationFrame(tick)
+    } catch {
+      // Barge-in is best-effort — if the mic can't be opened we just don't
+      // support interruption this turn.
+    }
+  }, [stopBargeInListener])
+
   const stopConversation = useCallback(() => {
     stopRequestedRef.current = true
     forceFinalizeRef.current = false
@@ -492,6 +908,13 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
 
     requestAbortRef.current?.abort()
     requestAbortRef.current = null
+
+    if (ttsSessionRef.current) {
+      ttsSessionRef.current.abort()
+      ttsSessionRef.current = null
+    }
+
+    stopBargeInListener()
 
     if (activeAudioRef.current) {
       activeAudioRef.current.pause()
@@ -505,6 +928,10 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
     if (speakTtsContextRef.current) {
       try { void speakTtsContextRef.current.close() } catch { /* */ }
       speakTtsContextRef.current = null
+    }
+    if (playbackAudioCtxRef.current) {
+      try { void playbackAudioCtxRef.current.close() } catch { /* */ }
+      playbackAudioCtxRef.current = null
     }
 
     if (window.speechSynthesis) {
@@ -542,154 +969,6 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
     activeAudioUrlRef.current = null
     return started
   }, [])
-
-  const speakResponse = useCallback(async (text: string) => {
-    const spokenText = cleanSpokenText(text)
-    if (!spokenText || isMuted) return
-
-    try {
-      const response = await fetch("/api/voice/speak/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: spokenText }),
-      })
-
-      if (response.ok && response.body) {
-        const queue: Blob[] = []
-        let streamDone = false
-        let notify: (() => void) | null = null
-
-        // Reader: continuously buffers incoming WAV chunks into queue
-        const readStream = async () => {
-          const reader = response.body!.getReader()
-          let buf = new Uint8Array(0)
-          while (true) {
-            const { done, value } = await reader.read()
-            if (value) {
-              const next = new Uint8Array(buf.length + value.length)
-              next.set(buf); next.set(value, buf.length)
-              buf = next
-            }
-            while (buf.length >= 4) {
-              const size = new DataView(buf.buffer, buf.byteOffset, 4).getUint32(0, true)
-              if (buf.length < 4 + size) break
-              queue.push(new Blob([buf.slice(4, 4 + size)], { type: "audio/wav" }))
-              buf = buf.slice(4 + size)
-              notify?.(); notify = null
-            }
-            if (done) break
-          }
-          streamDone = true
-          notify?.(); notify = null
-        }
-
-        // Player: Web Audio scheduling = low gap between many small WAV chunks
-        const playQueue = async () => {
-          const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-          if (AC) {
-            if (speakTtsContextRef.current) {
-              try { void speakTtsContextRef.current.close() } catch { /* */ }
-              speakTtsContextRef.current = null
-            }
-            const ctx = new AC()
-            speakTtsContextRef.current = ctx
-            try {
-              if (ctx.state === "suspended") {
-                await ctx.resume()
-              }
-            } catch {
-              /* */
-            }
-            const decodeWav = (blob: Blob) =>
-              blob.arrayBuffer().then(ab => ctx.decodeAudioData(ab.slice(0)))
-            let nextTime = ctx.currentTime + 0.04
-            const decodeStream = (async function* () {
-              for (;;) {
-                while (queue.length === 0 && !streamDone) {
-                  await new Promise<void>(r => { notify = r })
-                }
-                if (queue.length === 0) {
-                  return
-                }
-                const blob = queue.shift()!
-                let buffer: AudioBuffer
-                try {
-                  buffer = await decodeWav(blob)
-                } catch {
-                  continue
-                }
-                yield buffer
-              }
-            })()
-            let r = await decodeStream.next()
-            while (!r.done) {
-              if (stopRequestedRef.current) {
-                break
-              }
-              const buffer = r.value
-              const nextDecode = decodeStream.next()
-              const t = Math.max(nextTime, ctx.currentTime)
-              try {
-                const source = ctx.createBufferSource()
-                source.buffer = buffer
-                source.connect(ctx.destination)
-                source.start(t)
-                nextTime = t + buffer.duration
-              } catch {
-                /* */
-              }
-              r = await nextDecode
-              if (stopRequestedRef.current) {
-                break
-              }
-            }
-            if (speakTtsContextRef.current === ctx) {
-              speakTtsContextRef.current = null
-            }
-            const waitMs = Math.max(0, (nextTime - ctx.currentTime) * 1000) + 40
-            await new Promise<void>(r => { setTimeout(r, waitMs) })
-            try { await ctx.close() } catch { /* */ }
-            return
-          }
-          while (true) {
-            if (queue.length === 0) {
-              if (streamDone) {
-                break
-              }
-              await new Promise<void>(r => { notify = r })
-              continue
-            }
-            if (stopRequestedRef.current) {
-              break
-            }
-            await playAudioBlob(queue.shift()!)
-          }
-        }
-
-        await Promise.all([readStream(), playQueue()])
-        return
-      }
-    } catch {
-      // fall through
-    }
-
-    // Fallback: non-streaming single request
-    try {
-      const response = await fetch("/api/voice/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: spokenText }),
-      })
-      if (response.ok) {
-        const blob = await response.blob()
-        if (await playAudioBlob(blob)) return
-      }
-    } catch {
-      // fall through
-    }
-
-    await speakWithBrowserTTS(spokenText)
-  }, [isMuted, playAudioBlob])
 
   const recordVoiceTurn = useCallback(async (): Promise<Blob> => {
     setDiagnosticStage("Requesting microphone")
@@ -870,46 +1149,6 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
     return blob
   }, [cleanupCapture])
 
-  const fetchVoiceTurn = useCallback(async (audioBlob: Blob) => {
-    const controller = new AbortController()
-    requestAbortRef.current = controller
-
-    try {
-      setDiagnosticStage("Sending audio")
-      const form = new FormData()
-      form.append("audio", audioBlob, "turn.wav")
-      form.append("session_id", sessionId)
-      form.append("mode", getDesktopLikeVoiceMode())
-      // Low-latency visual context: one lightweight JPEG instead of a full turn-length WebM.
-      const camFrame = await captureFrameJpegScaled(640, 0.78)
-      if (camFrame && camFrame.size > 400) {
-        form.append("camera_frame", camFrame, "turn_frame.jpg")
-      }
-
-      const apiResponse = await fetch("/api/voice", {
-        method: "POST",
-        body: form,
-        signal: controller.signal,
-      })
-
-      if (!apiResponse.ok) {
-        const detail = await apiResponse.text()
-        if (apiResponse.status === 422 && detail.includes("No speech detected in audio")) {
-          setDiagnosticStage("Retrying listen")
-          return null
-        }
-        throw new Error(detail || "Voice request failed")
-      }
-
-      setDiagnosticStage("Transcribing")
-      return await apiResponse.json() as VoiceApiResponse
-    } finally {
-      if (requestAbortRef.current === controller) {
-        requestAbortRef.current = null
-      }
-    }
-  }, [sessionId, captureFrameJpegScaled])
-
 function mergePcmChunks(chunks: Float32Array[]): Float32Array {
   const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
   const merged = new Float32Array(length)
@@ -995,6 +1234,7 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
     setResponse("")
     setDisplayedResponse("")
     forceFinalizeRef.current = false
+    bargeInRef.current = false
 
     try {
       setState("listening")
@@ -1004,48 +1244,149 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
       }
 
       setState("thinking")
-      const turn = await fetchVoiceTurn(audioBlob)
+      setDiagnosticStage("Sending audio")
+
+      // Snapshot one lightweight camera frame *before* opening the stream so
+      // the upload isn't bottlenecked by the JPEG encode.
+      let camFrame: Blob | null = null
+      try {
+        camFrame = await captureFrameJpegScaled(640, 0.78)
+      } catch {
+        camFrame = null
+      }
+
+      const controller = new AbortController()
+      requestAbortRef.current = controller
+
+      const tts = createTtsSession({
+        isMuted,
+        stopRequestedRef,
+        bargeInRef,
+        playbackCtxRef: playbackAudioCtxRef,
+      })
+      ttsSessionRef.current = tts
+
+      // Barge-in: as soon as Nova starts speaking (first sentence arrives),
+      // open a dedicated mic analyser. If it hears the user, we abort TTS,
+      // cancel the in-flight HTTP stream (so the LLM doesn't keep generating
+      // sentences we'll never play), and loop back to listening instantly.
+      let bargeInArmed = false
+      const armBargeIn = () => {
+        if (bargeInArmed) return
+        bargeInArmed = true
+        void startBargeInListener(() => {
+          bargeInRef.current = true
+          tts.abort()
+          try {
+            controller.abort()
+          } catch {
+            // ignore
+          }
+        })
+      }
+
+      let turnTranscript = ""
+      let turnResponse = ""
+      let gotTranscript = false
+      let errorDetail: string | null = null
+
+      try {
+        for await (const evt of streamVoiceTurn(
+          audioBlob,
+          sessionId,
+          modelKey,
+          controller.signal,
+          camFrame,
+        )) {
+          if (stopRequestedRef.current || bargeInRef.current) break
+
+          if (evt.type === "transcript") {
+            turnTranscript = evt.text
+            setTranscript(evt.text)
+            gotTranscript = true
+            setDiagnosticStage("Transcribing")
+          } else if (evt.type === "sentence") {
+            // Enrollment marker may land in a sentence chunk.
+            const enrollMatch = evt.text.match(/__ENROLL_FACE__:([^_\s]+(?:\s[^_\s]+)*)/)
+            const cleanText = evt.text.replace(/__ENROLL_FACE__:[^\s]*/g, "").trim()
+            if (enrollMatch) {
+              const nameToEnroll = enrollMatch[1].trim()
+              setEnrollName(nameToEnroll)
+              void enrollFromCamera(nameToEnroll)
+            }
+            if (cleanText) {
+              turnResponse = turnResponse ? `${turnResponse} ${cleanText}` : cleanText
+              setResponse(turnResponse)
+              setDisplayedResponse(turnResponse)
+              setState("speaking")
+              setDiagnosticStage("Speaking")
+              tts.enqueue(cleanText)
+              armBargeIn()
+            }
+          } else if (evt.type === "done") {
+            if (evt.response && evt.response.trim()) {
+              const cleanFull = evt.response.replace(/__ENROLL_FACE__:[^\s]*/g, "").trim()
+              turnResponse = cleanFull || turnResponse
+              setResponse(turnResponse)
+              setDisplayedResponse(turnResponse)
+            }
+            tts.finish()
+            break
+          } else if (evt.type === "error") {
+            errorDetail = evt.detail || "Voice stream error"
+            tts.finish()
+            break
+          }
+        }
+
+        // If the server closed without an explicit done/error, ensure the
+        // queue drains.
+        tts.finish()
+
+        if (errorDetail && !turnResponse) {
+          const lower = errorDetail.toLowerCase()
+          if (lower.includes("no speech detected")) {
+            setState("listening")
+            setDiagnosticStage("Retrying listen")
+            void runTurn()
+            return
+          }
+          throw new Error(errorDetail)
+        }
+
+        if (!gotTranscript) {
+          setState("listening")
+          setDiagnosticStage("Retrying listen")
+          void runTurn()
+          return
+        }
+
+        if (!turnResponse.trim()) {
+          setState("listening")
+          setDiagnosticStage("Capturing audio")
+          void runTurn()
+          return
+        }
+
+        onConversationTurn(turnTranscript, turnResponse)
+
+        // Wait for the TTS queue to finish playing the last sentence.
+        await tts.drain()
+      } finally {
+        if (requestAbortRef.current === controller) {
+          requestAbortRef.current = null
+        }
+        if (ttsSessionRef.current === tts) {
+          ttsSessionRef.current = null
+        }
+        stopBargeInListener()
+      }
+
       if (!activeRef.current || stopRequestedRef.current) {
         return
       }
 
-      if (!turn) {
-        setState("listening")
-        setDiagnosticStage("Retrying listen")
-        void runTurn()
-        return
-      }
-
-      if (!turn.response.trim()) {
-        setState("listening")
-        setDiagnosticStage("Capturing audio")
-        void runTurn()
-        return
-      }
-
-      // Check for enrollment trigger marker
-      const enrollMatch = turn.response.match(/__ENROLL_FACE__:([^_\s]+(?:\s[^_\s]+)*)/)
-      const cleanResponse = turn.response.replace(/__ENROLL_FACE__:[^\s]*/g, "").trim()
-
-      setTranscript(turn.transcript)
-      setResponse(cleanResponse)
-      setDisplayedResponse(cleanResponse)
-      onConversationTurn(turn.transcript, cleanResponse)
-
-      if (enrollMatch) {
-        const nameToEnroll = enrollMatch[1].trim()
-        setEnrollName(nameToEnroll)
-        void enrollFromCamera(nameToEnroll)
-      }
-
-      setState("speaking")
-      setDiagnosticStage("Speaking")
-      await speakResponse(cleanResponse)
-
-      if (!activeRef.current || stopRequestedRef.current) {
-        return
-      }
-
+      // If the user barged in, loop straight back to listening — no gap.
       void runTurn()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Voice conversation failed"
@@ -1053,8 +1394,23 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
       setState("idle")
       setDiagnosticStage(message.toLowerCase().includes("microphone") ? "Requesting microphone" : "Idle")
       activeRef.current = false
+      if (ttsSessionRef.current) {
+        ttsSessionRef.current.abort()
+        ttsSessionRef.current = null
+      }
+      stopBargeInListener()
     }
-  }, [fetchVoiceTurn, onConversationTurn, recordVoiceTurn, speakResponse, enrollFromCamera])
+  }, [
+    onConversationTurn,
+    recordVoiceTurn,
+    enrollFromCamera,
+    captureFrameJpegScaled,
+    sessionId,
+    modelKey,
+    isMuted,
+    startBargeInListener,
+    stopBargeInListener,
+  ])
 
   const handleStart = () => {
     if (state !== "idle") {
@@ -1064,8 +1420,26 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
     stopRequestedRef.current = false
     activeRef.current = true
     setDiagnosticStage("Capturing audio")
-    void startCamera()
-    void runTurn()
+
+    void (async () => {
+      try {
+        const AC =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        if (AC) {
+          let ac = playbackAudioCtxRef.current
+          if (!ac || ac.state === "closed") {
+            ac = new AC()
+            playbackAudioCtxRef.current = ac
+          }
+          await ac.resume()
+        }
+      } catch {
+        // TTS will retry resume on first sentence; unlock here fixes most browsers.
+      }
+      void startCamera()
+      void runTurn()
+    })()
   }
 
   const handleClose = () => {
@@ -1134,7 +1508,11 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0a0a0f] flex flex-col items-center justify-center">
+    <div className={cn(
+      embedded
+        ? "relative flex flex-col items-center justify-center w-full h-full bg-[#0a0a0f]"
+        : "fixed inset-0 z-50 bg-[#0a0a0f] flex flex-col items-center justify-center"
+    )}>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
           className={cn(
@@ -1152,103 +1530,88 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
         />
       </div>
 
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4">
-        <button
-          onClick={handleClose}
-          className="p-3 rounded-full hover:bg-white/10 transition-colors"
-          aria-label="Close voice mode"
-        >
-          <X className="w-6 h-6 text-white/80" />
-        </button>
+      {!embedded && (
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4">
+          <button
+            onClick={handleClose}
+            className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-white/10 transition-colors"
+            aria-label="Go to Home"
+          >
+            <NovaIcon size={24} />
+            <span className="text-white/80 text-sm font-semibold tracking-wide">Nova</span>
+          </button>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenProfile}
-            className="p-3 rounded-full hover:bg-white/10 transition-colors text-white/80"
-            aria-label="Open profiles"
-            title="Stored users"
-          >
-            <User className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className={cn(
-              "p-3 rounded-full transition-colors",
-              isMuted ? "bg-red-500/20 text-red-400" : "hover:bg-white/10 text-white/80"
-            )}
-            aria-label={isMuted ? "Unmute" : "Mute"}
-          >
-            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-          </button>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-3 rounded-full hover:bg-white/10 transition-colors text-white/80"
-            aria-label="Settings"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onOpenProfile}
+              className="p-3 rounded-full hover:bg-white/10 transition-colors text-white/80"
+              aria-label="Open profiles"
+              title="Stored users"
+            >
+              <User className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className={cn(
+                "p-3 rounded-full transition-colors",
+                isMuted ? "bg-red-500/20 text-red-400" : "hover:bg-white/10 text-white/80"
+              )}
+              aria-label={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-3 rounded-full hover:bg-white/10 transition-colors text-white/80"
+              aria-label="Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex flex-col items-center gap-8 z-10">
+      <div className="flex flex-col items-center gap-4 z-10">
         <VoiceOrb state={state} />
 
-        <div className="h-6">
-          <p className={cn(
-            "text-sm font-medium transition-colors",
-            state === "listening" ? "text-blue-400" :
-            state === "thinking" ? "text-purple-400" :
-            state === "speaking" ? "text-cyan-400" :
-            "text-white/50"
-          )}>
-            {getStatusText()}
-          </p>
-        </div>
-
-        <div className="min-h-[120px] max-w-md px-4 text-center">
-          <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
+        <div className="max-w-xs px-4 text-center space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/20">
             {diagnosticStage}
           </p>
 
           {state === "listening" && (
-            <p className="text-lg text-white/90 animate-in fade-in duration-300">
-              {transcript || "I’m listening..."}
-              <span className="inline-block w-0.5 h-5 bg-blue-400 ml-1 animate-pulse" />
+            <p className="text-sm text-white/75 animate-in fade-in duration-300">
+              {transcript || "Listening…"}
+              <span className="inline-block w-0.5 h-4 bg-cyan-400 ml-1 animate-pulse" />
             </p>
           )}
 
-          {state === "thinking" && (
-            <div className="flex items-center justify-center gap-1.5">
-              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-          )}
-
           {state === "speaking" && displayedResponse && (
-            <p className="text-lg text-white/90 animate-in fade-in duration-300 leading-relaxed">
+            <p className="text-sm text-white/75 animate-in fade-in duration-300 leading-relaxed">
               {displayedResponse}
             </p>
           )}
 
           {error && (
-            <p className="mt-4 text-sm text-red-300">{error}</p>
+            <p className="text-sm text-red-300/80">{error}</p>
           )}
         </div>
       </div>
 
-      {/* Camera preview with bounding box overlay — shown while active */}
-      {cameraStreamRef.current !== null || state !== "idle" ? (
+      {/* Camera preview — shown in fullscreen mode; in embedded mode video/canvas are kept
+          off-screen so detection / enrollment logic continues to run */}
+      {embedded ? (
+        <div className="absolute pointer-events-none" style={{ left: -9999, top: -9999, width: 1, height: 1, overflow: "hidden" }}>
+          <video ref={videoRef} autoPlay muted playsInline style={{ width: 320, height: 240 }} />
+          <canvas ref={canvasRef} style={{ width: 320, height: 240 }} />
+        </div>
+      ) : (cameraStreamRef.current !== null || state !== "idle") ? (
         <div className="absolute top-20 right-6 z-30 w-[360px] max-w-[42vw] rounded-2xl overflow-hidden border border-cyan-400/30 shadow-2xl shadow-cyan-500/10 bg-black/90 backdrop-blur-sm">
           <div className="px-3 py-2 flex items-center justify-between border-b border-white/10 bg-black/70">
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">Camera Live</span>
             <span className="text-[10px] text-white/40">{cameraStatus}</span>
           </div>
           <div className="relative aspect-video overflow-hidden">
-            {/*
-              Mirror only the video (selfie UX). Canvas stays unmirrored so labels aren’t backwards;
-              mapNormBoxToDisplayPixels(..., mirrorX) aligns boxes with the mirrored picture.
-            */}
             <video
               ref={videoRef}
               autoPlay

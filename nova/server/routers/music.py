@@ -20,7 +20,12 @@ router = APIRouter()
 
 class MusicRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=300)
-    duration: int = Field(default=15, ge=5, le=30)
+    duration: int = Field(
+        default=12,
+        ge=5,
+        le=30,
+        description="Clip length in seconds. Shorter clips (10–15s) are more reliable on Apple Silicon.",
+    )
 
 
 @router.post("/generate")

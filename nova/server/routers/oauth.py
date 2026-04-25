@@ -92,6 +92,7 @@ def _consume_state(state: str) -> dict[str, object] | None:
 def _frontend_oauth_success_redirect(
     user_id: str,
     provider: str,
+    token_version: int = 0,
     linked: bool = False,
     frontend_url: str | None = None,
 ) -> RedirectResponse:
@@ -99,8 +100,10 @@ def _frontend_oauth_success_redirect(
     Bridge OAuth auth from backend host to frontend host.
     We redirect with a signed token so the frontend can set its own cookie
     (required for middleware-protected routes like /chat).
+    The token embeds the user's current token_version so it immediately
+    respects any prior password changes.
     """
-    token = create_token(user_id)
+    token = create_token(user_id, token_version)
     base = _safe_frontend_url(frontend_url)
     query = urlencode({
         "token": token,
@@ -172,7 +175,8 @@ def google_initiate(request: Request, link: bool = False) -> RedirectResponse:
     user_id: str | None = None
     if link:
         token = request.cookies.get(COOKIE_NAME)
-        user_id = decode_token(token) if token else None
+        _result = decode_token(token) if token else None
+        user_id = _result[0] if _result else None
         if not user_id:
             raise HTTPException(status_code=401, detail="Sign in before linking Google.")
         mode = "link"
@@ -242,13 +246,17 @@ async def google_callback(
         ok, err = memory.link_oauth_identity(link_user_id, "google", provider_user_id, email=email)
         if not ok:
             return RedirectResponse(f"{frontend_url}/chat?error={err or 'oauth_link_failed'}")
-        return _frontend_oauth_success_redirect(link_user_id, "google", linked=True, frontend_url=frontend_url)
+        u = memory.get_user_by_id(link_user_id)
+        ver = u.token_version if u else 0
+        return _frontend_oauth_success_redirect(link_user_id, "google", token_version=ver, linked=True, frontend_url=frontend_url)
 
     try:
         user_id = _find_or_create_oauth_user(memory, "google", provider_user_id, email, name)
     except Exception:
         return RedirectResponse(f"{frontend_url}/login?error=oauth_user_create_failed")
-    return _frontend_oauth_success_redirect(user_id, "google", frontend_url=frontend_url)
+    u = memory.get_user_by_id(user_id)
+    ver = u.token_version if u else 0
+    return _frontend_oauth_success_redirect(user_id, "google", token_version=ver, frontend_url=frontend_url)
 
 
 # ── GitHub ────────────────────────────────────────────────────────────────────
@@ -280,7 +288,8 @@ def github_initiate(request: Request, link: bool = False) -> RedirectResponse:
     user_id: str | None = None
     if link:
         token = request.cookies.get(COOKIE_NAME)
-        user_id = decode_token(token) if token else None
+        _result = decode_token(token) if token else None
+        user_id = _result[0] if _result else None
         if not user_id:
             raise HTTPException(status_code=401, detail="Sign in before linking GitHub.")
         mode = "link"
@@ -365,10 +374,14 @@ async def github_callback(
         ok, err = memory.link_oauth_identity(link_user_id, "github", provider_user_id, email=email)
         if not ok:
             return RedirectResponse(f"{frontend_url}/chat?error={err or 'oauth_link_failed'}")
-        return _frontend_oauth_success_redirect(link_user_id, "github", linked=True, frontend_url=frontend_url)
+        u = memory.get_user_by_id(link_user_id)
+        ver = u.token_version if u else 0
+        return _frontend_oauth_success_redirect(link_user_id, "github", token_version=ver, linked=True, frontend_url=frontend_url)
 
     try:
         user_id = _find_or_create_oauth_user(memory, "github", provider_user_id, email, name, color)
     except Exception:
         return RedirectResponse(f"{frontend_url}/login?error=oauth_user_create_failed")
-    return _frontend_oauth_success_redirect(user_id, "github", frontend_url=frontend_url)
+    u = memory.get_user_by_id(user_id)
+    ver = u.token_version if u else 0
+    return _frontend_oauth_success_redirect(user_id, "github", token_version=ver, frontend_url=frontend_url)

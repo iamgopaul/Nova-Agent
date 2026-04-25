@@ -5,15 +5,14 @@ import { ChatSidebar, type ChatSessionSummary } from "@/components/chat/chat-sid
 import { ChatWindow } from "@/components/chat/chat-window"
 import { ChatInput } from "@/components/chat/chat-input"
 import { ChatHeader, type ChatModelKey } from "@/components/chat/chat-header"
-import { VoiceConversation } from "@/components/chat/voice-conversation"
-import { ProfilePanel } from "@/components/chat/profile-panel"
-import { StatsBar } from "@/components/chat/stats-bar"
+import { AppShell } from "@/components/app-shell"
 import type { Message, MessageAttachment, DocItem, StorySectionItem } from "@/components/chat/message-bubble"
 import {
   clearSessionMessagesStorage,
   loadSessionMessagesFromStorage,
   saveSessionMessagesToStorage,
 } from "@/lib/chat-messages-persist"
+import { tryHandleSuggestionAction } from "@/lib/suggestion-actions"
 
 function newId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -170,12 +169,12 @@ async function fetchLLMFormat(content: string): Promise<{ intro: string; body: s
   }
 }
 
-async function fetchMusicAudio(prompt: string): Promise<string | null> {
+async function fetchMusicAudio(prompt: string, duration: number = 12): Promise<string | null> {
   try {
     const res = await fetch("/api/music/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, duration: 15 }),
+      body: JSON.stringify({ prompt, duration }),
     })
     if (!res.ok) return null
     const blob = await res.blob()
@@ -195,10 +194,10 @@ async function fetchImageGen(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt,
-        width:          opts?.width          ?? 768,
-        height:         opts?.height         ?? 768,
-        steps:          opts?.steps          ?? 35,
-        guidance_scale: opts?.guidance_scale ?? 9.0,
+        width:          opts?.width          ?? 640,
+        height:         opts?.height         ?? 640,
+        steps:          opts?.steps          ?? 30,
+        guidance_scale: opts?.guidance_scale ?? 8.5,
       }),
     })
     if (!res.ok) return null
@@ -364,8 +363,6 @@ export default function ChatPage() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true)
   const [activeSessionId, setActiveSessionId] = useState("")
   const [selectedModelKey, setSelectedModelKey] = useState<ChatModelKey>("auto")
-  const [showVoiceMode, setShowVoiceMode] = useState(false)
-  const [showProfilePanel, setShowProfilePanel] = useState(false)
 
   const stopRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -1243,14 +1240,23 @@ export default function ChatPage() {
     }
   }, [fileToBase64, isStreaming, refreshSessions, streamResponse])
 
-  const handleSuggestionClick = useCallback((suggestion: string, messageContent = "") => {
-    if (isStreaming) {
-      return
-    }
-    const preview = messageContent.trim().slice(0, 300)
-    const contextual = `Regarding your previous response:\n"${preview}${messageContent.length > 300 ? "…" : ""}"\n\n${suggestion}`
-    void handleSend(contextual, [])
-  }, [handleSend, isStreaming])
+  const handleSuggestionClick = useCallback(
+    (suggestion: string, messageContent = "") => {
+      if (isStreaming) {
+        return
+      }
+      const action = tryHandleSuggestionAction(suggestion, messages, text => {
+        void handleSend(text, [])
+      })
+      if (action === "consumed" || action === "direct-send") {
+        return
+      }
+      const preview = messageContent.trim().slice(0, 300)
+      const contextual = `Regarding your previous response:\n"${preview}${messageContent.length > 300 ? "…" : ""}"\n\n${suggestion}`
+      void handleSend(contextual, [])
+    },
+    [handleSend, isStreaming, messages],
+  )
 
   const handleNewChat = () => {
     if (isStreaming) {
@@ -1284,7 +1290,6 @@ export default function ChatPage() {
       revokeAttachmentUrls(prev)
       return []
     })
-    setShowVoiceMode(false)
   }
 
   const handleSelectSession = (sessionId: string) => {
@@ -1420,51 +1425,6 @@ export default function ChatPage() {
     setIsStreaming(false)
   }
 
-  const handleVoiceTurn = (userText: string, assistantText: string) => {
-    const aiMsgId = newId()
-    const nextMessages: Message[] = [
-      {
-        id: newId(),
-        role: "user",
-        content: userText,
-        timestamp: new Date(),
-      },
-      {
-        id: aiMsgId,
-        role: "assistant",
-        content: assistantText,
-        suggestionsLoading: true,
-        suggestions: [],
-        sectionsLoading: true,
-        timestamp: new Date(),
-      },
-    ]
-
-    setMessages(prev => [...prev, ...nextMessages])
-    loadedSessionRef.current = activeSessionRef.current   // own the session
-    void refreshSessions(activeSessionRef.current)
-
-    void Promise.all([
-      fetchLLMSuggestions(userText, assistantText),
-      fetchLLMFormat(assistantText),
-    ]).then(([suggestions, sections]) => {
-      setMessages(prev => prev.map(message => (
-        message.id === aiMsgId
-          ? { ...message, suggestions, suggestionsLoading: false, ...(sections ? { sections } : {}), sectionsLoading: false }
-          : message
-      )))
-    })
-  }
-
-  const handleVoiceMode = () => {
-    if (!activeSessionRef.current) {
-      const newSessionId = createSessionId()
-      activeSessionRef.current = newSessionId
-      setActiveSessionId(newSessionId)
-    }
-
-    setShowVoiceMode(true)
-  }
 
   const handleModelChange = (nextModelKey: ChatModelKey) => {
     if (nextModelKey === selectedModelKey) {
@@ -1487,56 +1447,55 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden aurora-bg">
-      {showVoiceMode && (
-        <VoiceConversation
-          onClose={() => setShowVoiceMode(false)}
-          onOpenProfile={() => setShowProfilePanel(true)}
-          sessionId={activeSessionRef.current || activeSessionId}
-          modelKey={selectedModelKey}
-          onConversationTurn={handleVoiceTurn}
-        />
-      )}
-      {showProfilePanel && (
-        <ProfilePanel onClose={() => setShowProfilePanel(false)} />
-      )}
-
-      <ChatSidebar
-        sessions={sessionsForSidebar}
-        folders={folders}
-        activeId={activeSessionId}
-        loading={isLoadingSessions}
-        isStreaming={isStreaming}
-        onNewChat={handleNewChat}
-        onSelect={handleSelectSession}
-        onRename={handleRenameSession}
-        onMove={handleMoveSession}
-        onCreateFolder={handleCreateFolder}
-        onDeleteFolder={handleDeleteFolder}
-        onDelete={handleDeleteSession}
-      />
-
-      <main className="flex flex-col flex-1 min-w-0 h-full">
+    <AppShell
+      title="Chat"
+      titleColor="text-blue-400"
+      isStreaming={isStreaming}
+      headerActions={
         <ChatHeader
           selectedModelKey={selectedModelKey}
           onModelChange={handleModelChange}
-          onVoiceMode={handleVoiceMode}
-          onProfilePanel={() => setShowProfilePanel(true)}
         />
-        <StatsBar isStreaming={isStreaming} />
-        <ChatWindow
-          messages={messages}
-          isStreaming={isStreaming}
-          onSuggestionClick={handleSuggestionClick}
-        />
-        <ChatInput
-          onSend={handleSend}
-          isStreaming={isStreaming}
-          onStop={handleStop}
-          disabled={false}
-          onVoiceMode={handleVoiceMode}
-        />
-      </main>
-    </div>
+      }
+    >
+      {/* Home card: Nova Chat — blue-400 icon, from-blue-500/20 via-cyan-500/10, border-blue-500/30 */}
+      <div className="relative flex h-full min-h-0 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.08] via-cyan-500/[0.05] to-transparent" />
+          <div className="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full bg-cyan-500/8 blur-3xl" />
+        </div>
+        <div className="relative z-[1] flex h-full w-full min-h-0 overflow-hidden">
+          <ChatSidebar
+            sessions={sessionsForSidebar}
+            folders={folders}
+            activeId={activeSessionId}
+            loading={isLoadingSessions}
+            isStreaming={isStreaming}
+            onNewChat={handleNewChat}
+            onSelect={handleSelectSession}
+            onRename={handleRenameSession}
+            onMove={handleMoveSession}
+            onCreateFolder={handleCreateFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onDelete={handleDeleteSession}
+          />
+
+          <main className="flex flex-col flex-1 min-w-0 h-full">
+            <ChatWindow
+              messages={messages}
+              isStreaming={isStreaming}
+              onSuggestionClick={handleSuggestionClick}
+            />
+            <ChatInput
+              onSend={handleSend}
+              isStreaming={isStreaming}
+              onStop={handleStop}
+              disabled={false}
+            />
+          </main>
+        </div>
+      </div>
+    </AppShell>
   )
 }

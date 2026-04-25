@@ -1,14 +1,20 @@
 import { NextRequest } from "next/server"
+import { novaApiBase } from "@/lib/nova-api-base"
 
 export const runtime = "nodejs"
 
-const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
+const COOKIE = "nova_token"
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const upstream = await fetch(`${NOVA_API_BASE}/stats`, {
+    const token = req.cookies.get(COOKIE)?.value
+
+    const upstream = await fetch(`${novaApiBase()}/stats`, {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Cookie: `${COOKIE}=${token}` } : {}),
+      },
     })
 
     if (!upstream.ok) {

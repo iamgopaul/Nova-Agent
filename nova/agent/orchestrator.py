@@ -132,6 +132,95 @@ def _is_trivial_social_greeting(clean: str) -> bool:
     return False
 
 
+# ── Casual chitchat detector (demotes Pro → Air/Core) ────────────────────────
+# Strong openers — these are always chitchat, even if the message has words
+# like "do" or "why" that the depth-cue list might otherwise flag.
+_CHITCHAT_STRONG_OPENERS: tuple[str, ...] = (
+    "how do you like ", "how're you liking ", "how are you liking ",
+    "what do you like about ", "what's your favorite ", "whats your favorite ",
+    "what is your favorite ", "how's it going", "hows it going",
+    "how are you", "how're you", "how you doing", "how are things",
+    "whats up", "what's up", "wassup",
+    "tell me about yourself", "what's new", "whats new",
+    "what are you up to", "whatcha doing", "what are you doing",
+    "i feel ", "im feeling ", "i'm feeling ", "feeling sad", "feeling lost",
+)
+
+# Softer openers — chitchat only if the message has no real depth cue.
+# ("do you think" is chitchat when paired with a casual topic but analysis when
+# paired with "trade-offs between X and Y in production systems".)
+_CHITCHAT_SOFT_OPENERS: tuple[str, ...] = (
+    "do you like ", "do you enjoy ", "do you prefer ",
+    "have you ever ", "you ever ",
+    "do you think ", "what do you think ",
+    "how do you feel", "feel about",
+    "nice to ", "happy to ", "glad to ",
+)
+
+# Explicit cues that the user wants DEPTH — these veto the chitchat demotion.
+# Only add phrases that are almost never used in small talk.
+_DEPTH_CUES: tuple[str, ...] = (
+    "analyze", "analyse", "analysis", "in depth", "in-depth",
+    "compare and contrast", "trade-off", "tradeoff",
+    "pros and cons", "breakdown", "break down", "explain in detail",
+    "deep dive", "comprehensive", "exhaustive", "full breakdown",
+    "write an essay", "write a paper", "write an article", "write a report",
+    "step by step", "walk me through", "research paper",
+    "summarize the", "summarise the", "evaluate", "critique",
+    "what are the implications", "what would happen if",
+    "explain how", "explain why", "explain the",
+    "how does it work", "how do they work", "how does this work",
+    "dissertation", "thesis", "long-form",
+)
+
+
+def _is_casual_chitchat(clean: str) -> bool:
+    """
+    True when a message reads as casual conversation — short, friendly, no clear
+    request for deep analysis or long-form output.
+
+    Used to demote Pro → Air/Core when the JSON router over-promotes chitchat.
+    Intentionally conservative: messages with a depth cue or > 18 words are not
+    chitchat, so real questions still reach Pro.
+    """
+    t = re.sub(r"\[.*?\]", "", clean or "").lower().strip()
+    if not t:
+        return False
+    words = t.split()
+    n = len(words)
+
+    # Long messages are real questions, not chitchat.
+    if n > 18:
+        return False
+
+    def _has(op: str) -> bool:
+        return t.startswith(op) or (" " + op) in (" " + t)
+
+    # Strong openers ALWAYS win — even if the message contains "how do" which
+    # the depth-cue list might otherwise flag.
+    if any(_has(op) for op in _CHITCHAT_STRONG_OPENERS):
+        return True
+
+    # Explicit depth request → not chitchat.
+    if any(cue in t for cue in _DEPTH_CUES):
+        return False
+
+    # Soft openers count only after the depth check.
+    if any(_has(op) for op in _CHITCHAT_SOFT_OPENERS):
+        return True
+
+    # Short personal-opinion questions: "do you ...?", "you ever ...?"
+    if n <= 12 and t.endswith("?"):
+        if t.startswith(("do you ", "you ever ", "have you ", "did you ",
+                         "are you ", "would you ", "can you still ")):
+            return True
+        # "what's your favorite X?" style
+        if t.startswith(("what's your ", "whats your ", "what is your ")):
+            return True
+
+    return False
+
+
 # Staged writing: Core clarifies when there is no topic; Pro / Creative deliver the piece when there is.
 _COMP_TOPIC_ESSAY: list[re.Pattern] = [
     re.compile(
@@ -754,39 +843,51 @@ class Orchestrator:
 
     # ── LLM-based router ─────────────────────────────────────────────────────
 
-    _ROUTER_PROMPT = """You are a routing assistant for Nova AI. Your priority is quality and accuracy. When in doubt, pick the most capable model.
+    _ROUTER_PROMPT = """You are Nova's routing brain. You pick the RIGHT model for the user's message.
 
-Available models:
-- spark   : Greetings only — "hi", "hey nova", tiny yes/no with no real question (under 5 words)
-- air     : Casual small-talk, simple chitchat — no information or task needed
-- core    : Tool-requiring tasks: news, weather, web search, current events, AND all media generation requests (image, music, charts, documents)
-- pro     : Any substantive question, explanation, advice, analysis, research, summaries, named-topic essays, articles, reports — DEFAULT for anything non-trivial
-- code    : Any coding, programming, debugging, scripts, algorithms, or technical implementation
-- creative: Fiction stories, poems, song lyrics, rap, creative writing, marketing copy — NOT essays or factual reports
-- insight : Data analysis, statistics, charts with explanation, numbers, structured comparisons
-- sage    : Strict formatting, tables, bullet reports, structured output, precise instructions
-- vision  : Understanding/describing an image the user has ALREADY shared
-- quant   : Pure maths — calculus, algebra, probability, financial modelling, integrals, eigenvalues
-- reason  : Formal proofs, theorems, derivations, step-by-step logical reasoning
+**Prime directive: match the message's real work to the model's size. A casual question from a friend is NOT a "substantive intellectual task". Heavy models are for hard, bounded, real work — not for chitchat dressed up as a question.**
 
-Routing priority (QUALITY FIRST):
-1. CODE → "code" always — never "core" for programming
-2. MATH COMPUTATION → "quant" — equations, statistics, financial modelling
-3. FORMAL PROOF / DERIVATION → "reason"
-4. Named-topic ESSAY / ARTICLE / REPORT (on, about, of, regarding a specific subject) → "pro"
-5. Named STORY / POEM / LYRICS → "creative"
-6. IMAGE / DRAWING / SKETCH generation → "core" (media pipeline handles it)
-7. CHART / GRAPH → "insight"
-8. MUSIC / DOCUMENT / DIAGRAM generation → "core"
-9. Any question requiring tools (news, weather, web) → "core"
-10. Pure greeting ("hi", "hey", "hello" with no question/task) → "spark"
-11. Everything else substantive — explanation, advice, research, "what is", "how does", "tell me about", "why", "describe", "compare" — → "pro"
+Available models (ordered smallest → largest):
+- spark   : Greetings / yes-no / acknowledgments with no real information need.
+- air     : Casual conversation, personal chat, feelings, opinions about everyday life, "how do you like X" questions, friendly banter, simple curiosity. This is the default for anything a close friend would answer in 1–3 sentences without needing to think hard.
+- core    : Factual answers, live data / web lookups / news / weather / current events, ALL media generation (image/music/document/diagram), short explanations that don't need depth. Core has tool access.
+- pro     : **Reserved for real intellectual work** — multi-paragraph essays on a named subject, deep analysis, "compare X and Y in detail", research-style explanations, strategy breakdowns, nuanced advice on weighty decisions. Must have clear signal that the user actually wants depth.
+- code    : ANY programming, debugging, scripts, algorithms, regex, shell, config, tech architecture.
+- creative: Fiction, stories, poems, lyrics, songs, raps, marketing copy, scripts, creative prose.
+- insight : Data analysis with numbers, statistics commentary, charts with explanation, numeric comparisons.
+- sage    : Strict structured output — tables, bullet reports, checklists, exact-format deliverables.
+- vision  : Describing / analysing an image the user ALREADY shared.
+- quant   : Pure maths — calculus, algebra, probability, finance modelling, integrals, optimisation.
+- reason  : Formal proofs, derivations, multi-step logical reasoning, theorems.
 
-IMPORTANT: Use "pro" liberally for any non-trivial question. Only use "core" for tool-requiring tasks or media generation. Only use "spark"/"air" for pure social greetings.
-Default to "pro" when unsure. Never use "vision" for generating new images.
+Decision ladder (stop at first match):
+1. Greeting / thanks / affirmation with no question ("hey", "thanks", "ok", "cool") → "spark"
+2. Casual chat / feelings / "how are you" / "how do you like ___" / "what's your favorite" / "do you like" / mood / small talk / light opinion about mundane things (days, weather, food, colors, mood) → "air"
+3. Coding / programming / debugging / scripts / shell → "code"
+4. Pure maths computation → "quant"
+5. Formal proof / theorem / derivation → "reason"
+6. Image / drawing / generate image → "core"
+7. Music / song generation → "core"
+8. Document generation (Word, PDF, Excel, PowerPoint) → "core"
+9. Chart / graph / data viz with explanation → "insight"
+10. Diagram / flowchart / timeline / mermaid → "core"
+11. Live data (news, weather, prices, scores, "today", "latest", "now", "current", "right now") → "core"
+12. Web lookup ("search", "look up", "what's happening with…") → "core"
+13. Image description ("what's in this image") → "vision"
+14. Explicit request for a full essay / article / report / long analysis on a named subject → "pro"
+15. Explicit request for a story / poem / song / lyric on a named subject → "creative"
+16. Strict structured output / table / checklist → "sage"
+17. Substantive intellectual question with clear signal of wanting depth — "analyze in detail", "compare and contrast", "explain in depth", "give a full breakdown", multi-part questions, research-style asks → "pro"
+18. Short factual Q&A, simple "why"/"how" without depth cue, everyday explanation, quick opinion → "core"
 
-Respond ONLY with valid JSON, no other text:
-{"model": "<key>", "reason": "<3-5 word reason>"}"""
+Hard rules:
+- **Pro is expensive. Don't pick it unless the user clearly wants a long, substantive, thoughtful answer.** If a close friend could answer the question in 1–3 conversational sentences, it is NOT Pro. A question that sounds "intellectual" but is actually chitchat (e.g. "how do you like Fridays", "what's your favorite color", "do you think mornings are nice") → "air".
+- **Live data beats depth.** If the answer needs today's world, pick "core" even for heavy topics.
+- **Default bias: smaller model.** When torn between air and core → prefer air for chat, core for info lookup. Between core and pro → prefer core unless there's explicit depth cue.
+- **Brevity is a signal.** Short, casual messages (< 12 words) almost never need Pro.
+
+Respond ONLY with valid JSON, no prose:
+{"model": "<key>", "reason": "<3-6 word reason>"}"""
 
     async def _llm_route(self, user_message: str) -> tuple[str, str] | None:
         """
@@ -996,14 +1097,11 @@ Your job:
 
         # Determine routing mode early so we can launch routing in parallel with search.
         _is_code = mode == "code" or _normalized_model_key == "code"
-        _use_auto = (
-            _normalized_model_key is None
-            and not _is_code
-        ) or (
-            mode == "fast"
-            and _normalized_model_key not in ("code", "pro", "insight", "creative", "sage")
-            and self._auto_select_model(_clean_msg)[1] == "code"
-        )
+        # Only auto-route when the user did not pick a concrete model. A second
+        # condition used to force auto when fast mode + keyword "code" — that
+        # ignored explicit UI choices (e.g. Spark/Air) and could promote voice
+        # turns into Pro via the auto/staged path.
+        _use_auto = _normalized_model_key is None and not _is_code
 
         # ── Launch search + routing in parallel ──────────────────────────────────
         # Both tasks fire immediately; we collect their results after a shared
@@ -1037,15 +1135,23 @@ Your job:
                 self._fetch_search_context_async(user_message, _search_msg)
             )
 
-        # Fire LLM routing in parallel (no-op if not auto-routing)
-        if _use_auto:
+        # Fire LLM routing in parallel (no-op if not auto-routing).
+        # In **voice mode (fast)** we skip the LLM router entirely — the keyword
+        # scorer is near-instant and mostly correct, and saving 500-2000ms of
+        # blocking routing latency per turn is critical for a real-time feel.
+        # The voice response text already constrains format, so picking the
+        # "wrong" tier occasionally matters far less than end-to-end latency.
+        _skip_llm_router = mode == "fast"
+        if _use_auto and not _skip_llm_router:
             _route_task = asyncio.create_task(self._llm_route(_clean_msg))
 
         # Race: wait for search results (slightly generous — Brave/DDG + long contexts)
         if _search_task:
             try:
+                # Voice: cap search wait so slow lookups don't feel like dead air before the first token.
+                _search_timeout = 1.35 if mode == "fast" else 7.0
                 result = await asyncio.wait_for(
-                    asyncio.shield(_search_task), timeout=7.0
+                    asyncio.shield(_search_task), timeout=_search_timeout
                 )
                 if result and not _is_search_failure(result):
                     _search_context = result
@@ -1117,12 +1223,22 @@ Your job:
             system_text += (
                 "\n\n## Live Web Search Results\n"
                 "The following was just retrieved from the web and reflects the current "
-                "state of the world.  Use it to give an accurate, up-to-date answer.  "
-                "Always cite the source(s) when information comes from here.\n\n"
-                "When your general knowledge might disagree (dates, who holds an office, "
-                "active roles, recent events), treat these excerpts as the check on the truth: "
-                "prefer them over a possibly stale training cut-off, say which version you are "
-                "using, and note material uncertainty in one short clause if something is still ambiguous.\n\n"
+                "state of the world. **Use it to give an accurate, up-to-date answer.**\n\n"
+                "How to use these results:\n"
+                "1. **Answer the user's exact question first** — don't summarise every result, "
+                "synthesise them into a clean answer.\n"
+                "2. **Cite inline** — mention the outlet in the sentence where you use its fact, "
+                "e.g. \"per Reuters\" or \"(BBC, today)\". Don't dump a separate 'sources' list.\n"
+                "3. **Prefer trusted outlets** (Reuters, AP, BBC, major papers, Wikipedia, .gov, peer-reviewed). "
+                "If a claim only appears on a tabloid or low-trust blog, flag the uncertainty.\n"
+                "4. **Handle conflicts** — if sources disagree, name the disagreement rather than "
+                "silently picking one.\n"
+                "5. **Own gaps** — if the excerpts don't actually answer the question, say so in one "
+                "short line. Don't invent detail to paper over missing info.\n"
+                "6. **Never recite verbatim** — paraphrase in your own voice. Quote only when the "
+                "exact wording matters (titles, direct quotes from people).\n"
+                "7. **Prefer live excerpts over your training knowledge** whenever they cover the same "
+                "fact (dates, roles, events, prices, scores).\n\n"
                 + _search_context
             )
         elif _needs_search:
@@ -1160,6 +1276,22 @@ Your job:
                     km, kc = self._auto_select_model(_clean_msg)
                     if kc == "quick":
                         selected_model, signal_category = km, kc
+                # Guard against Pro-overuse. The LLM router sometimes picks Pro
+                # for anything that *looks* intellectual ("how do you like X",
+                # "what's your favorite Y"). If the message is short casual
+                # chitchat with no depth cues, demote Pro to the keyword
+                # scorer's choice (typically Air or Core for chat). Heavy models
+                # stay reserved for real work.
+                elif selected_model == self._heavy_model and _is_casual_chitchat(_clean_msg):
+                    km, kc = self._auto_select_model(_clean_msg)
+                    # Keyword router's "chat" → Core, "quick" → Spark. Either is
+                    # a better fit than Pro for small talk.
+                    if kc in ("chat", "quick", "general"):
+                        selected_model, signal_category = km, f"{kc} (demoted from pro)"
+                    else:
+                        # Even if the keyword router didn't find a strong match,
+                        # Core is still the right size for casual chat.
+                        selected_model, signal_category = self._core_model, "chat (demoted from pro)"
                 model_name = self._get_model_name(selected_model)
                 self_routed = selected_model == self._core_model
                 label = f"{model_name} (self-routed)" if self_routed else f"{model_name} ({signal_category})"
@@ -1656,28 +1788,37 @@ Your job:
         """
         Return True when the query would benefit from a web search.
 
-        Because search now runs in PARALLEL with the LLM (5-second race), a
+        Because search runs in PARALLEL with the LLM (≤7-second race), a
         slightly aggressive trigger is fine — the LLM always answers immediately
         from training data if the search is too slow.  The cost of searching
-        unnecessarily is only a background network call, not a user-visible delay.
+        unnecessarily is a background network call, not a user-visible delay.
+
+        Strategy: suppress search ONLY when we're confident the request is
+        closed-form (pure coding, pure maths, raw creative writing with no
+        subject requiring facts). Any live-data cue wins over task prefixes,
+        so "summarize the latest news on X" still fetches context even though
+        it starts with 'summarize'.
         """
         lowered = text.lower().strip()
+        words = lowered.split()
 
         # Very short conversational turns — no search needed
-        if len(lowered.split()) < 3:
+        if len(words) < 3:
             return False
 
-        # Pure task requests — writing, coding, maths etc. don't need search
-        task_prefixes = (
-            "write ", "draft ", "help me write", "summarize ", "explain ",
-            "translate ", "fix ", "debug ", "code ", "create a ", "make a ",
-            "calculate ", "convert ", "generate ", "draw ", "sketch ", "paint ",
-            "compose ", "poem ", "essay ", "story ",
-        )
-        if any(lowered.startswith(p) for p in task_prefixes):
-            return False
+        # Live-data cues: any of these force search regardless of sentence shape
+        import datetime as _dt
+        _current_year = _dt.date.today().year
+        _year_signals = {str(_current_year), str(_current_year - 1), str(_current_year + 1)}
 
-        # Always-live data (prices, weather, scores, breaking news)
+        time_signals = [
+            "current", "currently", "latest", "recent", "today", "tonight",
+            "tomorrow", "yesterday", "this week", "this month", "this year",
+            "right now", "just announced", "just released", "as of",
+            "so far this year", "this morning", "this afternoon", "this evening",
+            *_year_signals,
+        ]
+
         always_live = [
             "stock price", "share price", "crypto", "bitcoin", "ethereum",
             "exchange rate", "forex", "weather", "forecast",
@@ -1685,56 +1826,92 @@ Your job:
             "live score", "fixtures", "standings",
             "breaking news", "news today", "latest news",
             "icc ", "espn cricinfo",
+            "market cap", "traded at", "closed at",
+            "box office", "opening weekend",
         ]
         if any(s in lowered for s in always_live):
             return True
 
-        # Factual "current state of the world" questions — search for fresh data
         live_domains = [
+            # Politics / leadership
             "prime minister", "president", "chancellor", "leader",
             "ceo", "chief executive", "who runs", "who leads",
             "election", "vote", "poll", "referendum",
             "population", "capital city",
-            "war", "conflict", "ceasefire", "invasion",
-            "earthquake", "hurricane", "flood", "disaster",
+            # Geopolitics / events
+            "war", "conflict", "ceasefire", "invasion", "sanctions",
+            "earthquake", "hurricane", "flood", "wildfire", "disaster",
+            # Economy / finance
             "gdp", "inflation", "interest rate", "unemployment",
-            "price of", "cost of",
-            "died", "arrested", "charged", "sentenced", "released",
-            "acquired", "merger", "ipo", "launched", "released",
-        ]
-        # Time signals push any domain to search
-        time_signals = [
-            "current", "currently", "latest", "recent", "today", "tonight",
-            "this week", "this month", "this year", "right now",
-            "just announced", "just released", "as of", "2025", "2026",
+            "price of", "cost of", "fed rate", "rate cut", "rate hike",
+            # Corporate / news verbs (actions that get reported)
+            "died", "passed away", "arrested", "charged", "sentenced",
+            "released", "acquired", "merger", "ipo", "launched",
+            "announced", "unveiled", "appointed", "resigned", "fired",
+            # Sport / entertainment
+            "super bowl", "world cup", "olympics", "champions league",
+            "billboard", "grammy", "oscar", "emmy",
         ]
         has_time = any(s in lowered for s in time_signals)
         has_domain = any(d in lowered for d in live_domains)
 
-        # Search if: time signal alone, domain alone, or both
         if has_time or has_domain:
             return True
 
-        # Music / entertainment releases — training data goes stale quickly
-        if any(s in lowered for s in time_signals) and any(
-            m in lowered
-            for m in (
-                "album", "albums", "mixtape", "single", "ep ", " lp ", "soundtrack",
-                "discography", "rapper", "hip-hop", "hip hop", "band", "artist",
-                "song", "track", "billboard", "spotify", "grammy", "tour",
-            )
-        ):
+        # Music / entertainment releases — training data goes stale quickly.
+        # ANY mention of new-music terms + a time signal triggers search.
+        music_entities = (
+            "album", "albums", "mixtape", "single", "soundtrack",
+            "discography", "rapper", "hip-hop", "hip hop", "band", "artist",
+            "song", "track", "spotify", "tour", "concert",
+        )
+        if has_time and any(m in lowered for m in music_entities):
             return True
 
-        # Broad factual questions that benefit from fresh sources
+        # Broad factual-discovery questions — pulled out of suppression.
+        # These still benefit from fresh sources even though they don't match
+        # a live_domain keyword (e.g. asking about a niche company, person,
+        # event, place, product).
         factual_starts = (
             "who is ", "who are ", "who was ", "who won ",
             "what is the ", "what are the ", "what happened ",
+            "what's the ", "whats the ",
             "when did ", "when is ", "when was ",
-            "where is ", "tell me about ", "what do you know about ",
+            "where is ", "where does ",
+            "tell me about ", "what do you know about ",
+            "do you know ", "have you heard ",
+            "how many ", "how much ", "how much does ",
         )
         if any(lowered.startswith(s) for s in factual_starts):
             return True
+
+        # Closed-form task detection — only suppress when there's NO factual
+        # discovery cue. Task prefixes alone are not enough to skip search,
+        # because "summarize the news on X" or "explain the current X war"
+        # absolutely need fresh context.
+        task_prefixes = (
+            "write ", "draft ", "help me write",
+            "translate ", "fix ", "debug ", "code ", "create a ", "make a ",
+            "calculate ", "convert ", "generate ", "draw ", "sketch ", "paint ",
+            "compose ", "poem ", "essay about yourself",
+        )
+        if any(lowered.startswith(p) for p in task_prefixes):
+            # Only skip search when the task clearly doesn't reference live data.
+            # We've already checked always_live / live_domains / time_signals above
+            # and returned True if any matched.
+            return False
+
+        # If the question contains a question mark and references an entity
+        # (proper-noun-looking capitalized word in the ORIGINAL text), lean
+        # towards search — discovery questions about named things tend to
+        # benefit from context.
+        if "?" in text:
+            orig_words = text.split()
+            if any(
+                w[:1].isupper() and w[1:2].islower() and len(w) > 2
+                for w in orig_words
+            ):
+                return True
 
         return False
 

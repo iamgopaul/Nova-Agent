@@ -1,16 +1,25 @@
 import { NextRequest } from "next/server"
+import { novaApiBase } from "@/lib/nova-api-base"
 
 export const runtime = "nodejs"
 
-const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
+const COOKIE = "nova_token"
 
 export async function POST(req: NextRequest) {
   try {
+    const token = req.cookies.get(COOKIE)?.value
+    if (!token) {
+      return new Response(JSON.stringify({ detail: "Not authenticated." }), { status: 401 })
+    }
+
     const body = await req.json()
 
-    const upstream = await fetch(`${NOVA_API_BASE}/image/generate`, {
+    const upstream = await fetch(`${novaApiBase()}/image/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${COOKIE}=${token}`,
+      },
       body: JSON.stringify(body),
     })
 

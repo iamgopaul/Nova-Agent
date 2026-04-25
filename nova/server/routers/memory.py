@@ -67,7 +67,15 @@ def list_sessions(
     memory: MemoryStore = Depends(get_memory),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    return memory.list_sessions(user_id=current_user.id)
+    return memory.list_sessions(user_id=current_user.id, source="chat")
+
+
+@router.get("/voice-sessions", response_model=list[SessionSummary])
+def list_voice_sessions(
+    memory: MemoryStore = Depends(get_memory),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    return memory.list_voice_sessions(user_id=current_user.id)
 
 
 @router.patch("/sessions/{session_id}", status_code=204)

@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
   }
 
   const target = linked
-    ? new URL(`/chat?linked=${encodeURIComponent(provider || "oauth")}`, req.url)
-    : new URL("/chat", req.url)
+    ? new URL(`/home?linked=${encodeURIComponent(provider || "oauth")}`, req.url)
+    : new URL("/home", req.url)
 
   const response = NextResponse.redirect(target)
   response.cookies.set({

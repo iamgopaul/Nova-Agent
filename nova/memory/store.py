@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import uuid as _uuid_mod
@@ -9,7 +10,7 @@ from sqlalchemy import and_, create_engine, event, func, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 
-from nova.memory.models import Base, Fact, Folder, Message, OAuthIdentity, Session, User
+from nova.memory.models import Base, Fact, Folder, Message, OAuthIdentity, Session, User, WatchedTopic
 
 
 @event.listens_for(Engine, "connect", retval=False)
@@ -42,12 +43,17 @@ class MemoryStore:
 
     # ── Session ───────────────────────────────────────────────────────
 
-    def get_or_create_session(self, session_id: str | None = None, user_id: str | None = None) -> str:
+    def get_or_create_session(
+        self,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        source: str = "chat",
+    ) -> str:
         sid = session_id or str(_uuid_mod.uuid4())
         with DBSession(self._engine) as db:
             existing = db.get(Session, sid)
             if not existing:
-                db.add(Session(id=sid, user_id=user_id))
+                db.add(Session(id=sid, user_id=user_id, source=source))
                 db.commit()
             elif user_id:
                 if existing.user_id is None:
@@ -89,14 +95,15 @@ class MemoryStore:
             for m in rows
         ]
 
-    def list_sessions(self, user_id: str | None = None) -> list[dict[str, object]]:
+    def list_sessions(self, user_id: str | None = None, source: str = "chat") -> list[dict[str, object]]:
         """
-        Session list for the sidebar. Uses a few targeted queries instead of
-        loading *all* messages for *every* session (which was O(total messages)
-        and very slow for large history).
+        Session list for the sidebar. Returns only sessions matching *source*
+        ("chat" by default) so Nova Voice history stays out of Nova Chat.
+        Uses a few targeted queries instead of loading *all* messages for
+        *every* session (which was O(total messages) and very slow).
         """
         with DBSession(self._engine) as db:
-            q = select(Session).order_by(Session.created_at.desc())
+            q = select(Session).where(Session.source == source).order_by(Session.created_at.desc())
             if user_id is not None:
                 q = q.where(Session.user_id == user_id)
             sessions: list[Session] = list(db.scalars(q).all())
@@ -184,12 +191,18 @@ class MemoryStore:
 
         return summaries
 
+    def list_voice_sessions(self, user_id: str | None = None) -> list[dict[str, object]]:
+        """Voice-specific session list — mirrors list_sessions but filters for source='voice'."""
+        return self.list_sessions(user_id=user_id, source="voice")
+
     def delete_session(self, session_id: str, user_id: str | None = None) -> bool:
         with DBSession(self._engine) as db:
             row = db.get(Session, session_id)
             if not row:
                 return False
-            if user_id is not None and row.user_id != user_id:
+            # Allow deleting rows with no owner (e.g. legacy voice) when user is
+            # authenticated; still require a match when the row is already owned.
+            if user_id is not None and row.user_id is not None and row.user_id != user_id:
                 return False
             db.delete(row)
             db.commit()
@@ -396,6 +409,18 @@ class MemoryStore:
             db.refresh(user)
         return user
 
+    def update_user_password(self, user_id: str, hashed_password: str) -> User | None:
+        with DBSession(self._engine) as db:
+            user = db.get(User, user_id)
+            if not user:
+                return None
+            user.hashed_password = hashed_password
+            # Bump token_version so all previously issued JWTs are immediately invalid
+            user.token_version = (user.token_version or 0) + 1
+            db.commit()
+            db.refresh(user)
+        return user
+
     def count_users(self) -> int:
         with DBSession(self._engine) as db:
             return db.scalar(select(func.count()).select_from(User)) or 0
@@ -487,6 +512,92 @@ class MemoryStore:
             db.commit()
             return True, None
 
+    # ── Watched Topics (Web Watcher) ──────────────────────────────────
+
+    def list_watched_topics(self, user_id: str) -> list[dict]:
+        with DBSession(self._engine) as db:
+            rows = db.scalars(
+                select(WatchedTopic)
+                .where(WatchedTopic.user_id == user_id)
+                .order_by(WatchedTopic.created_at.asc())
+            ).all()
+        return [
+            {
+                "id": t.id,
+                "label": t.label,
+                "query": t.query,
+                "category": t.category,
+                "enabled": t.enabled,
+                "last_fetched_at": t.last_fetched_at,
+                "last_result": t.last_result,
+                "created_at": t.created_at,
+            }
+            for t in rows
+        ]
+
+    def add_watched_topic(
+        self, user_id: str, label: str, query: str, category: str = "custom"
+    ) -> dict:
+        t = WatchedTopic(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            label=label.strip(),
+            query=query.strip(),
+            category=category,
+            enabled=True,
+        )
+        with DBSession(self._engine) as db:
+            db.add(t)
+            db.commit()
+            db.refresh(t)
+            return {
+                "id": t.id,
+                "label": t.label,
+                "query": t.query,
+                "category": t.category,
+                "enabled": t.enabled,
+                "last_fetched_at": t.last_fetched_at,
+                "last_result": t.last_result,
+                "created_at": t.created_at,
+            }
+
+    def delete_watched_topic(self, topic_id: str, user_id: str) -> bool:
+        with DBSession(self._engine) as db:
+            t = db.get(WatchedTopic, topic_id)
+            if not t or t.user_id != user_id:
+                return False
+            db.delete(t)
+            db.commit()
+        return True
+
+    def toggle_watched_topic(self, topic_id: str, user_id: str, enabled: bool) -> bool:
+        with DBSession(self._engine) as db:
+            t = db.get(WatchedTopic, topic_id)
+            if not t or t.user_id != user_id:
+                return False
+            t.enabled = enabled
+            db.commit()
+        return True
+
+    def update_watched_topic_result(self, topic_id: str, result_json: str) -> None:
+        with DBSession(self._engine) as db:
+            t = db.get(WatchedTopic, topic_id)
+            if t:
+                t.last_result = result_json
+                t.last_fetched_at = datetime.now(timezone.utc)
+                db.commit()
+
+    def list_all_enabled_topics(self) -> list[dict]:
+        """Background scheduler uses this to refresh all users' topics."""
+        with DBSession(self._engine) as db:
+            rows = db.scalars(
+                select(WatchedTopic).where(WatchedTopic.enabled.is_(True))
+            ).all()
+        return [
+            {"id": t.id, "user_id": t.user_id, "label": t.label, "query": t.query}
+            for t in rows
+        ]
+
     def _ensure_schema(self) -> None:
         with self._engine.begin() as conn:
             user_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
@@ -495,6 +606,8 @@ class MemoryStore:
             if "created_at" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN created_at DATETIME"))
                 conn.execute(text("UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
+            if "token_version" not in user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
 
             columns = conn.execute(text("PRAGMA table_info(sessions)")).fetchall()
             column_names = {str(col[1]) for col in columns}
@@ -508,6 +621,9 @@ class MemoryStore:
             # Add user_id columns for multi-user support (nullable for backward compat)
             if "user_id" not in column_names:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN user_id VARCHAR(36) REFERENCES users(id)"))
+
+            if "source" not in column_names:
+                conn.execute(text("ALTER TABLE sessions ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'chat'"))
 
             folder_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(folders)")).fetchall()}
             if "user_id" not in folder_cols:

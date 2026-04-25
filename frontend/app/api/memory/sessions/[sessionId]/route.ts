@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server"
+import { novaApiBase } from "@/lib/nova-api-base"
 
 export const runtime = "nodejs"
 
-const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
 
 function cookieHeader(req: NextRequest): Record<string, string> {
   const token = req.cookies.get("nova_token")?.value
@@ -14,7 +14,7 @@ export async function DELETE(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params
-  const upstream = await fetch(`${NOVA_API_BASE}/memory/sessions/${encodeURIComponent(sessionId)}`, {
+  const upstream = await fetch(`${novaApiBase()}/memory/sessions/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",
     headers: cookieHeader(req),
   })
@@ -32,7 +32,7 @@ export async function PATCH(
 ) {
   const { sessionId } = await params
   const payload = await req.json()
-  const upstream = await fetch(`${NOVA_API_BASE}/memory/sessions/${encodeURIComponent(sessionId)}`, {
+  const upstream = await fetch(`${novaApiBase()}/memory/sessions/${encodeURIComponent(sessionId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...cookieHeader(req) },
     body: JSON.stringify(payload || {}),

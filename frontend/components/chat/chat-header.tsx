@@ -1,54 +1,51 @@
 "use client"
 
-import { ChevronDown, Mic } from "lucide-react"
-import { useState } from "react"
+import { ChevronDown, Zap, Brain, Code2, Sigma, FlaskConical, Eye, Lightbulb, Star, MessagesSquare } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
 type SpeedTier = "instant" | "fast" | "medium" | "slow"
 
-const SPEED_LABEL: Record<SpeedTier, string> = {
-  instant: "Instant",
-  fast:    "Fast",
-  medium:  "Medium",
-  slow:    "Slow",
-}
-
 const SPEED_COLOR: Record<SpeedTier, string> = {
   instant: "text-emerald-400",
-  fast:    "text-green-400",
-  medium:  "text-yellow-400",
-  slow:    "text-orange-400",
+  fast:    "text-cyan-400",
+  medium:  "text-blue-400",
+  slow:    "text-amber-400",
 }
 
 const SPEED_DOT: Record<SpeedTier, string> = {
   instant: "bg-emerald-400",
-  fast:    "bg-green-400",
-  medium:  "bg-yellow-400",
-  slow:    "bg-orange-400",
+  fast:    "bg-cyan-400",
+  medium:  "bg-blue-400",
+  slow:    "bg-amber-400",
+}
+
+const SPEED_LABEL: Record<SpeedTier, string> = {
+  instant: "Instant",
+  fast:    "Fast",
+  medium:  "Balanced",
+  slow:    "Deep",
 }
 
 const MODELS = [
-  // ── Core ─────────────────────────────────────────────────────────────────
-  { key: "auto",     name: "Nova Auto",     description: "Intelligently picks the best model for every query",   badge: "AUTO",   speed: "fast"    as SpeedTier },
-  { key: "spark",    name: "Nova Spark",    description: "Ultra-fast · voice queries & instant one-liners",      badge: "FAST",   speed: "instant" as SpeedTier },
-  { key: "air",      name: "Nova Air",      description: "Light & snappy conversational chat",                                    speed: "fast"    as SpeedTier },
-  { key: "core",     name: "Nova Core",     description: "Balanced everyday queries with full tool access",                       speed: "fast"    as SpeedTier },
-  { key: "pro",      name: "Nova Pro",      description: "Most powerful · deep reasoning, research & web search", badge: "PRO",   speed: "slow"    as SpeedTier },
-  // ── Specialists ──────────────────────────────────────────────────────────
-  { key: "code",     name: "Nova Code",     description: "Coding specialist · generation, debugging & review",          badge: "CODE",   speed: "slow"    as SpeedTier },
-  { key: "quant",   name: "Nova Quant",    description: "Maths, calculus, statistics & quantitative finance",         badge: "MATH",   speed: "medium"  as SpeedTier },
-  { key: "reason",  name: "Nova Reason",   description: "Proofs, derivations & chain-of-thought problem solving",    badge: "THINK",  speed: "medium"  as SpeedTier },
-  { key: "vision",   name: "Nova Vision",   description: "Image & scene understanding · visual questions",            badge: "VISION", speed: "medium"  as SpeedTier },
-  { key: "mind",     name: "Nova Mind",     description: "Deep, nuanced conversation · no tool overhead",                                speed: "slow"    as SpeedTier },
-  { key: "creative", name: "Nova Creative", description: "Writing, brainstorming & creative style",                   badge: "CREATE", speed: "slow"    as SpeedTier },
-  { key: "insight",  name: "Nova Insight",  description: "Focused analysis and sharp reasoning",                                        speed: "medium"  as SpeedTier },
-  { key: "sage",     name: "Nova Sage",     description: "Strong instruction following & structured output",          badge: "SMART",  speed: "medium"  as SpeedTier },
-  // ── Lightweight ──────────────────────────────────────────────────────────
-  { key: "chat",     name: "Nova Chat",     description: "Friendly & natural conversational flow",                                speed: "fast"    as SpeedTier },
-  { key: "logic",    name: "Nova Logic",    description: "Concise and precise logical tasks",                                     speed: "fast"    as SpeedTier },
-  { key: "mini",     name: "Nova Mini",     description: "Smallest & snappiest · ultra-lightweight",                              speed: "instant" as SpeedTier },
-  { key: "star",     name: "Nova Star",     description: "Polished, well-rounded general responses",                              speed: "medium"  as SpeedTier },
-  { key: "open",     name: "Nova Open",     description: "OpenChat baseline · open-ended conversation",                           speed: "medium"  as SpeedTier },
+  { key: "auto",     name: "Nova Auto",     description: "Intelligently picks the best model",              badge: "AUTO",   speed: "fast"    as SpeedTier, icon: Zap },
+  { key: "spark",    name: "Nova Spark",    description: "Ultra-fast · voice queries & instant replies",    badge: "FAST",   speed: "instant" as SpeedTier, icon: Zap },
+  { key: "air",      name: "Nova Air",      description: "Light & snappy conversational chat",                               speed: "fast"    as SpeedTier, icon: MessagesSquare },
+  { key: "core",     name: "Nova Core",     description: "Balanced everyday queries with full tool access",                  speed: "fast"    as SpeedTier, icon: Star },
+  { key: "pro",      name: "Nova Pro",      description: "Most powerful · deep reasoning & web search",     badge: "PRO",   speed: "slow"    as SpeedTier, icon: Brain },
+  { key: "code",     name: "Nova Code",     description: "Coding specialist · generation & debugging",      badge: "CODE",  speed: "slow"    as SpeedTier, icon: Code2 },
+  { key: "quant",    name: "Nova Quant",    description: "Maths, calculus & quantitative finance",          badge: "MATH",  speed: "medium"  as SpeedTier, icon: Sigma },
+  { key: "reason",   name: "Nova Reason",   description: "Proofs, derivations & chain-of-thought",          badge: "THINK", speed: "medium"  as SpeedTier, icon: Brain },
+  { key: "vision",   name: "Nova Vision",   description: "Image & scene understanding",                     badge: "VISION",speed: "medium"  as SpeedTier, icon: Eye },
+  { key: "mind",     name: "Nova Mind",     description: "Deep, nuanced conversation",                                       speed: "slow"    as SpeedTier, icon: Brain },
+  { key: "creative", name: "Nova Creative", description: "Writing, brainstorming & creative style",         badge: "CREATE",speed: "slow"    as SpeedTier, icon: FlaskConical },
+  { key: "insight",  name: "Nova Insight",  description: "Focused analysis and sharp reasoning",                             speed: "medium"  as SpeedTier, icon: Lightbulb },
+  { key: "sage",     name: "Nova Sage",     description: "Strong instruction following & structured output", badge: "SMART", speed: "medium"  as SpeedTier, icon: Star },
+  { key: "chat",     name: "Nova Chat",     description: "Friendly & natural conversational flow",                           speed: "fast"    as SpeedTier, icon: MessagesSquare },
+  { key: "logic",    name: "Nova Logic",    description: "Concise and precise logical tasks",                                speed: "fast"    as SpeedTier, icon: Brain },
+  { key: "mini",     name: "Nova Mini",     description: "Smallest & snappiest · ultra-lightweight",                         speed: "instant" as SpeedTier, icon: Zap },
+  { key: "star",     name: "Nova Star",     description: "Polished, well-rounded general responses",                         speed: "medium"  as SpeedTier, icon: Star },
+  { key: "open",     name: "Nova Open",     description: "OpenChat baseline · open-ended conversation",                      speed: "medium"  as SpeedTier, icon: MessagesSquare },
 ]
 
 export type ChatModelKey = (typeof MODELS)[number]["key"]
@@ -56,102 +53,122 @@ export type ChatModelKey = (typeof MODELS)[number]["key"]
 interface ChatHeaderProps {
   selectedModelKey: ChatModelKey
   onModelChange: (modelKey: ChatModelKey) => void
-  onVoiceMode?: () => void
 }
 
-export function ChatHeader({ selectedModelKey, onModelChange, onVoiceMode }: ChatHeaderProps) {
-  const [showModelPicker, setShowModelPicker] = useState(false)
-  const selectedModel = MODELS.find(model => model.key === selectedModelKey) ?? MODELS[0]
+/** Per-model badge color overrides — falls back to blue (Nova Chat theme). */
+function badgeClass(key: string): string {
+  switch (key) {
+    case "vision":   return "bg-violet-500/15 text-violet-400 border-violet-500/20"
+    case "code":     return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+    case "pro":      return "bg-amber-500/15 text-amber-400 border-amber-500/20"
+    case "creative": return "bg-pink-500/15 text-pink-400 border-pink-500/20"
+    case "sage":     return "bg-cyan-500/15 text-cyan-400 border-cyan-500/20"
+    case "quant":    return "bg-sky-500/15 text-sky-400 border-sky-500/20"
+    case "reason":   return "bg-violet-500/15 text-violet-400 border-violet-500/20"
+    default:         return "bg-blue-500/15 text-blue-400 border-blue-500/20"
+  }
+}
+
+export function ChatHeader({ selectedModelKey, onModelChange }: ChatHeaderProps) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selectedModel = MODELS.find(m => m.key === selectedModelKey) ?? MODELS[0]
+  const ModelIcon = selectedModel.icon
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [open])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [open])
 
   return (
-    <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-      {/* Model selector */}
-      <div className="relative">
-        <button
-          onClick={() => setShowModelPicker(!showModelPicker)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors border border-transparent hover:border-border"
-        >
-          <span>{selectedModel.name}</span>
-          <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-200", showModelPicker && "rotate-180")} />
-        </button>
+    <div className="relative" ref={ref}>
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-150",
+          "border hover:text-white",
+          open
+            ? "bg-white/[0.08] border-blue-500/30 text-white"
+            : "text-white/75 border-transparent hover:bg-white/[0.06] hover:border-white/[0.08]"
+        )}
+      >
+        <ModelIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+        <span className="hidden sm:inline">{selectedModel.name}</span>
+        {selectedModel.badge && (
+          <span className="hidden sm:inline text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/20">
+            {selectedModel.badge}
+          </span>
+        )}
+        <span className={cn("flex items-center gap-1 text-[10px] shrink-0", SPEED_COLOR[selectedModel.speed])}>
+          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", SPEED_DOT[selectedModel.speed])} />
+          <span className="hidden sm:inline">{SPEED_LABEL[selectedModel.speed]}</span>
+        </span>
+        <ChevronDown className={cn("w-3.5 h-3.5 text-white/30 transition-transform duration-200", open && "rotate-180")} />
+      </button>
 
-        {showModelPicker && (
-          <>
-            <div
-              className="fixed inset-0 z-20"
-              onClick={() => setShowModelPicker(false)}
-            />
-            <div className="absolute top-full left-0 mt-2 w-72 rounded-xl border border-border bg-popover shadow-2xl z-30 overflow-hidden">
-              <div className="p-2 space-y-1 max-h-[60vh] overflow-y-auto">
-                {MODELS.map(model => (
-                  <button
-                    key={model.key}
-                    onClick={() => { onModelChange(model.key); setShowModelPicker(false) }}
-                    className={cn(
-                      "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
-                      selectedModel.key === model.key
-                        ? "bg-primary/10 text-foreground"
-                        : "hover:bg-muted text-foreground"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium">{model.name}</span>
-                        {model.badge && (
-                          <span className={cn(
-                            "text-[10px] font-bold px-1.5 py-0.5 rounded-md border",
-                            model.key === "vision"
-                              ? "bg-violet-500/20 text-violet-400 border-violet-500/30"
-                              : model.key === "code"
-                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                              : model.key === "pro"
-                              ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                              : model.key === "creative"
-                              ? "bg-pink-500/20 text-pink-400 border-pink-500/30"
-                              : model.key === "sage"
-                              ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
-                              : model.key === "quant"
-                              ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                              : model.key === "reason"
-                              ? "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
-                              : "bg-primary/20 text-primary border-primary/30"
-                          )}>
-                            {model.badge}
-                          </span>
-                        )}
-                        {model.speed && (
-                          <span className={cn("flex items-center gap-1 text-[10px] font-medium", SPEED_COLOR[model.speed])}>
-                            <span className={cn("w-1.5 h-1.5 rounded-full", SPEED_DOT[model.speed])} />
-                            {SPEED_LABEL[model.speed]}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{model.description}</p>
+      {/* Dropdown — right-aligned so it never clips off the edge */}
+      {open && (
+        <div className="absolute top-full right-0 mt-2 w-80 rounded-2xl border border-white/[0.08] bg-[#0f0f17] shadow-2xl shadow-black/70 z-50 overflow-hidden">
+          <div className="px-3 pt-3 pb-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-white/25 px-1">Select Model</p>
+          </div>
+
+          <div className="p-2 max-h-[min(65vh,480px)] overflow-y-auto scrollbar-thin space-y-0.5">
+            {MODELS.map(model => {
+              const Icon = model.icon
+              const isSelected = selectedModel.key === model.key
+              return (
+                <button
+                  key={model.key}
+                  onClick={() => { onModelChange(model.key); setOpen(false) }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-100",
+                    isSelected
+                      ? "bg-blue-600/20 border border-blue-500/20 text-white"
+                      : "hover:bg-white/[0.05] text-white/55 hover:text-white/90 border border-transparent"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4 shrink-0", isSelected ? "text-blue-400" : "text-white/20")} />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold leading-tight">{model.name}</span>
+                      {model.badge && (
+                        <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-md border", badgeClass(model.key))}>
+                          {model.badge}
+                        </span>
+                      )}
+                      <span className={cn("flex items-center gap-1 text-[9px] font-medium ml-auto", SPEED_COLOR[model.speed])}>
+                        <span className={cn("w-1.5 h-1.5 rounded-full", SPEED_DOT[model.speed])} />
+                        {SPEED_LABEL[model.speed]}
+                      </span>
                     </div>
-                    {selectedModel.key === model.key && (
-                      <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+                    <p className="text-[11px] text-white/30 mt-0.5 leading-snug">{model.description}</p>
+                  </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1">
-        {onVoiceMode && (
-          <button 
-            onClick={onVoiceMode}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-primary hover:from-blue-500/30 hover:to-cyan-500/30 border border-primary/30 transition-all"
-            title="Voice conversation"
-          >
-            <Mic className="w-4 h-4" />
-            <span className="hidden sm:inline">Voice</span>
-          </button>
-        )}
-      </div>
-    </header>
+                  {isSelected && (
+                    <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

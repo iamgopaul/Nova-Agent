@@ -470,6 +470,95 @@ def _is_echo_corrupt(text: str) -> bool:
     return any(p.search(probe) for p in _ECHO_ABORT_PATTERNS)
 
 
+def _looks_like_image_tutorial(text: str) -> bool:
+    """
+    True when the model answered an image-generation request with a how-to / guide instead
+    of a short confirmation. Used to replace with a one-liner; the real image still generates.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    low = t.lower()
+    # Fast paths — catch guides early (incl. mid-stream) with short min length
+    if re.search(r"(?i)step[-\s]by[-\s]step", t) and len(t) >= 25:
+        return True
+    if re.search(
+        r"(?i)here('?s| is)\s+(?:a |the |my )?"
+        r"(?:(?:quick |simple |brief |detailed )?)(?:step[- ]by[- ]step |)"
+        r"(?:guide|walkthrough|tutorial|overview|instructions?)\b",
+        t,
+    ) and len(t) >= 20:
+        return True
+    if re.search(
+        r"(?i)guide\s+on\s+how\s+to\s+(?:create|make|draw|build)",
+        t,
+    ):
+        return True
+    if re.search(
+        r"(?i)(?:adobe|)\s*photoshop|\bgimp\b|image editing software|"
+        r"trace and recreate|reference image to trace|pre-?made templates",
+        t,
+    ) and re.search(
+        r"(?i)(open |select |search for a high-quality|use the reference|on a new layer|brush tool)",
+        t,
+    ):
+        return True
+    if len(t) < 100:
+        return False
+    if re.search(r"(?i)\bstep\s*\d+[\s:.)—-]", t):
+        return True
+    if re.search(
+        r"(?i)here('?s| is)\s+(?:a |the |my )?(?:quick |simple |brief )?"
+        r"(?:(?:step[- ]by[- ]step|detailed)\s+)?(?:guide|walkthrough|tutorial|overview)\b",
+        t,
+    ):
+        return True
+    if re.search(
+        r"(?i)how to\s+(?:create|make|generate|produce|get)\s+(?:an?\s+)?"
+        r"(?:image|picture|photo|artwork|illustration)\b",
+        t,
+    ) and not re.search(r"(?i)generating (?:it|that|your) now", low):
+        if any(
+            s in low
+            for s in (
+                "midjourney",
+                "dall-e",
+                "dalle",
+                "photoshop",
+                "illustrator",
+                "canva",
+                "comfyui",
+                "invokeai",
+                "figma",
+                "procreate",
+            )
+        ):
+            return True
+    if re.search(r"(?i)^#+\s*(?:how|steps?|guide|tutorial)\b", t, re.M):
+        return True
+    # "1." then blank line then "Open your…" (numbered list not on same line as text)
+    if re.search(r"(?i)\d+\s*\.?\s*\n+\s*open your", t) or re.search(
+        r"(?i)search for a high-quality reference image", t
+    ):
+        return True
+    num_lines = len(re.findall(r"(?m)^\s*\d+[\).]\s+\S", t))
+    if num_lines >= 3 and any(
+        w in low
+        for w in (
+            " open ",
+            " select ",
+            " choose ",
+            " click ",
+            " download ",
+            " install ",
+            " layer ",
+            " brush ",
+        )
+    ):
+        return True
+    return False
+
+
 def _strip_response_artifacts(text: str) -> str:
     """
     Clean up common LLM response artifacts:
@@ -504,7 +593,27 @@ def _strip_sd_leakage(text: str) -> str:
             continue
         tag_hits = len(_SD_TAG_RE.findall(last))
         comma_density = last.count(",") / max(len(last.split()), 1)
+        last_l = last.lower()
         if tag_hits >= 3 and comma_density > 0.20:
+            paragraphs.pop()
+        # Single-line or paragraph-long leaked SD "prompt soup" (character + style tags, 8k, etc.)
+        elif (
+            len(last) > 100
+            and last.count(",") >= 6
+            and comma_density > 0.10
+            and any(
+                k in last_l
+                for k in (
+                    "8k",
+                    "4k",
+                    "anime",
+                    "art style",
+                    "digital painting",
+                    "illustration",
+                    "masterpiece",
+                )
+            )
+        ):
             paragraphs.pop()
         else:
             break
@@ -521,7 +630,9 @@ Rules:
 - **Ground in the user question and the assistant reply** — not generic filler ("Tell me more", "Make it shorter", "What else?") unless the reply is truly too thin to be more specific.
 - Write from the user's perspective (e.g. "Add a section on Quebec" not "The user may want Quebec").
 - NEVER suggest reading aloud, listening, or speaking — the read-aloud button is already in the UI.
-- If the topic is visual (fashion, places, food, people, design, art, style, decor, nature, travel) include at least one suggestion that starts with "Show me photos of" or "Search for images of" so the user can see visuals.
+- **Never** suggest opening Photoshop, GIMP, "tracing", "tutorials" on how to draw, or any DIY art-software workflow — the app generates images; users are not hand-drawing in external tools.
+- If the assistant **just generated an AI image** (user asked to create/draw/generate a picture), prefer actionable chip text the app can run: e.g. "Download this image as PNG", "Try a different art style", "Make a wider landscape version" — not software tutorials.
+- If the topic is visual (fashion, places, food, people, design, art, style, decor, nature, travel) and it is **not** only a raw image-generation request, you may still include a line starting with "Show me photos of" or "Search for images of" for reference browsing.
 - Return ONLY a valid JSON array of 3 strings, no other text.
 
 Example (essay about South Beach Miami):
@@ -532,6 +643,9 @@ Example (factual help):
 
 Example (fashion / style topic):
 ["Show me photos of this style", "Search for images of the outfit", "Where can I buy similar pieces?"]
+
+Example (AI just generated a character or scene image):
+["Download this image as PNG", "Regenerate with a darker mood", "Add a second character to the scene"]
 """
 
 
@@ -604,6 +718,49 @@ class FormatRequest(BaseModel):
     content: str
 
 
+def _looks_like_musical_or_structured_block(text: str) -> bool:
+    """
+    Chord progressions, key names, lead-sheet section labels — not chatty outro/intro.
+    Keeps the last line of a response (e.g. 'G Major - … (Fade out)') in the body
+    with normal styling instead of muted outro.
+    """
+    t = text.strip()
+    if not t:
+        return False
+    if re.search(r"\b[A-G](?:#|b)?\s+(?:Major|minor)\b", t, re.I):
+        return True
+    if len(re.findall(r"\s-\s", t)) >= 2:
+        return True
+    if re.search(
+        r"\([^)]*\b(?:Verse|Chorus|Bridge|Intro|Outro|Ending|Fade|Instrumental|Hook|Refrain)\b[^)]*\)",
+        t,
+        re.I,
+    ):
+        return True
+    return False
+
+
+def _normalize_merged_sections(
+    intro: str, body: str, outro: str, full_content: str
+) -> dict:
+    """
+    Re-merge lead-sheet / chord text misclassified as intro or outro into body.
+    Matches normalizeResponseSections in message-bubble.tsx.
+    """
+    t_i = (intro or "").strip()
+    t_o = (outro or "").strip()
+    t_b = ((body or full_content).strip() or (full_content or "").strip() or full_content) or ""
+    if t_i and _looks_like_musical_or_structured_block(t_i):
+        t_b = f"{t_i}\n\n{t_b}" if t_b else t_i
+        t_i = ""
+    if t_o and _looks_like_musical_or_structured_block(t_o):
+        t_b = f"{t_b}\n\n{t_o}" if t_b else t_o
+        t_o = ""
+    if not t_i and not t_o:
+        return {"intro": "", "body": t_b or full_content, "outro": ""}
+    return {"intro": t_i, "body": t_b, "outro": t_o}
+
+
 def _is_short_prose(paragraph: str) -> bool:
     """
     Returns True if *paragraph* looks like a short conversational remark
@@ -612,6 +769,8 @@ def _is_short_prose(paragraph: str) -> bool:
     """
     t = paragraph.strip()
     if not t:
+        return False
+    if _looks_like_musical_or_structured_block(t):
         return False
     # Code blocks, headings, lists, tables — never an intro/outro
     if t.startswith(("```", "#", "- ", "* ", "|")) or re.match(r"^\d+\.", t):
@@ -652,7 +811,9 @@ def _split_response_sections(content: str) -> dict:
     if not intro and not outro:
         return {"intro": "", "body": content, "outro": ""}
 
-    return {"intro": intro, "body": body or content, "outro": outro}
+    return _normalize_merged_sections(
+        intro, body or content, outro, content
+    )
 
 
 @router.post("/format")
@@ -2115,24 +2276,36 @@ async def chat(
 
     def on_chunk(chunk: str) -> None:
         nonlocal _total_chars, _stream_aborted
-        if chunk and not _stream_has_content.is_set():
+        # Essay+images: we buffer the LLM in memory and do not stream tokens; if we
+        # set _stream_has_content on the first token, the heartbeat stops while the
+        # model is still writing — nothing enters the SSE queue for minutes → idle
+        # timeout. Only mark "has streamed" once we are past essay mode.
+        if chunk and not _stream_has_content.is_set() and not _is_essay_mode:
             _stream_has_content.set()
         _total_chars += len(chunk)
         _response_parts.append(chunk)
         stats_tracker.token_generated(_req_start, len(chunk))
 
-        # Real-time corruption / refusal detection (checked once enough early text exists)
+        # Real-time corruption / refusal / image-tutorial detection
         if not _stream_aborted and _total_chars >= 64:
             accumulated = "".join(_response_parts)
             is_corrupt = _is_echo_corrupt(accumulated)
-            # Also abort early if the LLM is refusing an image it is fully capable of
             is_refusal = bool(
                 (_image_prompt or _raw_image_prompt)
                 and _IMAGE_REFUSAL_RE.search(accumulated)
             )
-            if is_corrupt or is_refusal:
+            is_img_tutorial = bool(
+                (_image_prompt or _raw_image_prompt)
+                and _looks_like_image_tutorial(accumulated)
+            )
+            if is_corrupt or is_refusal or is_img_tutorial:
                 _stream_aborted = True
-                label = "image refusal" if is_refusal else "system-prompt echo"
+                if is_refusal:
+                    label = "image refusal"
+                elif is_img_tutorial:
+                    label = "image tutorial (guide instead of generate)"
+                else:
+                    label = "system-prompt echo"
                 print(
                     f"[Chat] ⚠ {label} detected mid-stream — suppressing output",
                     flush=True,
@@ -2168,6 +2341,13 @@ async def chat(
         # user message so the LLM can quote real temperatures/conditions.
         # The widget SSE event is sent after the LLM regardless.
         effective_user_message = user_message
+        # Nudge the model: image gen is automatic — users want the picture, not a how-to.
+        if _raw_image_prompt:
+            effective_user_message += (
+                "\n\n[Internal — image generation: The app renders this image automatically. "
+                "Reply with at most one short confirmation line. Do not give step-by-step "
+                "instructions, software tutorials, or 'how to make this image' guides.]"
+            )
         if _wants_weather and _weather_task is not None:
             try:
                 emit_status("Fetching live weather data")
@@ -2250,10 +2430,6 @@ async def chat(
                 mode=body.mode,
                 model_key=body.model_key,
             )
-            # In essay mode, signal the heartbeat to stop so our progress status
-            # events (image fetching, assembling) aren't overwritten by it.
-            if _is_essay_mode:
-                _stream_has_content.set()
             stats_tracker.request_finished(_req_start, _total_chars)
             full_response = "".join(_response_parts).strip()
 
@@ -2322,6 +2498,29 @@ async def chat(
                         flush=True,
                     )
                     full_response = cleaned
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait,
+                        {"type": "replace", "content": full_response},
+                    )
+
+                # 3b) Image request answered with a how-to / tutorial — replace; pipeline still runs.
+                if (_image_prompt or _raw_image_prompt) and _looks_like_image_tutorial(
+                    full_response
+                ):
+                    subj = (
+                        (_image_prompt or _raw_image_prompt or "")
+                        .split(",")[0]
+                        .strip()[:60]
+                    )
+                    full_response = (
+                        f"On it! Generating your image of {subj} now ✨"
+                        if subj
+                        else "On it! Generating your image now ✨"
+                    )
+                    print(
+                        "[Chat] ⚠ Image tutorial-style reply replaced with short confirmation",
+                        flush=True,
+                    )
                     loop.call_soon_threadsafe(
                         queue.put_nowait,
                         {"type": "replace", "content": full_response},
@@ -2635,6 +2834,12 @@ async def chat(
                         f"[Chat] Essay story_sections emitted: {len(_story_for_essay)} sections",
                         flush=True,
                     )
+                    # First user-visible payload for essay — stop the "writing essay" heartbeat.
+                    _stream_has_content.set()
+
+            if _is_essay_mode and not _stream_has_content.is_set():
+                # Parsed no sections or nothing to show; still stop the heartbeat.
+                _stream_has_content.set()
 
             for _doc_fmt in _doc_formats:
                 _doc_evt: dict = {
@@ -2763,8 +2968,10 @@ async def chat(
         # Global watchdog: if the backend produces no output for 120 seconds
         # (after the heartbeat pings every 12 s the real ceiling is model hang),
         # or the total stream exceeds 300 seconds, abort with a friendly error.
-        _IDLE_TIMEOUT = 120.0
-        _TOTAL_TIMEOUT = 300.0
+        # Essay+web-image pipelines can run several minutes; keepalive is via
+        # heartbeat (pre-stream) + status events; this is a last-resort ceiling.
+        _IDLE_TIMEOUT = 180.0
+        _TOTAL_TIMEOUT = 600.0
         import time as _time
         _stream_start = _time.monotonic()
         while True:

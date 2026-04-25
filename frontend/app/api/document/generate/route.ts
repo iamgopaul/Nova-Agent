@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server"
+import { novaApiBase } from "@/lib/nova-api-base"
 
 export const runtime = "nodejs"
 
-const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
+const COOKIE = "nova_token"
 
-// Map of document MIME types used to set the correct Content-Type
 const MIME_MAP: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -16,12 +16,20 @@ const MIME_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    const token = req.cookies.get(COOKIE)?.value
+    if (!token) {
+      return new Response(JSON.stringify({ detail: "Not authenticated." }), { status: 401 })
+    }
+
     const body = await req.json()
     const fmt: string = (body.format ?? "docx").toLowerCase().replace(/^\./, "")
 
-    const upstream = await fetch(`${NOVA_API_BASE}/document/generate`, {
+    const upstream = await fetch(`${novaApiBase()}/document/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${COOKIE}=${token}`,
+      },
       body: JSON.stringify(body),
     })
 

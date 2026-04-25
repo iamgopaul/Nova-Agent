@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { NovaIcon } from "@/components/icons/nova-icon"
+import { PasswordStrength } from "@/components/password-strength"
 
 const AVATAR_COLORS = [
   "#38bdf8", "#818cf8", "#34d399", "#fb923c",
@@ -51,7 +52,7 @@ export default function SignupPage() {
         setError(data.detail || "Registration failed. Please try again.")
         return
       }
-      router.push("/chat")
+      router.push("/home")
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {
@@ -148,8 +149,8 @@ export default function SignupPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Password</label>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted-foreground">Password</label>
               <input
                 type="password"
                 value={password}
@@ -159,6 +160,7 @@ export default function SignupPage() {
                 placeholder="Min. 8 characters"
                 className="w-full rounded-xl border border-border bg-input/85 backdrop-blur-sm px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
               />
+              <PasswordStrength password={password} showRules />
             </div>
 
             <div>
@@ -200,6 +202,11 @@ export default function SignupPage() {
         <p className="text-center text-[10px] text-muted-foreground mt-4">
           Your data stays on your machine. Always.
         </p>
+        <div className="text-center mt-3">
+          <Link href="/" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+            ← Back to Nova
+          </Link>
+        </div>
       </div>
     </div>
   )

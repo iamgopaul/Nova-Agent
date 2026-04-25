@@ -28,7 +28,7 @@ export default function LoginPage() {
         setError(data.detail || "Invalid email or password.")
         return
       }
-      router.push("/chat")
+      router.push("/home")
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {
@@ -125,6 +125,11 @@ export default function LoginPage() {
         <p className="text-center text-[10px] text-muted-foreground mt-4">
           Your data stays on your machine. Always.
         </p>
+        <div className="text-center mt-3">
+          <Link href="/" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+            ← Back to Nova
+          </Link>
+        </div>
       </div>
     </div>
   )

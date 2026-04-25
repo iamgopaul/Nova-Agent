@@ -28,12 +28,19 @@ def get_current_user(
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated.")
-    user_id = decode_token(token)
-    if not user_id:
+    result = decode_token(token)
+    if not result:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    user_id, token_version = result
     user = memory.get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not found.")
+    # Reject tokens issued before the most recent password change
+    if (user.token_version or 0) != token_version:
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired after a password change. Please sign in again.",
+        )
     return user
 
 
@@ -45,7 +52,8 @@ def get_optional_user(
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         return None
-    user_id = decode_token(token)
-    if not user_id:
+    result = decode_token(token)
+    if not result:
         return None
+    user_id, _ = result
     return memory.get_user_by_id(user_id)

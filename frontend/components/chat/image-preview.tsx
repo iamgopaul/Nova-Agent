@@ -58,21 +58,21 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
 
   return (
     <>
-      {/* Inline card */}
+      {/* Inline card — compact, elegant */}
       <div className={cn(
-        "rounded-xl overflow-hidden border border-border/40 bg-muted/30",
+        "inline-block max-w-sm rounded-lg overflow-hidden border border-white/10 bg-black/20 shadow-sm",
         className,
       )}>
         {/* Image */}
         <div
-          className="relative cursor-zoom-in group"
+          className="relative cursor-zoom-in group bg-black/30"
           onClick={() => !imgError && setLightbox(true)}
           title={imgError ? "Image unavailable" : "Click to enlarge"}
         >
           {imgError ? (
-            <div className="w-full h-32 flex flex-col items-center justify-center gap-2 bg-muted/50 text-muted-foreground">
-              <ImageIcon className="w-8 h-8 opacity-40" />
-              <span className="text-xs opacity-60">Image unavailable</span>
+            <div className="w-full h-24 flex flex-col items-center justify-center gap-1.5 bg-muted/40 text-muted-foreground">
+              <ImageIcon className="w-5 h-5 opacity-40" />
+              <span className="text-[11px] opacity-60">Image unavailable</span>
             </div>
           ) : (
             <>
@@ -80,42 +80,42 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
               <img
                 src={src}
                 alt={prompt ?? "Generated image"}
-                className="w-full h-auto object-cover max-h-80"
+                className="w-full h-auto object-contain max-h-56"
                 onError={() => setImgError(true)}
               />
               {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                <Maximize2 className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center pointer-events-none">
+                <Maximize2 className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
               </div>
             </>
           )}
         </div>
 
-        {/* Footer bar */}
-        <div className="flex items-center justify-between px-3 py-2 bg-background/60 border-t border-border/30">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <ImageIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        {/* Footer bar — slim */}
+        <div className="flex items-center justify-between px-2 py-1 bg-black/30 border-t border-white/5">
+          <div className="flex items-center gap-1 min-w-0">
+            <ImageIcon className="w-3 h-3 text-white/30 shrink-0" />
             {displayLabel && (
-              <span className="text-xs text-muted-foreground truncate max-w-xs" title={prompt}>
+              <span className="text-[11px] text-white/45 truncate max-w-[180px]" title={prompt}>
                 {displayLabel}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={() => setLightbox(true)}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1 rounded text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
               title="View full size"
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              <Maximize2 className="w-3 h-3" />
             </button>
             <a
               href={url}
               download="nova_image.png"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1 rounded text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
               title="Download PNG"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3 h-3" />
             </a>
           </div>
         </div>
@@ -193,90 +193,31 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
 export function ImageGenerating({ className }: { prompt?: string; className?: string }) {
   return (
     <div className={cn(
-      "rounded-xl overflow-hidden border border-violet-500/40 shadow-xl shadow-violet-900/30",
+      "inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border border-blue-500/30 bg-gradient-to-r from-blue-950/50 to-cyan-950/30 backdrop-blur-sm",
       className,
     )}>
-      {/* Rich purple gradient canvas */}
-      <div
-        className="relative h-56 flex flex-col items-center justify-center gap-4 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #2d1b69 0%, #4c1d95 35%, #6d28d9 65%, #7e22ce 100%)" }}
-      >
-        {/* Radial glow blob */}
+      {/* Compact animated icon — matches home Nova Chat card (blue + cyan) */}
+      <div className="relative flex items-center justify-center w-7 h-7 rounded-md bg-blue-500/15 border border-cyan-500/25 overflow-hidden">
+        <ImageIcon className="w-3.5 h-3.5 text-cyan-200/90 relative z-10" />
         <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-        >
-          <div
-            className="w-48 h-48 rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(167,139,250,0.25) 0%, transparent 70%)",
-              animation: "nova-pulse-ring 2.5s ease-in-out infinite",
-            }}
-          />
-        </div>
-
-        {/* Sweeping shimmer stripe (uses global keyframe) */}
-        <div
-          className="absolute inset-0 opacity-25 pointer-events-none"
+          className="absolute inset-0 opacity-60 pointer-events-none"
           style={{
-            background: "linear-gradient(108deg, transparent 38%, rgba(220,180,255,0.55) 50%, transparent 62%)",
+            background: "linear-gradient(108deg, transparent 38%, rgba(220,180,255,0.5) 50%, transparent 62%)",
             backgroundSize: "250% 100%",
-            animation: "nova-shimmer 2.4s linear infinite",
+            animation: "nova-shimmer 1.8s linear infinite",
           }}
         />
-
-        {/* Icon circle + orbiting dot */}
-        <div className="relative z-10">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center"
-            style={{
-              background: "rgba(139,92,246,0.3)",
-              border: "1.5px solid rgba(196,181,253,0.45)",
-              boxShadow: "0 0 28px rgba(139,92,246,0.5)",
-            }}
-          >
-            <ImageIcon className="w-8 h-8 text-violet-100" />
-          </div>
-          {/* Orbiting accent dot */}
-          <div
-            className="absolute w-3 h-3 rounded-full"
-            style={{
-              top: "-4px", right: "-4px",
-              background: "#e879f9",
-              boxShadow: "0 0 10px rgba(232,121,249,0.8)",
-              animation: "nova-orbit 2.2s linear infinite",
-            }}
-          />
-        </div>
-
-        {/* Label — no prompt shown */}
-        <div className="relative z-10 flex flex-col items-center gap-1">
-          <span
-            className="text-base font-semibold tracking-wide"
-            style={{ color: "#ede9fe" }}
-          >
-            Generating image…
-          </span>
-          <span className="text-xs" style={{ color: "rgba(196,181,253,0.6)" }}>
-            This may take a moment
-          </span>
-        </div>
-
-        {/* Bottom progress bar */}
-        <div
-          className="absolute bottom-0 inset-x-0 h-[3px] animate-pulse"
-          style={{ background: "linear-gradient(90deg, transparent, #c084fc, #e879f9, transparent)" }}
-        />
       </div>
 
-      {/* Footer skeleton row */}
-      <div
-        className="px-4 py-3 flex items-center gap-3"
-        style={{ background: "#130820", borderTop: "1px solid rgba(139,92,246,0.2)" }}
-      >
-        <div className="w-2.5 h-2.5 rounded-full bg-violet-500/50 animate-pulse flex-shrink-0" />
-        <div className="h-2 rounded-full bg-violet-400/12 animate-pulse flex-1" />
-        <div className="h-2 w-16 rounded-full bg-violet-400/8 animate-pulse" />
-      </div>
+      {/* Text with subtle dot pulse */}
+      <span className="text-[12.5px] font-medium text-blue-100/90 tracking-tight">
+        Generating image
+      </span>
+      <span className="flex gap-0.5 items-center">
+        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "0ms" }} />
+        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "150ms" }} />
+        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "300ms" }} />
+      </span>
     </div>
   )
 }
@@ -285,89 +226,36 @@ export function ImageGenerating({ className }: { prompt?: string; className?: st
 export function DiagramGenerating({ label, className }: { label?: string; className?: string }) {
   return (
     <div className={cn(
-      "rounded-xl overflow-hidden border border-cyan-500/40 shadow-xl shadow-cyan-900/30",
+      "inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border border-cyan-500/25 bg-cyan-950/40 backdrop-blur-sm",
       className,
     )}>
-      {/* Teal/cyan gradient canvas */}
-      <div
-        className="relative h-44 flex flex-col items-center justify-center gap-4 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #0c2a3a 0%, #0e4d5e 35%, #0891b2 65%, #06b6d4 100%)" }}
-      >
-        {/* Radial glow */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div
-            className="w-40 h-40 rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(34,211,238,0.22) 0%, transparent 70%)",
-              animation: "nova-pulse-ring 2.8s ease-in-out infinite",
-            }}
-          />
-        </div>
-
-        {/* Shimmer sweep */}
+      <div className="relative flex items-center justify-center w-7 h-7 rounded-md bg-cyan-500/20 border border-cyan-400/25 overflow-hidden">
+        <svg className="w-3.5 h-3.5 relative z-10" viewBox="0 0 24 24" fill="none"
+          stroke="rgba(207,250,254,0.95)" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="4"  r="1.6" />
+          <circle cx="4"  cy="20" r="1.6" />
+          <circle cx="20" cy="20" r="1.6" />
+          <line x1="12" y1="6"  x2="4"  y2="18" />
+          <line x1="12" y1="6"  x2="20" y2="18" />
+          <line x1="4"  y1="20" x2="20" y2="20" />
+        </svg>
         <div
-          className="absolute inset-0 opacity-25 pointer-events-none"
+          className="absolute inset-0 opacity-60 pointer-events-none"
           style={{
-            background: "linear-gradient(108deg, transparent 38%, rgba(103,232,249,0.55) 50%, transparent 62%)",
+            background: "linear-gradient(108deg, transparent 38%, rgba(103,232,249,0.5) 50%, transparent 62%)",
             backgroundSize: "250% 100%",
-            animation: "nova-shimmer 2.6s linear infinite",
+            animation: "nova-shimmer 1.8s linear infinite",
           }}
         />
-
-        {/* Icon + orbit dot */}
-        <div className="relative z-10">
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center"
-            style={{
-              background: "rgba(8,145,178,0.3)",
-              border: "1.5px solid rgba(103,232,249,0.4)",
-              boxShadow: "0 0 24px rgba(8,145,178,0.5)",
-            }}
-          >
-            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none"
-              stroke="rgba(207,250,254,0.9)" strokeWidth="1.8" strokeLinecap="round">
-              <circle cx="12" cy="4"  r="2" />
-              <circle cx="4"  cy="20" r="2" />
-              <circle cx="20" cy="20" r="2" />
-              <line x1="12" y1="6"  x2="4"  y2="18" />
-              <line x1="12" y1="6"  x2="20" y2="18" />
-              <line x1="4"  y1="20" x2="20" y2="20" />
-            </svg>
-          </div>
-          <div
-            className="absolute w-2.5 h-2.5 rounded-full"
-            style={{
-              top: "-3px", right: "-3px",
-              background: "#34d399",
-              boxShadow: "0 0 8px rgba(52,211,153,0.8)",
-              animation: "nova-orbit 2.6s linear infinite",
-            }}
-          />
-        </div>
-
-        {/* Label */}
-        <div className="relative z-10 flex flex-col items-center gap-1">
-          <span className="text-sm font-semibold tracking-wide" style={{ color: "#cffafe" }}>
-            {label || "Rendering diagram…"}
-          </span>
-        </div>
-
-        {/* Bottom bar */}
-        <div
-          className="absolute bottom-0 inset-x-0 h-[3px] animate-pulse"
-          style={{ background: "linear-gradient(90deg, transparent, #22d3ee, #67e8f9, transparent)" }}
-        />
       </div>
-
-      {/* Footer skeleton */}
-      <div
-        className="px-4 py-3 flex items-center gap-3"
-        style={{ background: "#061218", borderTop: "1px solid rgba(8,145,178,0.2)" }}
-      >
-        <div className="w-2.5 h-2.5 rounded-full bg-cyan-500/50 animate-pulse flex-shrink-0" />
-        <div className="h-2 rounded-full bg-cyan-400/12 animate-pulse flex-1" />
-        <div className="h-2 w-12 rounded-full bg-cyan-400/8 animate-pulse" />
-      </div>
+      <span className="text-[12.5px] font-medium text-cyan-100/90 tracking-tight">
+        {label || "Rendering diagram"}
+      </span>
+      <span className="flex gap-0.5 items-center">
+        <span className="w-1 h-1 rounded-full bg-cyan-300 animate-pulse" style={{ animationDelay: "0ms" }} />
+        <span className="w-1 h-1 rounded-full bg-cyan-300 animate-pulse" style={{ animationDelay: "150ms" }} />
+        <span className="w-1 h-1 rounded-full bg-cyan-300 animate-pulse" style={{ animationDelay: "300ms" }} />
+      </span>
     </div>
   )
 }

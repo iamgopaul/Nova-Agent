@@ -54,20 +54,24 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user_id: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=TOKEN_EXPIRE_DAYS)
+def create_token(user_id: str, token_version: int = 0) -> str:
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(days=TOKEN_EXPIRE_DAYS)
     return jwt.encode(
-        {"sub": user_id, "exp": expire},
+        {"sub": user_id, "ver": token_version, "iat": int(now.timestamp()), "exp": expire},
         _get_secret(),
         algorithm=ALGORITHM,
     )
 
 
-def decode_token(token: str) -> str | None:
-    """Return user_id from a valid token, or None if invalid/expired."""
+def decode_token(token: str) -> tuple[str, int] | None:
+    """Return ``(user_id, token_version)`` from a valid token, or ``None``."""
     try:
         payload = jwt.decode(token, _get_secret(), algorithms=[ALGORITHM])
         user_id: str | None = payload.get("sub")
-        return user_id
+        if not user_id:
+            return None
+        version = int(payload.get("ver", 0))
+        return user_id, version
     except JWTError:
         return None

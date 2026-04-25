@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react"
+import { useRouter } from "next/navigation"
 import { Send, Paperclip, Mic, Square } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -9,10 +10,10 @@ interface ChatInputProps {
   isStreaming: boolean
   onStop: () => void
   disabled?: boolean
-  onVoiceMode?: () => void
 }
 
-export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }: ChatInputProps) {
+export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputProps) {
+  const router = useRouter()
   const [value, setValue] = useState("")
   const [attachments, setAttachments] = useState<File[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -63,13 +64,12 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
   }
 
   return (
-    <div className="w-full px-4 pb-4 pt-2">
+    <div className="w-full px-4 pb-4 pt-2 bg-gradient-to-b from-[#0d0d12] to-blue-950/20 border-t border-blue-500/20">
       <div className="max-w-3xl mx-auto">
         <div
           className={cn(
-            "relative flex items-end gap-2 rounded-2xl border border-border bg-input/85 backdrop-blur-md p-3 transition-all duration-200",
-            "focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/25",
-            "focus-within:shadow-[0_0_24px_oklch(0.72_0.14_220_/_0.20)]"
+            "relative flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3 transition-all duration-200",
+            "focus-within:border-blue-500/40 focus-within:ring-2 focus-within:ring-blue-500/15",
           )}
         >
           {/* Attachment button */}
@@ -84,7 +84,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
             type="button"
             onClick={handlePickFiles}
             disabled={disabled || isStreaming}
-            className="shrink-0 mb-0.5 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 mb-0.5 p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="Attach files or images"
           >
             <Paperclip className="w-4 h-4" />
@@ -96,11 +96,11 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
             value={value}
             onChange={e => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message Nova..."
+            placeholder="Message Nova…"
             rows={1}
             disabled={disabled}
             className={cn(
-              "flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground",
+              "flex-1 resize-none bg-transparent text-sm text-white/80 placeholder:text-white/20",
               "focus:outline-none leading-relaxed py-0.5 max-h-[200px] scrollbar-thin"
             )}
           />
@@ -110,9 +110,9 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
             {!isStreaming && !value && (
               <button
                 type="button"
-                onClick={onVoiceMode}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                title="Open voice conversation"
+                onClick={() => router.push("/voice")}
+                className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors"
+                title="Nova Voice"
               >
                 <Mic className="w-4 h-4" />
               </button>
@@ -122,10 +122,10 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
               <button
                 type="button"
                 onClick={onStop}
-                className="flex items-center justify-center w-8 h-8 rounded-xl bg-primary hover:opacity-90 transition-opacity active:scale-95"
+                className="flex items-center justify-center w-8 h-8 rounded-xl bg-red-500/80 hover:bg-red-500 transition-colors active:scale-95"
                 title="Stop generating"
               >
-                <Square className="w-3.5 h-3.5 fill-primary-foreground text-primary-foreground" />
+                <Square className="w-3.5 h-3.5 fill-white text-white" />
               </button>
             ) : (
               <button
@@ -135,8 +135,8 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
                 className={cn(
                   "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-150 active:scale-95",
                   (value.trim() || attachments.length > 0) && !disabled
-                    ? "bg-primary text-primary-foreground hover:opacity-90"
-                    : "bg-muted text-muted-foreground cursor-not-allowed"
+                    ? "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/40"
+                    : "bg-white/[0.05] text-white/20 cursor-not-allowed"
                 )}
                 title="Send message (Enter)"
               >
@@ -151,7 +151,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
             {attachments.map((file, index) => (
               <div
                 key={`${file.name}-${file.size}-${index}`}
-                className="flex items-center gap-2 max-w-full rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground"
+                className="flex items-center gap-2 max-w-full rounded-full border border-white/[0.08] bg-white/[0.05] px-3 py-1.5 text-xs text-white/70"
               >
                 <span className="max-w-[240px] truncate" title={file.name}>
                   {file.name}
@@ -172,7 +172,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled, onVoiceMode }
           </div>
         )}
 
-        <p className="text-center text-[10px] text-muted-foreground mt-2">
+        <p className="text-center text-[10px] text-white/15 mt-2">
           Nova can make mistakes. Consider verifying important information.
         </p>
       </div>

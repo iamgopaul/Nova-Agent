@@ -61,7 +61,7 @@ export function ChatWindow({ messages, isStreaming, onSuggestionClick }: ChatWin
         onClick={() => scrollToBottom()}
         className={cn(
           "absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full",
-          "bg-card border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 shadow-lg transition-all duration-200",
+          "bg-[#1a1a26] border border-white/10 text-xs text-white/40 hover:text-white/70 hover:border-blue-500/40 shadow-xl transition-all duration-200",
           showScrollBtn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
         )}
       >

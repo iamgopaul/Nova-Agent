@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import os
 import re
 import subprocess
@@ -14,11 +15,13 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from nova.agent.orchestrator import Orchestrator
 from nova.memory.store import MemoryStore
-from nova.server.dependencies import get_memory, get_orchestrator
+from nova.memory.models import User
+from nova.server.dependencies import get_memory, get_optional_user, get_orchestrator
 from nova.server.schemas import VoiceResponse
 from nova.services.body_detector import pick_frame_best_hands
 from nova.services.camera_context import (
@@ -35,6 +38,12 @@ from nova.services.voice_personalization import compose_stt_prompt, build_whispe
 from nova.voice.stt import WhisperSTT
 
 router = APIRouter()
+
+
+@router.get("/ping")
+def voice_router_ping() -> dict:
+    """Lightweight health check — confirms the voice router is mounted (debug 404s)."""
+    return {"router": "voice", "status": "ok"}
 
 # STT instance — created on first request, kept for the process lifetime
 _stt: WhisperSTT | None = None
@@ -685,6 +694,7 @@ async def transcribe_and_respond(
     camera_frame_9: UploadFile | None = File(None),
     orchestrator: Orchestrator = Depends(get_orchestrator),
     memory: MemoryStore = Depends(get_memory),
+    current_user: User | None = Depends(get_optional_user),
 ) -> VoiceResponse:
     """
     Accept an audio upload, transcribe it via Whisper, run the Nova agent,
@@ -775,7 +785,7 @@ async def transcribe_and_respond(
                 describe_scene_frame,
                 request.app.state.settings,
                 frame_bytes,
-                5.0,
+                2.5,
             )
         except Exception as exc:
             print(f"[Nova] Utterance vision error: {exc}")
@@ -784,7 +794,8 @@ async def transcribe_and_respond(
         raise HTTPException(status_code=422, detail="No speech detected in audio.")
     user_said_nova_name = _mentions_nova_name(transcript)
 
-    sid = memory.get_or_create_session(session_id)
+    _uid = current_user.id if current_user else None
+    sid = memory.get_or_create_session(session_id, user_id=_uid, source="voice")
     known_user = memory.get_fact_value("user_name", "").strip()
     known_display = memory.get_fact_value("user_display_name", "").strip()
     last_known_speaker = memory.get_fact_value("last_speaker", "").strip()
@@ -1138,6 +1149,393 @@ async def transcribe_and_respond(
         session_id=sid,
         face_name=face_name,
         face_confidence=face_confidence,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Streaming voice endpoint
+#
+# `/voice/stream` is the real-time counterpart to `/voice`.
+#
+# It yields NDJSON events as the pipeline progresses:
+#   {"type": "transcript", "text": "...", "session_id": "..."}
+#   {"type": "sentence",   "text": "..."}      ← emitted each time a
+#                                                sentence completes from the
+#                                                streaming LLM output; the
+#                                                client can start TTS on each
+#                                                sentence immediately, so the
+#                                                first audio plays while Nova
+#                                                is still "thinking".
+#   {"type": "done",       "response": "...", "session_id": "..."}
+#   {"type": "error",      "detail":   "..."}
+#
+# Why a separate endpoint instead of modifying `/voice`?
+#   The iPhone shortcut and some older clients still expect the single-JSON
+#   `VoiceResponse` shape. Keeping `/voice` untouched preserves that contract
+#   while the web UI can opt in to the low-latency stream.
+# ──────────────────────────────────────────────────────────────────────────
+
+# Sentence terminators we consider complete enough to pipe to TTS. We look
+# for these at a buffer tail (plus optional trailing quote/bracket/space) so
+# an in-flight clause like "Hello there," still waits before firing.
+_SENTENCE_ENDERS = (".", "!", "?", "…")
+
+
+def _split_complete_sentences(buffer: str) -> tuple[list[str], str]:
+    """Return (complete_sentences, remainder) from a running LLM buffer.
+
+    Looks for sentence terminators (. ! ? …). Handles simple cases like
+    "Mr.", "U.S." by requiring the next char to be whitespace or end-of-string
+    and the next non-space char (if any) to be uppercase / punctuation. This
+    isn't perfect but is good enough for voice — we'd rather speak a slightly
+    over-eager clause than lag a whole sentence.
+    """
+    if not buffer:
+        return [], buffer
+
+    sentences: list[str] = []
+    start = 0
+    i = 0
+    n = len(buffer)
+    while i < n:
+        ch = buffer[i]
+        if ch in _SENTENCE_ENDERS:
+            # Swallow any immediately following closing punctuation (quote, paren).
+            end = i + 1
+            while end < n and buffer[end] in ('"', "'", ")", "]", "”", "’"):
+                end += 1
+            # Require next char to be whitespace OR end of buffer.
+            # If end < n, also skip the whitespace and make sure we're NOT
+            # in the middle of an abbreviation (next char is lowercase letter).
+            if end >= n:
+                # Don't emit until we know more text isn't coming. Wait.
+                break
+            if buffer[end] not in (" ", "\n", "\t"):
+                i = end
+                continue
+            # Peek past whitespace — if next non-space char is lowercase, it's
+            # likely mid-sentence (abbreviation); skip it.
+            peek = end
+            while peek < n and buffer[peek] in (" ", "\n", "\t"):
+                peek += 1
+            if peek < n and buffer[peek].isalpha() and buffer[peek].islower():
+                i = end
+                continue
+            candidate = buffer[start:end].strip()
+            if candidate:
+                sentences.append(candidate)
+            start = end
+            i = end
+            continue
+        # Newline on its own can also terminate a sentence.
+        if ch == "\n" and (i + 1 >= n or buffer[i + 1] == "\n"):
+            candidate = buffer[start : i + 1].strip()
+            if candidate:
+                sentences.append(candidate)
+            start = i + 1
+        i += 1
+
+    remainder = buffer[start:]
+    # If remainder is getting too long without a terminator, flush a soft break
+    # on comma/semicolon so Nova starts speaking quickly.
+    if not sentences and len(remainder) > 72:
+        soft_idx = -1
+        for pivot in (", ", "; ", ": "):
+            idx = remainder.rfind(pivot, 0, 96)
+            if idx > soft_idx:
+                soft_idx = idx + len(pivot) - 1
+        if soft_idx > 20:
+            clause = remainder[: soft_idx + 1].strip()
+            if clause:
+                sentences.append(clause)
+                remainder = remainder[soft_idx + 1 :]
+    return sentences, remainder
+
+
+@router.post("/stream")
+async def transcribe_and_respond_stream(
+    request: Request,
+    audio: UploadFile = File(..., description="User utterance audio (WAV, MP3, M4A, or raw PCM)"),
+    session_id: str | None = Form(None),
+    mode: str = Form("fast"),
+    model_key: str | None = Form(None),
+    camera_frame: UploadFile | None = File(None, description="Optional JPEG camera snapshot"),
+    orchestrator: Orchestrator = Depends(get_orchestrator),
+    memory: MemoryStore = Depends(get_memory),
+    current_user: User | None = Depends(get_optional_user),
+) -> StreamingResponse:
+    """Real-time voice endpoint: streams transcript, sentence-level text, and
+    a final done payload as soon as each stage completes.
+
+    Optimized for conversation flow:
+      • STT fires in a worker thread; `transcript` emits as soon as it lands.
+      • Camera / face processing is skipped unless the transcript references
+        vision (`_should_include_camera_context`).
+      • Orchestrator runs with `stream_callback` → sentences are piped out
+        the moment they complete, so the client can start TTS on sentence 1
+        while the LLM is still generating sentence 2.
+    """
+
+    raw = await audio.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty audio file.")
+
+    frame_raw: bytes | None = None
+    if camera_frame is not None:
+        try:
+            fb = await camera_frame.read()
+            frame_raw = fb if fb and len(fb) > 400 else None
+        except Exception:
+            frame_raw = None
+
+    pcm = _to_pcm(raw, audio.filename or "")
+    stt = _get_stt(request)
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def emit(obj: dict) -> None:
+        try:
+            line = json.dumps(obj, ensure_ascii=False) + "\n"
+        except (TypeError, ValueError):
+            line = json.dumps({"type": "error", "detail": "bad event"}) + "\n"
+        # Thread-safe: callers may be the sync stream_callback running in the
+        # orchestrator / Ollama worker thread.
+        try:
+            loop.call_soon_threadsafe(queue.put_nowait, line)
+        except RuntimeError:
+            # Loop closed already (client disconnect) — drop silently.
+            pass
+
+    async def pipeline() -> None:
+        try:
+            # ── STT (fast path: beam=1, vad_filter off) ─────────────────
+            fast_mode = str(mode or "").strip().lower() == "fast"
+            transcript = await asyncio.to_thread(stt.transcribe, pcm, 16000, None, fast_mode)
+            if not transcript:
+                transcript = await asyncio.to_thread(stt.transcribe, pcm, 16000, None, False)
+            transcript = _normalize_wake_homophones(transcript or "")
+            if not transcript.strip():
+                emit({"type": "error", "detail": "No speech detected."})
+                return
+
+            _uid = current_user.id if current_user else None
+            sid = memory.get_or_create_session(session_id, user_id=_uid, source="voice")
+            emit({"type": "transcript", "text": transcript, "session_id": sid})
+
+            # ── Speaker identity (lightweight — we use a reference name only)
+            speaker_identity = _get_speaker_identity(request)
+            speaker_label: str | None = None
+            voice_confidence = 0.0
+            try:
+                speaker_label, voice_confidence, _declared = speaker_identity.identify(pcm, transcript)
+            except Exception:
+                speaker_label = None
+                voice_confidence = 0.0
+
+            def _reference_name(name: str | None) -> str:
+                if not name:
+                    return ""
+                try:
+                    return speaker_identity.reference_name(name)
+                except Exception:
+                    return name
+
+            ref_name = _reference_name(speaker_label)
+            known_user = memory.get_fact_value("user_name", "").strip()
+            known_display = memory.get_fact_value("user_display_name", "").strip()
+            if _is_anonymous_speaker(speaker_label) and known_user and float(voice_confidence) < _ANON_SPEAKER_SWITCH_MIN_CONF:
+                ref_name = known_display or _reference_name(known_user)
+
+            # ── Camera context (only if transcript asks about it) ───────
+            wants_camera_context = _should_include_camera_context(transcript)
+            frame_bytes = frame_raw if wants_camera_context else None
+
+            hand_summary = ""
+            detector_summary = ""
+            camera_vision = ""
+            face_name: str | None = None
+            face_confidence: float | None = None
+
+            if frame_bytes is not None:
+                def _frame_metrics() -> tuple[str, str]:
+                    from nova.services.body_detector import detect as mp_detect
+
+                    mp_rows, hs = mp_detect(frame_bytes)
+                    dlist = [
+                        {"type": d.type, "label": d.label, "confidence": d.confidence, "box": d.box} for d in mp_rows
+                    ]
+                    det = summarize_detections_for_voice(dlist)
+                    return (hs or "").strip(), det.strip()
+
+                try:
+                    hand_summary, detector_summary = await asyncio.to_thread(_frame_metrics)
+                except Exception as exc:
+                    print(f"[Nova] Stream frame metrics error: {exc}")
+
+                try:
+                    camera_vision = await asyncio.to_thread(
+                        describe_scene_frame,
+                        request.app.state.settings,
+                        frame_bytes,
+                        2.5,
+                    )
+                except Exception as exc:
+                    print(f"[Nova] Stream utterance vision error: {exc}")
+
+                try:
+                    face_store = getattr(request.app.state, "face_identity", None)
+                    if face_store is not None:
+                        face_name, face_confidence = face_store.identify(frame_bytes)
+                except Exception:
+                    face_name = None
+                    face_confidence = None
+
+            # ── Build the prompt passed to the orchestrator ─────────────
+            effective_ref = ref_name or (known_display if _is_anonymous_speaker(speaker_label) else "")
+            spoken_input = transcript
+            if effective_ref:
+                spoken_input = f"[Speaker: {effective_ref}] {transcript}"
+            elif _is_anonymous_speaker(speaker_label):
+                spoken_input = (
+                    "[Identity note: speaker identity is currently unknown or low-confidence. "
+                    "Do not assert a specific person's name; ask for a quick introduction if needed.]\n"
+                    f"{spoken_input}"
+                )
+            spoken_input = (
+                "[Voice instruction: Respond directly to the user's transcript. "
+                "Do not invent extra user intent or unrelated tasks.]\n"
+                f"{spoken_input}"
+            )
+
+            live_prefix = get_live_prefix_for_prompt(sid, ref_name) if wants_camera_context else ""
+            if live_prefix:
+                spoken_input = f"{live_prefix}\n{spoken_input}"
+
+            if frame_bytes is not None and wants_camera_context:
+                who = camera_who_line(face_name, face_confidence, detector_summary, ref_name)
+                vision_desc = camera_vision.strip() if camera_vision else SCENE_UNAVAILABLE
+                hands_line, cam_instruction = hands_ground_truth_block(hand_summary or "", live=False)
+                det_part = detector_summary.strip() if detector_summary and detector_summary.strip() else ""
+                det_clause = f" | Detector: {det_part}" if det_part else ""
+                spoken_input = (
+                    f"[Utterance snapshot — when you finished speaking | Person: {who} | {hands_line}{det_clause} | "
+                    f"Scene: {vision_desc} | {cam_instruction}]\n{spoken_input}"
+                )
+
+            display_label = effective_ref or ref_name
+            display_message = transcript if not display_label else f"{display_label}: {transcript}"
+
+            # ── Fast-path canned replies (no LLM round trip) ────────────
+            canned: str | None = None
+            if _is_camera_presence_question(transcript):
+                if face_name or ("person" in (detector_summary or "").lower()) or ("face" in (detector_summary or "").lower()):
+                    canned = "Yeah, I can see you."
+                else:
+                    canned = "I can hear you clearly. Camera recognition can miss a frame sometimes, but you're here with me."
+            elif _is_smalltalk_opening(transcript):
+                canned = _smalltalk_reply(transcript)
+            elif _is_identity_question(transcript) and _is_anonymous_speaker(speaker_label):
+                canned = "I'm not fully sure which voice this is yet. Hey, can you introduce yourself?"
+
+            if canned is not None:
+                emit({"type": "sentence", "text": canned})
+                emit({"type": "done", "response": canned, "session_id": sid})
+                return
+
+            # ── Stream the LLM response, emitting sentences as they close
+            effective_mode = mode
+            effective_model_key = model_key
+            if _is_code_request(transcript):
+                effective_mode = "code"
+                effective_model_key = "code"
+
+            buffer = {"text": ""}
+            emitted_any = {"flag": False}
+
+            def on_chunk(chunk: str) -> None:
+                if not chunk:
+                    return
+                buffer["text"] += chunk
+                sentences, rest = _split_complete_sentences(buffer["text"])
+                for s in sentences:
+                    emit({"type": "sentence", "text": s})
+                    emitted_any["flag"] = True
+                buffer["text"] = rest
+
+            full_response = await orchestrator.run(
+                user_message=spoken_input,
+                session_id=sid,
+                mode=effective_mode,
+                model_key=effective_model_key,
+                display_message=display_message,
+                stream_callback=on_chunk,
+            )
+
+            # Flush the tail.
+            tail = buffer["text"].strip()
+            if tail:
+                emit({"type": "sentence", "text": tail})
+                emitted_any["flag"] = True
+
+            # Defensive: if nothing streamed (some code paths return without
+            # invoking stream_callback), emit the full response so the
+            # client still gets audio.
+            if not emitted_any["flag"] and full_response:
+                sentences, remainder = _split_complete_sentences(full_response)
+                for s in sentences:
+                    emit({"type": "sentence", "text": s})
+                if remainder.strip():
+                    emit({"type": "sentence", "text": remainder.strip()})
+
+            emit({"type": "done", "response": full_response or "", "session_id": sid})
+
+            # Best-effort STT vocabulary refresh (non-critical — doesn't block).
+            try:
+                cfg = request.app.state.settings.voice.get("stt", {})
+                if bool(cfg.get("personalization", True)):
+                    custom_terms = cfg.get("custom_terms") or []
+                    if not isinstance(custom_terms, list):
+                        custom_terms = []
+                    _require_wake, wake_words, _wake_active = _wake_word_settings(request)
+                    custom_terms = _stt_terms_with_wake_words(custom_terms, wake_words)
+                    refresh_stt_prompt(memory, stt, custom_terms=custom_terms)
+            except Exception:
+                pass
+
+        except Exception as exc:
+            print(f"[Nova] Voice stream error: {exc}")
+            emit({"type": "error", "detail": str(exc)})
+        finally:
+            try:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+            except RuntimeError:
+                pass
+
+    async def generator():
+        task = asyncio.create_task(pipeline())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except Exception:
+                    pass
+
+    return StreamingResponse(
+        generator(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+            "X-Nova-Stream": "voice",
+        },
     )
 
 

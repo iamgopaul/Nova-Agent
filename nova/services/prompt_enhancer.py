@@ -28,11 +28,12 @@ user's image request into a single, highly detailed Stable Diffusion prompt that
 produce an accurate, beautiful result.
 
 Rules:
-1. Output ONLY the prompt — no explanation, no code, no extra text, no markdown.
+1. Output ONLY the prompt — no explanation, no code, no extra text, no markdown, \
+   no "Here is the prompt:", no thinking tags, no quotes around the prompt.
 1b. If the request includes a "User's latest message" / "Extracted subject" / "Recent thread" / \
    "Web image search" block, those define subject and follow-ups (e.g. which character, what "her" means). \
    Do NOT replace them with a random unrelated name (e.g. a generic Western name) when the user named \
-   a character, scene, or prior topic.
+   a character, scene, or prior topic. **Preserve the exact subject** given in those blocks.
 2. CRITICAL — CHARACTER IDENTITY: The subject's FULL NAME and source/series MUST be \
    the very first tokens in the prompt. Examples:
    • "Nami, One Piece anime character, …"
@@ -56,6 +57,8 @@ Rules:
 8. For watercolor/oil painting: add matching painterly descriptors.
 9. NEVER include "text", "watermark", "signature", or "low quality".
 10. Keep the prompt under 180 words.
+11. Respond with the prompt **on a single line**, comma-separated tokens. No line breaks \
+    inside the prompt itself.
 """
 
 _ENHANCER_USER_TEMPLATE = "User request: {request}\n\nWrite the Stable Diffusion prompt:"
@@ -120,18 +123,47 @@ async def enhance_image_prompt(
 
 
 def _clean_enhanced_prompt(text: str) -> str:
-    """Strip any accidental markdown, quotes, or prefix explanations."""
-    # Remove markdown code fences
+    """Strip any accidental markdown, quotes, prefix explanations, or <think> blocks."""
+    import re
+
+    # Strip <think>…</think> blocks that reasoning models sometimes include
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove any leftover opening/closing think tags
+    text = re.sub(r"</?think>", "", text, flags=re.IGNORECASE)
+
+    # Remove fenced code blocks (keep the inner content)
+    code_fence = re.search(r"```[a-zA-Z]*\n?(.*?)```", text, flags=re.DOTALL)
+    if code_fence:
+        text = code_fence.group(1)
+
+    # Drop common LLM lead-in phrases (whole-line variants)
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+    cleaned: list[str] = []
+    lead_ins = (
+        "here is the prompt", "here's the prompt", "prompt:", "sd prompt:",
+        "stable diffusion prompt:", "here's a prompt", "here is a prompt",
+        "sure,", "of course,", "okay,", "alright,", "certainly,",
+    )
+    for ln in lines:
+        low = ln.lower()
+        if any(low.startswith(li) for li in lead_ins):
+            # Keep anything after a colon on the same line
+            if ":" in ln:
+                after = ln.split(":", 1)[1].strip()
+                if after:
+                    cleaned.append(after)
+            continue
+        cleaned.append(ln)
+    text = " ".join(cleaned).strip()
+
+    # Strip stray backticks
     text = text.strip("`").strip()
-    # Remove common LLM prefixes
-    for prefix in (
-        "Here is the prompt:", "Prompt:", "SD Prompt:", "Stable Diffusion prompt:",
-        "Here's", "Sure,", "Of course,",
-    ):
-        if text.lower().startswith(prefix.lower()):
-            text = text[len(prefix):].strip(" :,\n")
+
     # Strip surrounding quotes
-    if (text.startswith('"') and text.endswith('"')) or \
-       (text.startswith("'") and text.endswith("'")):
+    while text and text[0] in "\"'“”‘’" and text[-1] in "\"'“”‘’":
         text = text[1:-1].strip()
+
+    # Collapse whitespace
+    text = " ".join(text.split())
+
     return text

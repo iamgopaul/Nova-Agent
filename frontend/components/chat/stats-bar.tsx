@@ -10,10 +10,12 @@ interface SystemStats {
   ram_total_gb: number | null
   ram_percent: number | null
   gpu: {
+    type?: "nvidia" | "apple_silicon"
+    chip?: string
     utilization_percent: number
     memory_used_mb: number
     memory_total_mb: number
-    temperature_c: number
+    temperature_c: number | null
   } | null
 }
 
@@ -82,8 +84,11 @@ interface StatsBarProps {
 export function StatsBar({ isStreaming }: StatsBarProps) {
   const [data, setData] = useState<StatsPayload | null>(null)
   const [open, setOpen] = useState(true)
-  const intervalRef  = useRef<ReturnType<typeof setInterval>  | null>(null)
-  const startDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null)
+  const [secAgo, setSecAgo] = useState<number>(0)
+  const intervalRef   = useRef<ReturnType<typeof setInterval>  | null>(null)
+  const tickRef       = useRef<ReturnType<typeof setInterval>  | null>(null)
+  const startDelayRef = useRef<ReturnType<typeof setTimeout>   | null>(null)
   const readyRef = useRef(false)
 
   const fetchStats = async () => {
@@ -92,6 +97,8 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
       const res = await fetch("/api/stats")
       if (res.ok) {
         setData(await res.json() as StatsPayload)
+        setLastUpdated(Date.now())
+        setSecAgo(0)
       }
     } catch {
       // silently ignore — server may not be ready
@@ -99,13 +106,10 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
   }
 
   useEffect(() => {
-    // Wait 4 s after mount before starting — gives webpack time to finish
-    // its initial compile so we don't flood the terminal with 500 errors.
     startDelayRef.current = setTimeout(() => {
       readyRef.current = true
       void fetchStats()
     }, 4000)
-
     return () => {
       if (startDelayRef.current) clearTimeout(startDelayRef.current)
     }
@@ -114,167 +118,167 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
-    // Poll faster while streaming, slower at rest
     const ms = isStreaming ? 800 : 2500
     intervalRef.current = setInterval(() => void fetchStats(), ms)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStreaming])
 
-  const sys  = data?.system
-  const req  = data?.last_request
+  // Tick the "Xs ago" counter every second
+  useEffect(() => {
+    if (tickRef.current) clearInterval(tickRef.current)
+    tickRef.current = setInterval(() => {
+      if (lastUpdated !== null) {
+        setSecAgo(Math.floor((Date.now() - lastUpdated) / 1000))
+      }
+    }, 1000)
+    return () => { if (tickRef.current) clearInterval(tickRef.current) }
+  }, [lastUpdated])
+
+  const sys = data?.system
+  const req = data?.last_request
   const perf = data?.perf_profile
 
   const hasRequest = req && req.status !== "idle" && req.tokens_generated > 0
+  const isAppleSilicon = sys?.gpu?.type === "apple_silicon"
+
+  // Short chip label: "Apple M3 Pro" → "M3 Pro"
+  const chipShort = isAppleSilicon
+    ? (sys?.gpu?.chip ?? "").replace(/Apple\s+/, "").split(" ").slice(0, 2).join(" ") || "M-series"
+    : null
+
+  const ramPressure = perf?.ram_pressure
 
   return (
-    <div className="border-b border-border bg-background/60 backdrop-blur-sm text-xs select-none">
-      {/* Toggle bar */}
+    <div className="border-b border-blue-500/15 bg-[#0d0d12]/90 backdrop-blur-sm text-[11px] select-none">
+
+      {/* ── Collapsed toggle strip ──────────────────────────────────────── */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-1.5 px-4 py-1 hover:bg-muted/40 transition-colors text-muted-foreground"
+        className="w-full flex items-center gap-2 px-4 h-7 hover:bg-white/[0.03] transition-colors"
       >
-        <Activity className="w-3 h-3" />
-        <span className="font-medium tracking-wide uppercase text-[10px]">System Stats</span>
+        {/* Live dot */}
+        <span className={cn(
+          "w-1.5 h-1.5 rounded-full shrink-0 transition-colors",
+          isStreaming   ? "bg-emerald-400 animate-pulse"
+          : lastUpdated ? "bg-emerald-400/50"
+          : "bg-white/15"
+        )} />
+
+        <span className="text-white/30 font-medium tracking-widest uppercase text-[9px]">
+          System
+        </span>
+
+        {/* Inline summary when collapsed */}
+        {!open && sys && (
+          <div className="flex items-center gap-3 ml-1">
+            <Chip label="CPU" value={pct(sys.cpu_percent)} color={colorFor(sys.cpu_percent)} />
+            <Chip
+              label="RAM"
+              value={sys.ram_used_gb ? `${sys.ram_used_gb.toFixed(1)} GB` : "—"}
+              color={colorFor(sys.ram_percent)}
+            />
+            {hasRequest && (
+              <>
+                <Sep />
+                <Chip label="Model" value={req!.model} color="text-blue-400" />
+                <Chip
+                  label=""
+                  value={`~${req!.tokens_per_second} t/s`}
+                  color={req!.tokens_per_second >= 10 ? "text-emerald-400" : "text-yellow-400"}
+                />
+              </>
+            )}
+          </div>
+        )}
+
         <div className="flex-1" />
-        {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+
+        {lastUpdated !== null && (
+          <span className="text-[9px] text-white/20">
+            {isStreaming ? "live" : secAgo <= 3 ? "now" : `${secAgo}s`}
+          </span>
+        )}
+        {open
+          ? <ChevronUp className="w-3 h-3 text-white/20" />
+          : <ChevronDown className="w-3 h-3 text-white/20" />}
       </button>
 
+      {/* ── Expanded panel ──────────────────────────────────────────────── */}
       {open && (
-        <div className="px-4 pb-2 grid grid-cols-2 gap-x-8 gap-y-2 sm:flex sm:flex-wrap sm:gap-x-6 sm:gap-y-0 sm:items-center sm:pb-2.5">
+        <div className="px-4 pb-2.5 pt-1 flex flex-wrap items-center gap-x-5 gap-y-1.5">
 
-          {/* ── System ─────────────────────────────────────────────────── */}
-          <StatGroup label="CPU">
-            <span className={cn("font-mono font-semibold", colorFor(sys?.cpu_percent ?? null))}>
-              {pct(sys?.cpu_percent ?? null)}
+          {/* Hardware group */}
+          <Pill label="CPU" value={pct(sys?.cpu_percent ?? null)} color={colorFor(sys?.cpu_percent ?? null)}>
+            <MiniBar percent={sys?.cpu_percent ?? null} />
+          </Pill>
+
+          {/* Apple Silicon uses a single unified memory pool shared between CPU and GPU.
+              Showing a separate "Memory" pill in addition to RAM double-counts the same
+              number, so on Apple Silicon we just badge the RAM pill with the chip name. */}
+          <Pill
+            label={isAppleSilicon && chipShort ? `RAM · ${chipShort}` : "RAM"}
+            value={sys ? `${sys.ram_used_gb?.toFixed(1)} / ${sys.ram_total_gb?.toFixed(0)} GB` : "—"}
+            color={colorFor(sys?.ram_percent ?? null)}
+          >
+            <MiniBar percent={sys?.ram_percent ?? null} />
+          </Pill>
+
+          {/* Only show a separate VRAM pill for discrete GPUs (NVIDIA), which have
+              their own memory pool distinct from system RAM. */}
+          {sys?.gpu && !isAppleSilicon && (
+            <Pill
+              label="VRAM"
+              value={`${(sys.gpu.memory_used_mb / 1024).toFixed(1)} / ${(sys.gpu.memory_total_mb / 1024).toFixed(0)} GB`}
+              color={colorFor((sys.gpu.memory_used_mb / sys.gpu.memory_total_mb) * 100)}
+            >
+              <MiniBar percent={(sys.gpu.memory_used_mb / sys.gpu.memory_total_mb) * 100} />
+            </Pill>
+          )}
+
+          {sys?.gpu?.temperature_c !== null && sys?.gpu?.temperature_c !== undefined && (
+            <Pill
+              label="Temp"
+              value={`${sys.gpu.temperature_c}°C`}
+              color={sys.gpu.temperature_c >= 85 ? "text-red-400" : sys.gpu.temperature_c >= 70 ? "text-yellow-400" : "text-emerald-400"}
+            />
+          )}
+
+          {/* RAM pressure alert — only shown when not OK */}
+          {ramPressure && ramPressure !== "ok" && (
+            <span className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+              ramPressure === "critical"
+                ? "text-red-400 border-red-400/30 bg-red-500/10 animate-pulse"
+                : "text-yellow-400 border-yellow-400/30 bg-yellow-500/10"
+            )}>
+              {ramPressure === "critical" ? "⚠ Low RAM" : "~ RAM moderate"}
             </span>
-            <BarFill percent={sys?.cpu_percent ?? null} />
-          </StatGroup>
+          )}
 
-          <StatGroup label="RAM">
-            <span className={cn("font-mono font-semibold", colorFor(sys?.ram_percent ?? null))}>
-              {sys ? `${sys.ram_used_gb?.toFixed(1)} / ${sys.ram_total_gb?.toFixed(0)} GB` : "—"}
-            </span>
-            <BarFill percent={sys?.ram_percent ?? null} />
-          </StatGroup>
+          {/* Divider */}
+          {hasRequest && <div className="w-px h-4 bg-white/[0.08] mx-1" />}
 
-          {sys?.gpu && (
+          {/* Last request group */}
+          {hasRequest && (
             <>
-              <StatGroup label="GPU">
-                <span className={cn("font-mono font-semibold", colorFor(sys.gpu.utilization_percent))}>
-                  {pct(sys.gpu.utilization_percent)}
-                </span>
-                <BarFill percent={sys.gpu.utilization_percent} />
-              </StatGroup>
-
-              <StatGroup label="VRAM">
-                <span className="font-mono font-semibold text-foreground">
-                  {(sys.gpu.memory_used_mb / 1024).toFixed(1)} / {(sys.gpu.memory_total_mb / 1024).toFixed(0)} GB
-                </span>
-                <BarFill percent={(sys.gpu.memory_used_mb / sys.gpu.memory_total_mb) * 100} />
-              </StatGroup>
-
-              <StatGroup label="Temp">
-                <span className={cn(
-                  "font-mono font-semibold",
-                  sys.gpu.temperature_c >= 85 ? "text-red-400"
-                    : sys.gpu.temperature_c >= 70 ? "text-yellow-400"
-                    : "text-emerald-400"
-                )}>
-                  {sys.gpu.temperature_c}°C
-                </span>
-              </StatGroup>
+              <Pill label="Model" value={req!.model} color="text-blue-400" />
+              <Pill
+                label="Speed"
+                value={`~${req!.tokens_per_second} t/s`}
+                color={req!.tokens_per_second >= 10 ? "text-emerald-400" : req!.tokens_per_second >= 4 ? "text-yellow-400" : "text-white/60"}
+              />
+              <Pill
+                label="Tokens"
+                value={`~${req!.tokens_generated.toLocaleString()}`}
+                color={isStreaming ? "text-blue-400 animate-pulse" : "text-white/60"}
+              />
+              <Pill label="Time" value={`${req!.elapsed_seconds.toFixed(1)}s`} color="text-white/50" />
             </>
           )}
 
-          {/* ── Divider ────────────────────────────────────────────────── */}
-          <div className="hidden sm:block w-px h-5 bg-border mx-1" />
-
-          {/* ── Last request ───────────────────────────────────────────── */}
-          <StatGroup label="Model">
-            <span className="font-mono font-semibold text-primary truncate max-w-[120px]">
-              {req?.model ? req.model : "—"}
-            </span>
-          </StatGroup>
-
-          <StatGroup label="Tokens">
-            <span className={cn(
-              "font-mono font-semibold",
-              isStreaming ? "text-primary animate-pulse" : "text-foreground"
-            )}>
-              {hasRequest ? req!.tokens_generated.toLocaleString() : "—"}
-            </span>
-          </StatGroup>
-
-          <StatGroup label="Speed">
-            <span className={cn(
-              "font-mono font-semibold",
-              hasRequest && req!.tokens_per_second >= 10 ? "text-emerald-400"
-                : hasRequest && req!.tokens_per_second >= 4 ? "text-yellow-400"
-                : "text-foreground"
-            )}>
-              {hasRequest ? `${req!.tokens_per_second} tok/s` : "—"}
-            </span>
-          </StatGroup>
-
-          <StatGroup label="Time">
-            <span className="font-mono font-semibold text-foreground">
-              {hasRequest ? `${req!.elapsed_seconds.toFixed(1)}s` : "—"}
-            </span>
-          </StatGroup>
-
-          <StatGroup label="Router">
-            <span className="font-mono text-muted-foreground">
-              {req?.routed_via || "—"}
-            </span>
-          </StatGroup>
-
-          {/* ── Perf profile ────────────────────────────────────────────── */}
-          {perf && (
-            <>
-              <div className="hidden sm:block w-px h-5 bg-border mx-1" />
-
-              {/* RAM pressure indicator */}
-              <StatGroup label="Pressure">
-                <span className={cn(
-                  "font-mono font-semibold",
-                  perf.ram_pressure === "critical" ? "text-red-400 animate-pulse" :
-                  perf.ram_pressure === "moderate" ? "text-yellow-400" :
-                  "text-emerald-400"
-                )}>
-                  {perf.ram_pressure === "critical" ? "⚠ Low RAM" :
-                   perf.ram_pressure === "moderate" ? "~ Moderate" : "✓ OK"}
-                </span>
-              </StatGroup>
-
-              {perf.ram_pressure !== "ok" && (
-                <StatGroup label="Tier">
-                  <span className={cn(
-                    "font-mono font-semibold",
-                    perf.model_tier === "light" ? "text-red-400" : "text-yellow-400"
-                  )}>
-                    {perf.model_tier}
-                  </span>
-                </StatGroup>
-              )}
-
-              <StatGroup label="GPU">
-                <span className="font-mono font-semibold text-violet-400">
-                  {perf.num_gpu >= 999 ? "max" : perf.num_gpu === 0 ? "off" : `${perf.num_gpu}L`}
-                </span>
-              </StatGroup>
-              <StatGroup label="Threads">
-                <span className="font-mono font-semibold text-sky-400">{perf.num_thread}</span>
-              </StatGroup>
-              <StatGroup label="Batch">
-                <span className="font-mono font-semibold text-sky-400">{perf.num_batch}</span>
-              </StatGroup>
-              <StatGroup label="ctx">
-                <span className="font-mono text-muted-foreground">{perf.num_ctx}</span>
-              </StatGroup>
-            </>
+          {!hasRequest && req && (
+            <span className="text-white/25 text-[10px]">No recent requests</span>
           )}
         </div>
       )}
@@ -282,11 +286,51 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
   )
 }
 
-function StatGroup({ label, children }: { label: string; children: React.ReactNode }) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function Sep() {
+  return <div className="w-px h-3 bg-white/[0.10] shrink-0" />
+}
+
+function Chip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="flex items-center gap-1.5 py-1">
-      <span className="text-muted-foreground w-10 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5">{children}</div>
+    <span className="flex items-center gap-1">
+      {label && <span className="text-white/25">{label}</span>}
+      <span className={cn("font-mono font-semibold", color)}>{value}</span>
+    </span>
+  )
+}
+
+function Pill({
+  label, value, color, children,
+}: {
+  label: string
+  value: string
+  color: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-white/30 shrink-0">{label}</span>
+      <span className={cn("font-mono font-semibold", color)}>{value}</span>
+      {children}
+    </div>
+  )
+}
+
+function MiniBar({ percent }: { percent: number | null }) {
+  const w = percent !== null ? Math.min(100, Math.max(0, percent)) : 0
+  return (
+    <div className="h-1 w-10 rounded-full bg-white/[0.08] overflow-hidden">
+      <div
+        className={cn(
+          "h-full rounded-full transition-all duration-700",
+          percent !== null && percent >= 85 ? "bg-red-400"
+            : percent !== null && percent >= 60 ? "bg-yellow-400"
+            : "bg-emerald-400/70"
+        )}
+        style={{ width: `${w}%` }}
+      />
     </div>
   )
 }

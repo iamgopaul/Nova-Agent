@@ -1,13 +1,20 @@
+import { NextRequest } from "next/server"
+import { novaApiBase } from "@/lib/nova-api-base"
+
 export const runtime = "nodejs"
 
-const NOVA_API_BASE = process.env.NOVA_API_BASE || "http://127.0.0.1:8765"
+const COOKIE = "nova_token"
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const token = req.cookies.get(COOKIE)?.value
   const body = await req.text()
 
-  const upstream = await fetch(`${NOVA_API_BASE}/voice/speak`, {
+  const upstream = await fetch(`${novaApiBase()}/voice/speak`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Cookie: `${COOKIE}=${token}` } : {}),
+    },
     body,
   })
 
@@ -16,9 +23,6 @@ export async function POST(req: Request) {
 
   return new Response(bytes, {
     status: upstream.status,
-    headers: {
-      "Content-Type": contentType,
-      "Cache-Control": "no-store",
-    },
+    headers: { "Content-Type": contentType, "Cache-Control": "no-store" },
   })
 }
