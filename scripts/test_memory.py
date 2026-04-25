@@ -5,7 +5,7 @@ Run:  .venv/bin/python scripts/test_day3.py
 
 Controls:
   Hold Ctrl+Space  → speak
-  Release          → Nova thinks and responds
+  Release          → GAAIA thinks and responds
   Ctrl+C           → quit
 
 NOTE: macOS requires Accessibility permission for global hotkeys.
@@ -22,16 +22,16 @@ sys.path.insert(0, ".")
 import ollama
 
 from config.settings import get_settings
-from nova.agent.orchestrator import Orchestrator
-from nova.agent.tool_registry import ToolRegistry
-from nova.approval.manager import ApprovalManager
-from nova.engines.research import GetNewsTool, WebSearchTool
-from nova.memory.store import MemoryStore
-from nova.tools.clipboard import GetClipboardTool, SetClipboardTool
-from nova.tools.notes import ListNotesTool, ReadNoteTool, WriteNoteTool
-from nova.tools.screenshot import ScreenshotTool
-from nova.voice.pipeline import VoicePipeline
-from nova.voice.tts import MacOSTTS
+from gaaia.agent.orchestrator import Orchestrator
+from gaaia.agent.tool_registry import ToolRegistry
+from gaaia.approval.manager import ApprovalManager
+from gaaia.engines.research import GetNewsTool, WebSearchTool
+from gaaia.memory.store import MemoryStore
+from gaaia.tools.clipboard import GetClipboardTool, SetClipboardTool
+from gaaia.tools.notes import ListNotesTool, ReadNoteTool, WriteNoteTool
+from gaaia.tools.screenshot import ScreenshotTool
+from gaaia.voice.pipeline import VoicePipeline
+from gaaia.voice.tts import MacOSTTS
 
 
 def check_ollama(host: str, model: str) -> None:
@@ -82,8 +82,8 @@ def main() -> None:
 
     # Quick TTS smoke-test so we know audio output works before the full loop
     tts = MacOSTTS(**{k: v for k, v in settings.voice.get("tts", {}).get("macos_say", {}).items()})
-    print("Testing TTS… (you should hear Nova's voice)")
-    tts.speak("Nova voice pipeline ready.")
+    print("Testing TTS… (you should hear GAAIA's voice)")
+    tts.speak("GAAIA voice pipeline ready.")
     print("  ✓ TTS OK\n")
 
     pipeline = VoicePipeline(
@@ -98,7 +98,7 @@ def main() -> None:
 
     def on_transcript(text: str) -> None:
         print(f"\n\nYou:  {text}")
-        print("Nova: ", end="", flush=True)
+        print("GAAIA: ", end="", flush=True)
 
     def on_chunk(chunk: str) -> None:
         print(chunk, end="", flush=True)
@@ -112,7 +112,7 @@ def main() -> None:
     pipeline.on_response_done = on_done
 
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("  Nova voice loop active.")
+    print("  GAAIA voice loop active.")
     print("  Hold Ctrl+Space to speak. Release to send.")
     print("  Ctrl+C to quit.")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")

@@ -5,11 +5,11 @@ from typing import Any, Callable
 
 from gaaia.agent.agents import (
     AgentResult,
-    NovaAnalystAgent,
-    NovaCodeAgent,
-    NovaManagerAgent,
-    NovaResearchAgent,
-    NovaWriterAgent,
+    GAAIAAnalystAgent,
+    GAAIACodeAgent,
+    GAAIAManagerAgent,
+    GAAIAResearchAgent,
+    GAAIAWriterAgent,
 )
 
 
@@ -32,12 +32,12 @@ class WorkflowRunner:
     """
 
     def __init__(self, settings) -> None:
-        self._manager = NovaManagerAgent(settings)
+        self._manager = GAAIAManagerAgent(settings)
         self._agents: dict[str, Any] = {
-            "research": NovaResearchAgent(settings),
-            "code":     NovaCodeAgent(settings),
-            "analyst":  NovaAnalystAgent(settings),
-            "writer":   NovaWriterAgent(settings),
+            "research": GAAIAResearchAgent(settings),
+            "code":     GAAIACodeAgent(settings),
+            "analyst":  GAAIAAnalystAgent(settings),
+            "writer":   GAAIAWriterAgent(settings),
         }
 
     async def run(

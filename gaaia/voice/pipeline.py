@@ -78,7 +78,7 @@ class VoicePipeline:
         focus_cfg = voice.get("speaker_focus", {})
         self._require_wake_word = focus_cfg.get("require_wake_word", True)
         self._wake_words = [
-            w.strip().lower() for w in focus_cfg.get("wake_words", ["nova"]) if str(w).strip()
+            w.strip().lower() for w in focus_cfg.get("wake_words", ["gaaia"]) if str(w).strip()
         ]
         self._speaker_focus = SpeakerFocusManager(
             profile_path=settings.data_dir / "voice_profile.json",

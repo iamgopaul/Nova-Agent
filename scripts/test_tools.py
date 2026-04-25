@@ -13,14 +13,14 @@ sys.path.insert(0, ".")
 import ollama
 
 from config.settings import get_settings
-from nova.agent.orchestrator import Orchestrator
-from nova.agent.tool_registry import ToolRegistry
-from nova.approval.manager import ApprovalManager, ApprovalRequest
-from nova.engines.research import GetNewsTool, WebSearchTool
-from nova.memory.store import MemoryStore
-from nova.tools.clipboard import GetClipboardTool, SetClipboardTool
-from nova.tools.notes import ListNotesTool, ReadNoteTool, WriteNoteTool
-from nova.tools.screenshot import ScreenshotTool
+from gaaia.agent.orchestrator import Orchestrator
+from gaaia.agent.tool_registry import ToolRegistry
+from gaaia.approval.manager import ApprovalManager, ApprovalRequest
+from gaaia.engines.research import GetNewsTool, WebSearchTool
+from gaaia.memory.store import MemoryStore
+from gaaia.tools.clipboard import GetClipboardTool, SetClipboardTool
+from gaaia.tools.notes import ListNotesTool, ReadNoteTool, WriteNoteTool
+from gaaia.tools.screenshot import ScreenshotTool
 
 
 def check_ollama(host: str, model: str) -> None:
@@ -67,7 +67,7 @@ async def run_test(prompt: str, label: str, orchestrator: Orchestrator, session_
     print(f"\n{'─'*60}")
     print(f"TEST: {label}")
     print(f"You: {prompt}")
-    print(f"Nova: ", end="", flush=True)
+    print(f"GAAIA: ", end="", flush=True)
     await orchestrator.run(
         user_message=prompt,
         session_id=session_id,
@@ -113,7 +113,7 @@ async def main() -> None:
 
     # Test 3: write note (requires confirmation)
     await run_test(
-        "Save a note titled 'Nova Day 2 Test' with the content: Tool system is working.",
+        "Save a note titled 'GAAIA Day 2 Test' with the content: Tool system is working.",
         "Write note (confirm)",
         orchestrator, session_id,
     )

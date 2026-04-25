@@ -41,7 +41,7 @@ def _download_youtube(url: str) -> str | None:
     try:
         import yt_dlp
         temp_dir = tempfile.gettempdir()
-        output_path = os.path.join(temp_dir, "nova_video_%(id)s.mp4")
+        output_path = os.path.join(temp_dir, "gaaia_video_%(id)s.mp4")
         opts = {"format": "best[height<=480]", "quiet": True, "outtmpl": output_path, "socket_timeout": 30}
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -95,7 +95,7 @@ def _extract_frames(video_path: str, count: int) -> list[str]:
         frames: list[str] = []
         tmp = tempfile.gettempdir()
         for i, ts in enumerate(timestamps):
-            frame_path = os.path.join(tmp, f"nova_frame_{i}.jpg")
+            frame_path = os.path.join(tmp, f"gaaia_frame_{i}.jpg")
             subprocess.run(
                 ["ffmpeg", "-ss", str(ts), "-i", video_path,
                  "-vf", "scale=640:360", "-vframes", "1", "-q:v", "2", "-y", frame_path],

@@ -412,7 +412,7 @@ def _build_visual_query(user_message: str, ai_response: str) -> str:
         r"|how\s+does\s+(he|she|it|they|this|that)\s+look"
         r"|what\s+does\s+\S+\s+look\s+like"
         r"|who\s+is|who\s+was|tell\s+me\s+about|more\s+about|expand\s+on"
-        r"|please|now|for\s+me|hey\s+nova|nova|hi\s+nova)\b",
+        r"|please|now|for\s+me|hey\s+gaaia|gaaia|hi\s+gaaia)\b",
         "", msg_clean, flags=re.IGNORECASE,
     )
     cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" .?!")
@@ -493,11 +493,11 @@ def _echo_fallback_reply(user_message: str) -> str:
     core = re.sub(r"[!?.,'\"]+", " ", (u or "").lower())
     core = re.sub(r"\s+", " ", core).strip()
     if re.match(
-        r"^(hey\s+nova|hi\s+nova|hello\s+nova|hi(\s+there)?|hello(\s+there)?|"
-        r"hey(\s+there)?|yo|sup|hiya|nova|hey)$",
+        r"^(hey\s+gaaia|hi\s+gaaia|hello\s+gaaia|hi(\s+there)?|hello(\s+there)?|"
+        r"hey(\s+there)?|yo|sup|hiya|gaaia|hey)$",
         core,
     ) or re.match(
-        r"^hey\s*nova$|^hi$|^hello$",
+        r"^hey\s*gaaia$|^hi$|^hello$",
         core,
     ):
         return "Hey! Good to see you — what's on your mind today?"
@@ -514,15 +514,15 @@ def _is_prompt_meta_narration(text: str) -> bool:
     low = text[:3500].lower()
     if "it looks like you" in low and "shared" in low and "guideline" in low:
         return True
-    if "it looks like you" in low and "shared" in low and "nova" in low and (
+    if "it looks like you" in low and "shared" in low and "gaaia" in low and (
         "voice and tone" in low or "operating mode" in low or "conversational" in low
     ):
         return True
-    if "these guidelines" in low and "ensure that nova" in low:
+    if "these guidelines" in low and "ensure that gaaia" in low:
         return True
-    if "conversational ai named nova" in low and "guideline" in low and len(text) < 3000:
+    if "conversational ai named gaaia" in low and "guideline" in low and len(text) < 3000:
         return True
-    if "by following these rules" in low and "nova" in low and "real person" in low:
+    if "by following these rules" in low and "gaaia" in low and "real person" in low:
         return True
     if "how do i implement this in my project" in low and "guideline" in low:
         return True
@@ -1032,7 +1032,7 @@ def _extract_music_prompt(user_message: str) -> str:
 
     # Strip conversational filler to get the core music description
     patterns = [
-        r"^(hey\s+nova[,\.]?\s*)",
+        r"^(hey\s+gaaia[,\.]?\s*)",
         r"^(can\s+you\s+)",
         r"^(please\s+)",
         r"^(i\s+want\s+(you\s+to\s+)?)",
@@ -1479,13 +1479,13 @@ def _extract_image_prompt(user_message: str) -> str:
 
     # Strip leading address / politeness
     leading = [
-        r"^(hey\s+nova[,\.]?\s*)",
+        r"^(hey\s+gaaia[,\.]?\s*)",
         r"^(can\s+you\s+(please\s+)?)",
         r"^(please\s+)",
         r"^(i\s+want\s+(you\s+to\s+)?)",
         r"^(i\s+need\s+(you\s+to\s+)?)",
         r"^(i'd\s+like\s+(you\s+to\s+)?)",
-        r"^(nova[,\.]?\s+)",
+        r"^(gaaia[,\.]?\s+)",
     ]
     for pat in leading:
         msg = re.sub(pat, "", msg, flags=re.IGNORECASE).strip()

@@ -15,7 +15,7 @@ const PROTECTED_PREFIXES = [
 // Pages only for unauthenticated users (redirect away if already signed in)
 const AUTH_PAGES = ["/login", "/signup"]
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

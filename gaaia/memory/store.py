@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Generator
 
 import uuid as _uuid_mod
 
-from sqlalchemy import and_, create_engine, event, func, select, text, update
+from sqlalchemy import and_, create_engine, event, func, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 
-from gaaia.memory.models import Base, Fact, Folder, Message, OAuthIdentity, Session, User, WatchedTopic
+from gaaia.memory.models import (
+    AuthBase,
+    DataBase,
+    Fact,
+    Folder,
+    Message,
+    OAuthIdentity,
+    Session,
+    User,
+    WatchedTopic,
+)
 
 
 @event.listens_for(Engine, "connect", retval=False)
@@ -32,14 +44,62 @@ def _sqlite_pragma(dbapi_connection, connection_record) -> None:
 
 
 class MemoryStore:
-    def __init__(self, db_path: Path) -> None:
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._engine = create_engine(
-            f"sqlite:///{db_path}",
-            connect_args={"check_same_thread": False},
-        )
-        Base.metadata.create_all(self._engine)
-        self._ensure_schema()
+    """
+    Persistent storage for GAAIA conversations, facts, and user accounts.
+
+    Two modes:
+    - SQLite (default, local dev): single file, all tables in one database.
+    - PostgreSQL (production): single `gaaia` database with two schemas:
+        * `auth`  — users, oauth_identities
+        * `data`  — sessions, messages, facts, folders, watched_topics, agent runs
+      Pass `database_url="postgresql+psycopg2://..."` to activate this mode.
+      No PgBouncer or external connection pooler is used; SQLAlchemy's built-in
+      QueuePool handles connection reuse.
+    """
+
+    def __init__(self, db_path: Path, *, database_url: str | None = None) -> None:
+        if database_url:
+            self._mode = "postgres"
+            # One real engine; two execution-option proxies for schema routing.
+            # schema_translate_map={None: "auth"} routes all un-schemed tables to
+            # the `auth` schema; likewise for `data`.  No connection pooler needed.
+            _base = create_engine(database_url, pool_pre_ping=True)
+            self._auth_engine: Engine = _base.execution_options(
+                schema_translate_map={None: "auth"}
+            )
+            self._data_engine: Engine = _base.execution_options(
+                schema_translate_map={None: "data"}
+            )
+            # Ensure schemas exist before create_all (idempotent)
+            with _base.begin() as conn:
+                conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
+                conn.execute(text("CREATE SCHEMA IF NOT EXISTS data"))
+            AuthBase.metadata.create_all(self._auth_engine)
+            DataBase.metadata.create_all(self._data_engine)
+        else:
+            self._mode = "sqlite"
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._engine: Engine = create_engine(
+                f"sqlite:///{db_path}",
+                connect_args={"check_same_thread": False},
+            )
+            self._auth_engine = self._engine
+            self._data_engine = self._engine
+            AuthBase.metadata.create_all(self._engine)
+            DataBase.metadata.create_all(self._engine)
+            self._ensure_sqlite_migrations()
+
+    # ── Engine helpers ────────────────────────────────────────────────
+
+    @contextmanager
+    def _auth_sess(self) -> Generator[DBSession, None, None]:
+        with DBSession(self._auth_engine) as db:
+            yield db
+
+    @contextmanager
+    def _data_sess(self) -> Generator[DBSession, None, None]:
+        with DBSession(self._data_engine) as db:
+            yield db
 
     # ── Session ───────────────────────────────────────────────────────
 
@@ -50,7 +110,7 @@ class MemoryStore:
         source: str = "chat",
     ) -> str:
         sid = session_id or str(_uuid_mod.uuid4())
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             existing = db.get(Session, sid)
             if not existing:
                 db.add(Session(id=sid, user_id=user_id, source=source))
@@ -66,14 +126,14 @@ class MemoryStore:
     # ── Messages ──────────────────────────────────────────────────────
 
     def save_turn(self, session_id: str, role: str, content: str) -> None:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             db.add(Message(session_id=session_id, role=role, content=content))
             db.commit()
 
     def get_recent_turns(
         self, session_id: str, n: int = 20, user_id: str | None = None
     ) -> list[dict[str, str]]:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             session = db.get(Session, session_id)
             if session is None:
                 return []
@@ -99,10 +159,8 @@ class MemoryStore:
         """
         Session list for the sidebar. Returns only sessions matching *source*
         ("chat" by default) so GAAIA Voice history stays out of GAAIA Chat.
-        Uses a few targeted queries instead of loading *all* messages for
-        *every* session (which was O(total messages) and very slow).
         """
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             q = select(Session).where(Session.source == source).order_by(Session.created_at.desc())
             if user_id is not None:
                 q = q.where(Session.user_id == user_id)
@@ -117,7 +175,7 @@ class MemoryStore:
                 .where(Message.session_id.in_(sids))
                 .group_by(Message.session_id)
             ).all()
-            count_map: dict[str, int] = {r[0]: int(r[1]) for r in c_rows}  # type: ignore[index]
+            count_map: dict[str, int] = {r[0]: int(r[1]) for r in c_rows}
 
             smax = (
                 select(Message.session_id, func.max(Message.id).label("max_id"))
@@ -192,16 +250,13 @@ class MemoryStore:
         return summaries
 
     def list_voice_sessions(self, user_id: str | None = None) -> list[dict[str, object]]:
-        """Voice-specific session list — mirrors list_sessions but filters for source='voice'."""
         return self.list_sessions(user_id=user_id, source="voice")
 
     def delete_session(self, session_id: str, user_id: str | None = None) -> bool:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             row = db.get(Session, session_id)
             if not row:
                 return False
-            # Allow deleting rows with no owner (e.g. legacy voice) when user is
-            # authenticated; still require a match when the row is already owned.
             if user_id is not None and row.user_id is not None and row.user_id != user_id:
                 return False
             db.delete(row)
@@ -213,7 +268,7 @@ class MemoryStore:
         if len(normalized) > 160:
             normalized = normalized[:160].rstrip()
 
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             row = db.get(Session, session_id)
             if not row:
                 return False
@@ -228,7 +283,7 @@ class MemoryStore:
         if len(folder_name) > 120:
             folder_name = folder_name[:120].rstrip()
 
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             row = db.get(Session, session_id)
             if not row:
                 return False
@@ -251,7 +306,7 @@ class MemoryStore:
             return True
 
     def list_folders(self, user_id: str | None = None) -> list[dict[str, object]]:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             q = select(Folder).order_by(Folder.name.asc())
             if user_id is not None:
                 q = q.where(Folder.user_id == user_id)
@@ -272,7 +327,7 @@ class MemoryStore:
         if len(folder_name) > 120:
             folder_name = folder_name[:120].rstrip()
 
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             existing = db.get(Folder, folder_name)
             if existing:
                 return True
@@ -285,7 +340,7 @@ class MemoryStore:
         if not folder_name:
             return False
 
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             folder = db.get(Folder, folder_name)
             if not folder:
                 return False
@@ -295,8 +350,7 @@ class MemoryStore:
             q = select(Session).where(Session.folder_name == folder_name)
             if user_id is not None:
                 q = q.where(Session.user_id == user_id)
-            sessions = db.scalars(q).all()
-            for session in sessions:
+            for session in db.scalars(q).all():
                 session.folder_name = None
 
             db.delete(folder)
@@ -306,7 +360,7 @@ class MemoryStore:
     # ── Facts ─────────────────────────────────────────────────────────
 
     def save_fact(self, key: str, value: str, source: str = "inferred", user_id: str | None = None) -> None:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             q = select(Fact).where(Fact.key == key)
             if user_id is not None:
                 q = q.where(Fact.user_id == user_id)
@@ -319,7 +373,7 @@ class MemoryStore:
             db.commit()
 
     def get_facts(self, user_id: str | None = None) -> list[dict[str, str]]:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             q = select(Fact).order_by(Fact.updated_at.desc())
             if user_id is not None:
                 q = q.where(Fact.user_id == user_id)
@@ -327,7 +381,7 @@ class MemoryStore:
         return [{"key": f.key, "value": f.value, "source": f.source} for f in rows]
 
     def delete_fact(self, key: str, user_id: str | None = None) -> bool:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             q = select(Fact).where(Fact.key == key)
             if user_id is not None:
                 q = q.where(Fact.user_id == user_id)
@@ -339,7 +393,7 @@ class MemoryStore:
         return False
 
     def get_fact_value(self, key: str, default: str = "", user_id: str | None = None) -> str:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             q = select(Fact).where(Fact.key == key)
             if user_id is not None:
                 q = q.where(Fact.user_id == user_id)
@@ -349,19 +403,17 @@ class MemoryStore:
         return default
 
     def clear_all(self) -> None:
-        """Delete all sessions, messages, facts, and folders (e.g. admin reset; optional test wipe). \
-        Preserves auto-feed `live_knowledge*` keys. Not run on normal server exit."""
+        """Delete all sessions, messages, facts, and folders (admin reset or test wipe).
+        Preserves auto-feed `live_knowledge*` keys."""
         _PRESERVE_FACT_PREFIXES = ("live_knowledge",)
-        with self._engine.begin() as conn:
+        with self._data_engine.begin() as conn:
             conn.execute(text("DELETE FROM messages"))
             conn.execute(text("DELETE FROM sessions"))
             conn.execute(text("DELETE FROM folders"))
-            # Delete all facts except auto-feed knowledge (those are expensive to re-fetch)
-            placeholders = ", ".join(f"'{p}%'" for p in _PRESERVE_FACT_PREFIXES)
             conn.execute(text(
-                f"DELETE FROM facts WHERE key NOT LIKE {placeholders.replace(', ', ' AND key NOT LIKE ')}"
+                "DELETE FROM facts WHERE key NOT LIKE 'live_knowledge%'"
             ))
-        print("[GAIA] Memory cleared on shutdown (knowledge feed preserved).", flush=True)
+        print("[GAAIA] Memory cleared (knowledge feed preserved).", flush=True)
 
     @staticmethod
     def _summarize_text(text: str, max_length: int) -> str:
@@ -382,22 +434,22 @@ class MemoryStore:
             display_name=display_name.strip(),
             avatar_color=avatar_color,
         )
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             db.add(user)
             db.commit()
             db.refresh(user)
         return user
 
     def get_user_by_email(self, email: str) -> User | None:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             return db.scalar(select(User).where(User.email == email.lower().strip()))
 
     def get_user_by_id(self, user_id: str) -> User | None:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             return db.get(User, user_id)
 
     def update_user(self, user_id: str, display_name: str | None, avatar_color: str | None) -> User | None:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             user = db.get(User, user_id)
             if not user:
                 return None
@@ -410,7 +462,7 @@ class MemoryStore:
         return user
 
     def update_user_password(self, user_id: str, hashed_password: str) -> User | None:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             user = db.get(User, user_id)
             if not user:
                 return None
@@ -422,12 +474,12 @@ class MemoryStore:
         return user
 
     def count_users(self) -> int:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             return db.scalar(select(func.count()).select_from(User)) or 0
 
     def claim_orphaned_sessions(self, user_id: str) -> None:
         """Assign all sessions/folders/facts with no owner to the first registered user."""
-        with self._engine.begin() as conn:
+        with self._data_engine.begin() as conn:
             conn.execute(
                 text("UPDATE sessions SET user_id = :uid WHERE user_id IS NULL"),
                 {"uid": user_id},
@@ -444,7 +496,7 @@ class MemoryStore:
     # ── OAuth identities ──────────────────────────────────────────────
 
     def get_user_id_by_oauth(self, provider: str, provider_user_id: str) -> str | None:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             row = db.scalar(
                 select(OAuthIdentity).where(
                     OAuthIdentity.provider == provider,
@@ -454,7 +506,7 @@ class MemoryStore:
             return row.user_id if row else None
 
     def list_oauth_providers(self, user_id: str) -> list[str]:
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             rows = db.scalars(
                 select(OAuthIdentity.provider).where(OAuthIdentity.user_id == user_id)
             ).all()
@@ -467,11 +519,7 @@ class MemoryStore:
         provider_user_id: str,
         email: str | None = None,
     ) -> tuple[bool, str | None]:
-        """
-        Link a provider identity to a user.
-        Returns (ok, error_code) where error_code is None on success.
-        """
-        with DBSession(self._engine) as db:
+        with self._auth_sess() as db:
             existing_provider = db.scalar(
                 select(OAuthIdentity).where(
                     OAuthIdentity.provider == provider,
@@ -515,7 +563,7 @@ class MemoryStore:
     # ── Watched Topics (Web Watcher) ──────────────────────────────────
 
     def list_watched_topics(self, user_id: str) -> list[dict]:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             rows = db.scalars(
                 select(WatchedTopic)
                 .where(WatchedTopic.user_id == user_id)
@@ -546,7 +594,7 @@ class MemoryStore:
             category=category,
             enabled=True,
         )
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             db.add(t)
             db.commit()
             db.refresh(t)
@@ -562,7 +610,7 @@ class MemoryStore:
             }
 
     def delete_watched_topic(self, topic_id: str, user_id: str) -> bool:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             t = db.get(WatchedTopic, topic_id)
             if not t or t.user_id != user_id:
                 return False
@@ -571,7 +619,7 @@ class MemoryStore:
         return True
 
     def toggle_watched_topic(self, topic_id: str, user_id: str, enabled: bool) -> bool:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             t = db.get(WatchedTopic, topic_id)
             if not t or t.user_id != user_id:
                 return False
@@ -580,7 +628,7 @@ class MemoryStore:
         return True
 
     def update_watched_topic_result(self, topic_id: str, result_json: str) -> None:
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             t = db.get(WatchedTopic, topic_id)
             if t:
                 t.last_result = result_json
@@ -588,8 +636,7 @@ class MemoryStore:
                 db.commit()
 
     def list_all_enabled_topics(self) -> list[dict]:
-        """Background scheduler uses this to refresh all users' topics."""
-        with DBSession(self._engine) as db:
+        with self._data_sess() as db:
             rows = db.scalars(
                 select(WatchedTopic).where(WatchedTopic.enabled.is_(True))
             ).all()
@@ -598,7 +645,10 @@ class MemoryStore:
             for t in rows
         ]
 
-    def _ensure_schema(self) -> None:
+    # ── SQLite backward-compat migrations ─────────────────────────────
+
+    def _ensure_sqlite_migrations(self) -> None:
+        """Add columns introduced after the initial schema (SQLite ALTER TABLE)."""
         with self._engine.begin() as conn:
             user_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
             if "avatar_color" not in user_cols:
@@ -609,42 +659,26 @@ class MemoryStore:
             if "token_version" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
 
-            columns = conn.execute(text("PRAGMA table_info(sessions)")).fetchall()
-            column_names = {str(col[1]) for col in columns}
-
-            if "custom_title" not in column_names:
+            session_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(sessions)")).fetchall()}
+            if "custom_title" not in session_cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN custom_title VARCHAR(160)"))
-
-            if "folder_name" not in column_names:
+            if "folder_name" not in session_cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN folder_name VARCHAR(120)"))
-
-            # Add user_id columns for multi-user support (nullable for backward compat)
-            if "user_id" not in column_names:
-                conn.execute(text("ALTER TABLE sessions ADD COLUMN user_id VARCHAR(36) REFERENCES users(id)"))
-
-            if "source" not in column_names:
+            if "user_id" not in session_cols:
+                conn.execute(text("ALTER TABLE sessions ADD COLUMN user_id VARCHAR(36)"))
+            if "source" not in session_cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'chat'"))
 
             folder_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(folders)")).fetchall()}
             if "user_id" not in folder_cols:
-                conn.execute(text("ALTER TABLE folders ADD COLUMN user_id VARCHAR(36) REFERENCES users(id)"))
+                conn.execute(text("ALTER TABLE folders ADD COLUMN user_id VARCHAR(36)"))
 
             fact_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(facts)")).fetchall()}
             if "user_id" not in fact_cols:
-                conn.execute(text("ALTER TABLE facts ADD COLUMN user_id VARCHAR(36) REFERENCES users(id)"))
+                conn.execute(text("ALTER TABLE facts ADD COLUMN user_id VARCHAR(36)"))
 
-            conn.execute(text(
-                """
-                CREATE TABLE IF NOT EXISTS oauth_identities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    provider VARCHAR(24) NOT NULL,
-                    provider_user_id VARCHAR(128) NOT NULL,
-                    email VARCHAR(254),
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            ))
+            # oauth_identities is created by AuthBase.metadata.create_all; just
+            # ensure the unique indexes exist for older databases that predate create_all.
             conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_oauth_provider_user "
                 "ON oauth_identities(provider, provider_user_id)"

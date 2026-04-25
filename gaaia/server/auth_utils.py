@@ -24,7 +24,7 @@ def _get_secret() -> str:
         return _secret
 
     # Prefer explicit env var; fall back to a persisted random key
-    env_key = os.environ.get("NOVA_JWT_SECRET", "").strip()
+    env_key = os.environ.get("GAAIA_JWT_SECRET", "").strip()
     if env_key:
         _secret = env_key
         return _secret

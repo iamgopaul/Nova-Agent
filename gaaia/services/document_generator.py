@@ -26,7 +26,7 @@ from typing import Any
 
 def _safe_filename(title: str, ext: str) -> str:
     slug = re.sub(r"[^\w\s-]", "", title.lower()).strip()
-    slug = re.sub(r"[\s_-]+", "_", slug)[:40] or "nova_document"
+    slug = re.sub(r"[\s_-]+", "_", slug)[:40] or "gaaia_document"
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"{slug}_{ts}.{ext}"
 
@@ -346,7 +346,7 @@ def _make_pdf(content: dict[str, Any]) -> bytes:
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        "NovaTitle",
+        "GAAIATitle",
         parent=styles["Title"],
         fontSize=24,
         spaceAfter=4,
@@ -356,7 +356,7 @@ def _make_pdf(content: dict[str, Any]) -> bytes:
         alignment=1,  # CENTER
     )
     h1_style = ParagraphStyle(
-        "NovaH1",
+        "GAAIATitle1",
         parent=styles["Heading1"],
         fontSize=14,
         spaceBefore=16,
@@ -365,7 +365,7 @@ def _make_pdf(content: dict[str, Any]) -> bytes:
         textColor=colors.HexColor("#2563eb"),
     )
     body_style = ParagraphStyle(
-        "NovaBody",
+        "GAAIABody",
         parent=styles["Normal"],
         fontSize=11,
         leading=18,
@@ -689,7 +689,7 @@ def generate_document(
         raise ValueError(f"Unsupported format: {fmt!r}. Choose from: {', '.join(_MAKERS)}")
 
     maker_fn, mime = _MAKERS[fmt]
-    title = content.get("title", "nova_document")
+    title = content.get("title", "gaaia_document")
     filename = _safe_filename(title, fmt)
 
     print(f"[DocGen] Building {filename}…", flush=True)

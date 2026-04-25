@@ -67,7 +67,7 @@ function isChatModelKey(value: string | null): value is ChatModelKey {
   return value !== null && VALID_MODEL_KEYS.has(value as ChatModelKey)
 }
 
-type NovaChunk = {
+type GAAIAChunk = {
   type: "text" | "done" | "error" | "status" | "replace" | "music_generate" | "image_generate" | "doc_generate" | "chart_generate" | "mermaid_generate" | "story_sections" | "web_results" | "weather_data" | "clock_widget"
   content: string
   response?: string      // actual assistant reply, present on doc_generate events
@@ -263,8 +263,8 @@ async function fetchDocGen(
   }
 }
 
-const MODEL_STORAGE_KEY = "nova.selectedModelKey"
-const SESSION_STORAGE_KEY = "nova.activeSessionId"
+const MODEL_STORAGE_KEY = "gaaia.selectedModelKey"
+const SESSION_STORAGE_KEY = "gaaia.activeSessionId"
 
 function messageTimestampToIso(t: Date | string | number | undefined): string {
   if (t == null) {
@@ -855,7 +855,7 @@ export default function ChatPage() {
       // Defer handling `done` until every `data:` line in this batch is processed.
       // Otherwise a `done` line that appears before `web_results` in the same TCP
       // chunk would cause an early `return` and drop side-car events (images, weather).
-      let donePayloadInBatch: NovaChunk | null = null
+      let donePayloadInBatch: GAAIAChunk | null = null
 
       for (const line of lines) {
         if (!line.startsWith("data:")) {
@@ -867,7 +867,7 @@ export default function ChatPage() {
           continue
         }
 
-        const chunk = JSON.parse(payload) as NovaChunk
+        const chunk = JSON.parse(payload) as GAAIAChunk
 
         if (chunk.type === "done") {
           donePayloadInBatch = chunk

@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
 
+    # PostgreSQL connection string (production / Docker).
+    # Format: postgresql+psycopg2://user:password@host:5432/gaaia
+    # When set, MemoryStore uses PostgreSQL with `auth` and `data` schemas.
+    # When blank, SQLite is used (local dev default — no setup required).
+    database_url: str = ""
+
     # ── YAML config (loaded separately, attached at construction) ─────
     _yaml: dict[str, Any] = {}
     # Populated at server startup by the model router — overrides YAML model keys
@@ -114,12 +120,12 @@ class Settings(BaseSettings):
 
     @property
     def data_dir(self) -> Path:
-        raw = self.app.get("data_dir", "~/Nova")
+        raw = self.app.get("data_dir", "~/GAAIA")
         return Path(os.path.expanduser(raw))
 
     @property
     def db_path(self) -> Path:
-        filename = self.memory.get("db_filename", "nova.db")
+        filename = self.memory.get("db_filename", "gaaia.db")
         return self.data_dir / filename
 
     @property

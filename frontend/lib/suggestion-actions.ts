@@ -84,10 +84,10 @@ async function downloadImageUrl(
   }
   const blob = await res.blob()
   let out = blob
-  let name = "nova-image"
+  let name = "gaaia-image"
   if (options.wantPng && blob.type !== "image/png") {
     out = await blobToPngBlob(blob)
-    name = "nova-image.png"
+    name = "gaaia-image.png"
   } else if (options.wantJpeg) {
     const img = new Image()
     const u = URL.createObjectURL(blob)
@@ -108,19 +108,19 @@ async function downloadImageUrl(
       out = await new Promise<Blob>((resolve, reject) => {
         c.toBlob(b => (b ? resolve(b) : reject(new Error("toBlob"))), "image/jpeg", 0.92)
       })
-      name = "nova-image.jpg"
+      name = "gaaia-image.jpg"
     } finally {
       URL.revokeObjectURL(u)
     }
   } else {
     if (blob.type === "image/png") {
-      name = "nova-image.png"
+      name = "gaaia-image.png"
     } else if (blob.type === "image/jpeg") {
-      name = "nova-image.jpg"
+      name = "gaaia-image.jpg"
     } else if (blob.type === "image/webp") {
-      name = "nova-image.webp"
+      name = "gaaia-image.webp"
     } else {
-      name = "nova-image.png"
+      name = "gaaia-image.png"
     }
   }
 

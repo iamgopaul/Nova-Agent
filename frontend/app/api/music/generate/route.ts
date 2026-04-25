@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "audio/wav",
-        "Content-Disposition": "inline; filename=nova_beat.wav",
+        "Content-Disposition": "inline; filename=gaaia_beat.wav",
       },
     })
   } catch (err) {

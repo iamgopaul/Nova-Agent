@@ -62,7 +62,7 @@ def _teardown() -> None:
 
 def _resolve_device(explicit: str | None = None) -> str:
     import torch
-    v = (explicit or os.environ.get("NOVA_MUSIC_DEVICE") or "auto").strip().lower()
+    v = (explicit or os.environ.get("GAAIA_MUSIC_DEVICE") or "auto").strip().lower()
     if v == "auto":
         if torch.cuda.is_available():
             return "cuda"
@@ -77,7 +77,7 @@ def _resolve_device(explicit: str | None = None) -> str:
         return "cpu"
     if v in ("cpu", "mps", "cuda"):
         return v
-    logger.warning("[MusicGen] Invalid NOVA_MUSIC_DEVICE %r; using CPU.", v)
+    logger.warning("[MusicGen] Invalid GAAIA_MUSIC_DEVICE %r; using CPU.", v)
     return "cpu"
 
 

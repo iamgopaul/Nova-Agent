@@ -1,4 +1,4 @@
-"""Day 1 smoke test — verifies Nova responds in character via local Ollama."""
+"""Day 1 smoke test — verifies GAAIA responds in character via local Ollama."""
 from __future__ import annotations
 
 import asyncio
@@ -9,8 +9,8 @@ sys.path.insert(0, ".")
 import ollama
 
 from config.settings import get_settings
-from nova.memory.store import MemoryStore
-from nova.agent.orchestrator import Orchestrator
+from gaaia.memory.store import MemoryStore
+from gaaia.agent.orchestrator import Orchestrator
 
 
 def check_ollama(host: str, model: str) -> None:
@@ -45,9 +45,9 @@ async def main() -> None:
     session_id = memory.get_or_create_session()
     orchestrator = Orchestrator(settings=settings, memory=memory)
 
-    print("\nNova: ", end="", flush=True)
+    print("\nGAAIA: ", end="", flush=True)
     response = await orchestrator.run(
-        user_message="Hello Nova. Introduce yourself in two sentences.",
+        user_message="Hello GAAIA. Introduce yourself in two sentences.",
         session_id=session_id,
         stream_callback=lambda chunk: print(chunk, end="", flush=True),
     )

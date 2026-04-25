@@ -1141,13 +1141,13 @@ function DeveloperTab() {
   const [stats, setStats] = useState<{ models?: string[]; version?: string } | null>(null)
 
   useEffect(() => {
-    const stored = localStorage.getItem("nova_api_base")
+    const stored = localStorage.getItem("gaaia_api_base")
     if (stored) setApiBase(stored)
     fetch("/api/stats").then(r => r.ok ? r.json() : null).then(d => { if (d) setStats(d) }).catch(() => {})
   }, [])
 
   const saveApiBase = () => {
-    localStorage.setItem("nova_api_base", apiBase)
+    localStorage.setItem("gaaia_api_base", apiBase)
     setCopied("saved")
     setTimeout(() => setCopied(null), 2000)
   }

@@ -69,7 +69,7 @@ type QuizHistoryEntry = {
   feedback: GradeResult["feedback"]
 }
 
-const HISTORY_KEY = "nova.educationHistory.v1"
+const HISTORY_KEY = "gaaia.educationHistory.v1"
 
 function loadHistory(): QuizHistoryEntry[] {
   if (typeof window === "undefined") return []

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const upstream = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; NovaAgent/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; GAAIAAgent/1.0)",
         "Accept": "image/*,*/*;q=0.8",
         // No Referer — bypasses most hotlink protection
       },

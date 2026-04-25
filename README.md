@@ -1,6 +1,6 @@
-# Nova — Personal AI Chief of Staff
+# GAAIA — Personal AI Chief of Staff
 
-Nova is a fully local, privacy-first AI platform that runs entirely on your own hardware via [Ollama](https://ollama.com). It combines a multi-model routing engine, live web research, computer vision, voice I/O, real-time content generation, multi-model debate, and an education suite — all in a single conversational interface with no cloud API keys required.
+GAAIA is a fully local, privacy-first AI platform that runs entirely on your own hardware via [Ollama](https://ollama.com). It combines a multi-model routing engine, live web research, computer vision, voice I/O, real-time content generation, multi-model debate, and an education suite — all in a single conversational interface with no cloud API keys required.
 
 ---
 
@@ -26,12 +26,12 @@ Nova is a fully local, privacy-first AI platform that runs entirely on your own 
 | Diagrams | Mermaid (frontend render) | "flowchart of…", "sequence diagram for…" |
 
 ### Voice
-- Wake-word activation ("Hey Nova") or push-to-talk (`Ctrl+Space`)
+- Wake-word activation ("Hey GAAIA") or push-to-talk (`Ctrl+Space`)
 - Speech-to-text via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) large-v3 — runs locally, strong accent support
 - Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (local, British female — Isabella) or ElevenLabs (optional cloud)
 - **Per-speaker voice enrollment and identity recognition** (ECAPA-TDNN embeddings via SpeechBrain)
 - **Voice personalization** — per-user TTS voice preferences and STT prompt optimization
-- Barge-in / interrupt support; speaker focus (directs Nova to the primary speaker)
+- Barge-in / interrupt support; speaker focus (directs GAAIA to the primary speaker)
 - Video frame context injection into voice responses
 
 ### Camera & Vision
@@ -44,7 +44,7 @@ Nova is a fully local, privacy-first AI platform that runs entirely on your own 
 - Detection geometry pipeline — NMS, IOU, hand-region suppression, finger deduplication
 - Optional MMPose RTMPose backend for hands
 
-### Nova Debate
+### GAAIA Debate
 - Enter any question or topic and watch two AI models argue opposing positions live
 - **Proponent** (light/fast model) vs **Opposition** (medium/core model) across three rounds: Opening → Rebuttal → Closing
 - Tokens stream in real time to each model's identity card as they "speak"
@@ -80,28 +80,28 @@ Nova is a fully local, privacy-first AI platform that runs entirely on your own 
 
 ## Model Fleet
 
-Nova routes across 18 specialized personas. All are Ollama models — swap any for whatever you have installed; the model router will find the best available substitute.
+GAAIA routes across 18 specialized personas. All are Ollama models — swap any for whatever you have installed; the model router will find the best available substitute.
 
 | Persona | Default model | Best for |
 |---------|--------------|---------|
-| Nova Pro | qwen2.5:72b | Deep research, long essays, complex reasoning |
-| Nova Core | mistral:7b | Everyday conversation, tool use, balanced tasks |
-| Nova Spark | llama3.2:3b | Ultra-fast replies, voice one-liners |
-| Nova Air | gemma3:4b | Light conversational chat |
-| Nova Code | qwen2.5-coder:32b | Programming, code review, debugging |
-| Nova Vision | llama3.2-vision:11b | Image and scene understanding |
-| Nova Mind | gemma3:27b | Deep nuanced discussion, no tool calls |
-| Nova Creative | dolphin-mixtral:8x7b | Writing, brainstorming, ideation |
-| Nova Insight | zephyr:7b | Analysis, structured reasoning |
-| Nova Sage | nous-hermes:13b | Instruction following, document Q&A |
-| Nova Chat | neural-chat:7b | Friendly, casual conversation |
-| Nova Logic | orca-mini:7b | Concise logical tasks |
-| Nova Mini | phi:2.7b | Smallest, snappiest model |
-| Nova Star | starling-lm:7b | Polished general responses |
-| Nova Open | openchat:7b | Baseline open-source responses |
-| Nova Quant | mathstral:7b | Maths, statistics, numerical reasoning |
-| Nova Reason | deepseek-r1:70b | Chain-of-thought, proofs, multi-step logic |
-| Nova Heavy | qwen2.5:72b | Alias for Pro — explicit heavy-task routing |
+| GAAIA Pro | qwen2.5:72b | Deep research, long essays, complex reasoning |
+| GAAIA Core | mistral:7b | Everyday conversation, tool use, balanced tasks |
+| GAAIA Spark | llama3.2:3b | Ultra-fast replies, voice one-liners |
+| GAAIA Air | gemma3:4b | Light conversational chat |
+| GAAIA Code | qwen2.5-coder:32b | Programming, code review, debugging |
+| GAAIA Vision | llama3.2-vision:11b | Image and scene understanding |
+| GAAIA Mind | gemma3:27b | Deep nuanced discussion, no tool calls |
+| GAAIA Creative | dolphin-mixtral:8x7b | Writing, brainstorming, ideation |
+| GAAIA Insight | zephyr:7b | Analysis, structured reasoning |
+| GAAIA Sage | nous-hermes:13b | Instruction following, document Q&A |
+| GAAIA Chat | neural-chat:7b | Friendly, casual conversation |
+| GAAIA Logic | orca-mini:7b | Concise logical tasks |
+| GAAIA Mini | phi:2.7b | Smallest, snappiest model |
+| GAAIA Star | starling-lm:7b | Polished general responses |
+| GAAIA Open | openchat:7b | Baseline open-source responses |
+| GAAIA Quant | mathstral:7b | Maths, statistics, numerical reasoning |
+| GAAIA Reason | deepseek-r1:70b | Chain-of-thought, proofs, multi-step logic |
+| GAAIA Heavy | qwen2.5:72b | Alias for Pro — explicit heavy-task routing |
 
 ---
 
@@ -125,20 +125,20 @@ Nova routes across 18 specialized personas. All are Ollama models — swap any f
 └───────────────────────────────┬──────────────────────────────────────┘
                                  │
 ┌───────────────────────────────▼──────────────────────────────────────┐
-│                          Nova Agent Core                              │
+│                          GAAIA Agent Core                              │
 │                                                                       │
 │  Orchestrator ──► Auto-Router ──► Model Router (RAM-aware)           │
 │       │                                                               │
-│       ├── Nova Pro      (qwen2.5:72b)         — essays, research     │
-│       ├── Nova Core     (mistral:7b)           — everyday + tools    │
-│       ├── Nova Spark    (llama3.2:3b)          — fast one-liners     │
-│       ├── Nova Air      (gemma3:4b)            — light chat          │
-│       ├── Nova Code     (qwen2.5-coder:32b)    — programming         │
-│       ├── Nova Vision   (llama3.2-vision:11b)  — image & scene       │
-│       ├── Nova Mind     (gemma3:27b)           — deep reasoning      │
-│       ├── Nova Creative (dolphin-mixtral:8x7b) — writing             │
-│       ├── Nova Quant    (mathstral:7b)         — maths & stats       │
-│       └── Nova Reason   (deepseek-r1:70b)      — chain-of-thought    │
+│       ├── GAAIA Pro      (qwen2.5:72b)         — essays, research     │
+│       ├── GAAIA Core     (mistral:7b)           — everyday + tools    │
+│       ├── GAAIA Spark    (llama3.2:3b)          — fast one-liners     │
+│       ├── GAAIA Air      (gemma3:4b)            — light chat          │
+│       ├── GAAIA Code     (qwen2.5-coder:32b)    — programming         │
+│       ├── GAAIA Vision   (llama3.2-vision:11b)  — image & scene       │
+│       ├── GAAIA Mind     (gemma3:27b)           — deep reasoning      │
+│       ├── GAAIA Creative (dolphin-mixtral:8x7b) — writing             │
+│       ├── GAAIA Quant    (mathstral:7b)         — maths & stats       │
+│       └── GAAIA Reason   (deepseek-r1:70b)      — chain-of-thought    │
 │                                                                       │
 │  Tool Registry — web search · weather · news · notes · file ops      │
 │                  screenshot · clipboard · git · media · email         │
@@ -181,19 +181,19 @@ brew install ollama
 ollama serve   # keep running in a terminal tab
 
 # Minimum set (runs on 16 GB RAM)
-ollama pull mistral:7b            # Nova Core — everyday + tools (~4 GB)
-ollama pull llama3.2:3b           # Nova Spark — ultra-fast (~2 GB)
-ollama pull gemma3:4b             # Nova Air — light chat (~3 GB)
-ollama pull llama3.2-vision:11b   # Nova Vision — image understanding (~8 GB)
+ollama pull mistral:7b            # GAAIA Core — everyday + tools (~4 GB)
+ollama pull llama3.2:3b           # GAAIA Spark — ultra-fast (~2 GB)
+ollama pull gemma3:4b             # GAAIA Air — light chat (~3 GB)
+ollama pull llama3.2-vision:11b   # GAAIA Vision — image understanding (~8 GB)
 
 # Recommended additions
-ollama pull qwen2.5:32b           # Nova Pro on 32 GB machines (~22 GB)
-ollama pull qwen2.5-coder:32b     # Nova Code — programming (~20 GB)
-ollama pull deepseek-r1:7b        # Nova Reason — chain-of-thought (~5 GB)
-ollama pull mathstral:7b          # Nova Quant — maths & stats (~5 GB)
+ollama pull qwen2.5:32b           # GAAIA Pro on 32 GB machines (~22 GB)
+ollama pull qwen2.5-coder:32b     # GAAIA Code — programming (~20 GB)
+ollama pull deepseek-r1:7b        # GAAIA Reason — chain-of-thought (~5 GB)
+ollama pull mathstral:7b          # GAAIA Quant — maths & stats (~5 GB)
 
 # Full setup (64 GB+ recommended)
-ollama pull qwen2.5:72b           # Nova Pro — flagship (~47 GB)
+ollama pull qwen2.5:72b           # GAAIA Pro — flagship (~47 GB)
 ```
 
 > The model router automatically falls back to the best installed model for each role, so you don't need to pull everything — just pull what fits your RAM.
@@ -201,7 +201,7 @@ ollama pull qwen2.5:72b           # Nova Pro — flagship (~47 GB)
 ### 2. Set up the Python environment
 
 ```bash
-cd "Nova Agent"
+cd "GAAIA Agent"
 python3 -m venv .venv
 source .venv/bin/activate
 
@@ -220,7 +220,7 @@ pip install -e ".[mmpose]"    # MMPose RTMPose hand backend (advanced)
 
 ```bash
 cp .env.example .env
-# Edit .env — all fields are optional; Nova works with zero API keys
+# Edit .env — all fields are optional; GAAIA works with zero API keys
 ```
 
 Key optional `.env` variables:
@@ -276,7 +276,7 @@ python scripts/run_server_only.py
 
 ## API Reference
 
-All endpoints require a `nova_token` cookie (obtained via `/auth/login` or `/auth/register`).
+All endpoints require a `gaaia_token` cookie (obtained via `/auth/login` or `/auth/register`).
 
 ```bash
 # Register / login
@@ -287,30 +287,30 @@ curl -X POST http://localhost:8765/auth/register \
 # Chat (streaming SSE)
 curl -N -X POST http://localhost:8765/chat \
   -H "Content-Type: application/json" \
-  -H "Cookie: nova_token=<token>" \
+  -H "Cookie: gaaia_token=<token>" \
   -d '{"message":"What is the weather in Miami?"}'
 
 # Start a debate
 curl -X POST http://localhost:8765/debate/start \
   -H "Content-Type: application/json" \
-  -H "Cookie: nova_token=<token>" \
+  -H "Cookie: gaaia_token=<token>" \
   -d '{"topic":"Should AI be regulated by governments?"}'
 # Returns: {"debate_id":"...", "proponent":{...}, "opposition":{...}, "moderator":{...}}
 
 # Stream the debate
 curl -N http://localhost:8765/debate/<debate_id>/stream \
-  -H "Cookie: nova_token=<token>"
+  -H "Cookie: gaaia_token=<token>"
 
 # Generate a quiz
 curl -X POST http://localhost:8765/education/generate \
   -H "Content-Type: application/json" \
-  -H "Cookie: nova_token=<token>" \
+  -H "Cookie: gaaia_token=<token>" \
   -d '{"topic":"Quantum computing","difficulty":"college","num_questions":5}'
 
 # Save a fact to memory
 curl -X POST http://localhost:8765/memory/facts \
   -H "Content-Type: application/json" \
-  -H "Cookie: nova_token=<token>" \
+  -H "Cookie: gaaia_token=<token>" \
   -d '{"key":"user_name","value":"Josh","source":"user"}'
 
 # System stats
@@ -331,7 +331,7 @@ All behavior is controlled by [`config/config.yaml`](config/config.yaml).
 
 | Section | Controls |
 |---------|---------|
-| `model` | Ollama model names for each Nova persona, token budgets, temperatures, context lengths |
+| `model` | Ollama model names for each GAAIA persona, token budgets, temperatures, context lengths |
 | `personality` | Name, tone, response style, conciseness target |
 | `voice` | STT engine (faster-whisper), TTS engine (Kokoro / ElevenLabs / macOS say), wake words, audio thresholds |
 | `camera` | YOLO model path, hand backend (MediaPipe / MMPose), face recognition config |
@@ -346,15 +346,15 @@ All behavior is controlled by [`config/config.yaml`](config/config.yaml).
 ## Project Structure
 
 ```
-Nova Agent/
+GAAIA Agent/
 ├── config/
 │   ├── config.yaml                  # All settings — models, voice, camera, memory
 │   └── settings.py                  # Pydantic settings loader + model router integration
 │
-├── nova/
+├── gaaia/
 │   ├── agent/
 │   │   ├── orchestrator.py          # Core agentic loop, model routing, tool dispatch, streaming
-│   │   ├── personality.py           # System prompt builder (Nova's character & rules)
+│   │   ├── personality.py           # System prompt builder (GAAIA's character & rules)
 │   │   └── tool_registry.py         # Tool registration & JSON schema generation
 │   │
 │   ├── engines/
@@ -460,7 +460,7 @@ Nova Agent/
 │   │   ├── app-footer.tsx            # Navigation footer
 │   │   └── chat/                     # Chat-specific components
 │   ├── lib/
-│   │   ├── nova-api-base.ts          # Backend base URL helper
+│   │   ├── gaaia-api-base.ts          # Backend base URL helper
 │   │   ├── chat-messages-persist.ts  # Chat history persistence
 │   │   └── utils.ts                  # Tailwind cn() and shared utilities
 │   └── hooks/                        # Custom React hooks
@@ -477,10 +477,10 @@ Nova Agent/
 │   └── test_e2e.py                   # Full stack validation (no Ollama required)
 │
 ├── data/                             # Runtime data — gitignored
-│   ├── nova.db                       # SQLite database (users, memory, facts, topics)
-│   └── Nova/                         # User data (face DB, voice profiles, generated files)
+│   ├── gaaia.db                       # SQLite database (users, memory, facts, topics)
+│   └── GAAIA/                         # User data (face DB, voice profiles, generated files)
 │
-├── run.sh                            # Launch Nova (kills old ports, starts backend + frontend)
+├── run.sh                            # Launch GAAIA (kills old ports, starts backend + frontend)
 ├── pyproject.toml                    # Python package metadata + optional extras
 └── .env.example                      # Environment variable template
 ```

@@ -1,5 +1,5 @@
 """
-End-to-end smoke test — validates the full Nova stack without requiring
+End-to-end smoke test — validates the full GAAIA stack without requiring
 a running Ollama instance.
 
 Tests:
@@ -54,7 +54,7 @@ assert s.model.get("name"), "model.name missing"
 assert s.model.get("provider") == "ollama", "provider should be ollama"
 ok(f"settings loaded — model: {s.model['name']}")
 
-from nova.bootstrap import build_registry, build_nova
+from gaaia.bootstrap import build_registry, build_gaaia
 registry = build_registry(s)
 tool_names = sorted(registry._tools.keys())  # type: ignore[attr-defined]
 assert len(tool_names) == 19, f"Expected 19 tools, got {len(tool_names)}"
@@ -66,7 +66,7 @@ ok(f"registry: {len(tool_names)} tools")
 section("Memory store")
 import tempfile
 from pathlib import Path
-from nova.memory.store import MemoryStore
+from gaaia.memory.store import MemoryStore
 
 with tempfile.TemporaryDirectory() as tmp:
     store = MemoryStore(Path(tmp) / "test.db")
@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory() as tmp:
 # ── 3. Context builder ────────────────────────────────────────────────
 
 section("Context builder")
-from nova.memory.context_builder import ContextBuilder
+from gaaia.memory.context_builder import ContextBuilder
 
 with tempfile.TemporaryDirectory() as tmp:
     store = MemoryStore(Path(tmp) / "ctx.db")
@@ -113,10 +113,10 @@ with tempfile.TemporaryDirectory() as tmp:
 # ── 4. Personality ────────────────────────────────────────────────────
 
 section("Personality")
-from nova.agent.personality import build_system_prompt
+from gaaia.agent.personality import build_system_prompt
 
 prompt = build_system_prompt(s, injected_facts="user_name: Josh")
-assert "Nova" in prompt
+assert "GAAIA" in prompt
 assert "Josh" in prompt
 ok(f"system prompt built ({len(prompt)} chars)")
 
@@ -138,7 +138,7 @@ ok(f"all {len(schemas)} schemas have required fields")
 # ── 6. Approval manager ───────────────────────────────────────────────
 
 section("Approval manager")
-from nova.approval.manager import ApprovalDecision, ApprovalManager
+from gaaia.approval.manager import ApprovalDecision, ApprovalManager
 
 approval = ApprovalManager(s.approval)
 
@@ -208,8 +208,8 @@ section("Tool execution (async)")
 
 
 async def run_tool_checks() -> None:
-    from nova.engines.dev import ListFilesTool, ReadFileTool, SearchCodeTool
-    from nova.tools.clipboard import GetClipboardTool
+    from gaaia.engines.dev import ListFilesTool, ReadFileTool, SearchCodeTool
+    from gaaia.tools.clipboard import GetClipboardTool
 
     # ReadFileTool
     r = await ReadFileTool().run(path=__file__)
@@ -238,7 +238,7 @@ asyncio.run(run_tool_checks())
 # ── 9. FastAPI app factory ────────────────────────────────────────────
 
 section("FastAPI app factory")
-from nova.server.main import create_app
+from gaaia.server.main import create_app
 
 app = create_app()
 assert app is not None
@@ -253,7 +253,7 @@ ok(f"routes registered: {[r for r in routes if not r.startswith('/openapi')]}")
 # ── 10. Orchestrator Ollama-down path ─────────────────────────────────
 
 section("Orchestrator graceful error (Ollama offline)")
-from nova.agent.orchestrator import Orchestrator
+from gaaia.agent.orchestrator import Orchestrator
 
 
 async def test_ollama_down() -> None:

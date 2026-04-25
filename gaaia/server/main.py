@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gaaia.server.security import SecurityHeadersMiddleware
 
 from config.settings import get_settings
-from gaaia.bootstrap import build_nova
+from gaaia.bootstrap import build_gaaia
 from gaaia.server.routers import agents, auth, camera, chart, chat, debate, document, education, image, memory, music, oauth, podcast, screen, stats, video, voice, watcher
 from gaaia.services.knowledge_feed import KnowledgeFeedScheduler
 from gaaia.services.web_watcher import WatcherScheduler
@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
         "log": _mr_logs,
     }
 
-    mem, orchestrator, approval = build_nova(settings)
+    mem, orchestrator, approval = build_gaaia(settings)
 
     app.state.settings    = settings
     app.state.memory      = mem

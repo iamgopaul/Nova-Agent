@@ -1,6 +1,6 @@
 import type { DocItem, Message, MessageAttachment, StorySectionItem } from "@/components/chat/message-bubble"
 
-const STORAGE_KEY_PREFIX = "nova.chatMessages.v1:"
+const STORAGE_KEY_PREFIX = "gaaia.chatMessages.v1:"
 
 /**
  * localStorage key for a session's full chat state (all UI: web results, weather, sections, etc.).

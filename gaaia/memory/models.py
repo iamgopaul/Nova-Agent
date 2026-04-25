@@ -6,11 +6,14 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Te
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
-class Base(DeclarativeBase):
+# ── Auth schema: users + oauth identities ─────────────────────────────────────
+# Lives in the `auth` PostgreSQL schema (or SQLite public schema in local dev).
+
+class AuthBase(DeclarativeBase):
     pass
 
 
-class User(Base):
+class User(AuthBase):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -27,18 +30,53 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
-    sessions: Mapped[list[Session]] = relationship(back_populates="user")
-    folders: Mapped[list[Folder]] = relationship(back_populates="user")
-    facts: Mapped[list[Fact]] = relationship(back_populates="user")
+
+class OAuthIdentity(AuthBase):
+    __tablename__ = "oauth_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_user"),
+        UniqueConstraint("user_id", "provider", name="uq_oauth_user_provider"),
+        Index("ix_oauth_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # Plain VARCHAR — no FK across schema boundary; enforced at application level.
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    provider: Mapped[str] = mapped_column(String(24), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
 
 
-class Session(Base):
+# ── Data schema: all user activity ────────────────────────────────────────────
+# Lives in the `data` PostgreSQL schema (or SQLite public schema in local dev).
+# user_id columns reference auth.users.id by convention only — no DB-level FK
+# across schema boundaries. Application code always enforces ownership checks.
+
+class DataBase(DeclarativeBase):
+    pass
+
+
+class Folder(DataBase):
+    __tablename__ = "folders"
+
+    name: Mapped[str] = mapped_column(String(120), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+    sessions: Mapped[list[Session]] = relationship(back_populates="folder")
+
+
+class Session(DataBase):
     __tablename__ = "sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
-    )
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     custom_title: Mapped[str | None] = mapped_column(String(160), nullable=True)
     folder_name: Mapped[str | None] = mapped_column(
         String(120),
@@ -51,34 +89,18 @@ class Session(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    user: Mapped[User | None] = relationship(back_populates="sessions")
     folder: Mapped[Folder | None] = relationship(back_populates="sessions")
     messages: Mapped[list[Message]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
 
 
-class Folder(Base):
-    __tablename__ = "folders"
-
-    name: Mapped[str] = mapped_column(String(120), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-    )
-    user: Mapped[User | None] = relationship(back_populates="folders")
-    sessions: Mapped[list[Session]] = relationship(back_populates="folder")
-
-
-class Message(Base):
+class Message(DataBase):
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("sessions.id"), nullable=False
+        String(36), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -91,13 +113,11 @@ class Message(Base):
     __table_args__ = (Index("ix_messages_session_id", "session_id"),)
 
 
-class Fact(Base):
+class Fact(DataBase):
     __tablename__ = "facts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
-    )
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     key: Mapped[str] = mapped_column(String(256), nullable=False)
     value: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(32), default="inferred")
@@ -110,16 +130,13 @@ class Fact(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-    user: Mapped[User | None] = relationship(back_populates="facts")
 
 
-class WatchedTopic(Base):
+class WatchedTopic(DataBase):
     __tablename__ = "watched_topics"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     label: Mapped[str] = mapped_column(String(200), nullable=False)
     query: Mapped[str] = mapped_column(String(500), nullable=False)
     category: Mapped[str] = mapped_column(String(50), default="custom", nullable=False)
@@ -132,13 +149,11 @@ class WatchedTopic(Base):
     )
 
 
-class AgentRun(Base):
+class AgentRun(DataBase):
     __tablename__ = "agent_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
-    )
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     request: Mapped[str] = mapped_column(Text, nullable=False)
     goal: Mapped[str | None] = mapped_column(Text, nullable=True)
     output: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -147,12 +162,12 @@ class AgentRun(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    tasks: Mapped[list["AgentTask"]] = relationship(
+    tasks: Mapped[list[AgentTask]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
 
 
-class AgentTask(Base):
+class AgentTask(DataBase):
     __tablename__ = "agent_tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -168,25 +183,8 @@ class AgentTask(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    run: Mapped["AgentRun"] = relationship(back_populates="tasks")
+    run: Mapped[AgentRun] = relationship(back_populates="tasks")
 
 
-class OAuthIdentity(Base):
-    __tablename__ = "oauth_identities"
-    __table_args__ = (
-        UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_user"),
-        UniqueConstraint("user_id", "provider", name="uq_oauth_user_provider"),
-        Index("ix_oauth_user_id", "user_id"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    provider: Mapped[str] = mapped_column(String(24), nullable=False)
-    provider_user_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-    )
+# Backward-compat alias — external code that imports `Base` still works.
+Base = AuthBase

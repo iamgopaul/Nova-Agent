@@ -440,7 +440,7 @@ export default function AgentsPage() {
                         left: `${x}%`,
                         top: `${y}%`,
                         transform: "translate(-50%,-50%)",
-                        animation: `nova-pulse-ring ${1.5 + i * 0.3}s ease-in-out infinite`,
+                        animation: `gaaia-pulse-ring ${1.5 + i * 0.3}s ease-in-out infinite`,
                       }}
                     >
                       <Icon className={cn("w-3.5 h-3.5", color)} />

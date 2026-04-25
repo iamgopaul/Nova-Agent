@@ -34,7 +34,7 @@ router = APIRouter()
 
 _s = get_settings()
 
-FRONTEND_URL = os.environ.get("NOVA_FRONTEND_URL", "http://127.0.0.1:3000")
+FRONTEND_URL = os.environ.get("GAAIA_FRONTEND_URL", "http://127.0.0.1:3000")
 
 # In-memory CSRF state store:
 # {state_token: {"expires_at": float, "mode": "login"|"link", "user_id": str|None}}

@@ -93,7 +93,7 @@ def _effective_search_query_message(user_message: str) -> str:
 # router's "default to core" does not override keyword routing to GAIA Spark.
 _GREET_TRIVIAL: frozenset[str] = frozenset(
     "hey,hi,hello,hiya,heya,howdy,sup,yo,there,mornin,evenin,morning,afternoon,evening,"
-    "night,nova,good,thanks,thx,thank,cheers,oh,ok,okay,bye,greetings,greeting,hi,ho".split(
+    "night,gaaia,good,thanks,thx,thank,cheers,oh,ok,okay,bye,greetings,greeting,hi,ho".split(
         ","
     )
     + ["'sup"]
@@ -108,7 +108,7 @@ _GREET_TIME_PAIRS: frozenset[frozenset[str]] = frozenset(
 
 def _is_trivial_social_greeting(clean: str) -> bool:
     """
-    True for short wake/social only — e.g. "hey", "hi nova", "hello there", "good morning".
+    True for short wake/social only — e.g. "hey", "hi gaaia", "hello there", "good morning".
     Excludes any message that is likely a real question or task.
     """
     t = re.sub(r"\[.*?\]", "", clean or "").lower()
@@ -125,7 +125,7 @@ def _is_trivial_social_greeting(clean: str) -> bool:
     ws = frozenset(words)
     if ws in _GREET_TIME_PAIRS:
         return True
-    if "nova" in words and len(words) <= 2:
+    if "gaaia" in words and len(words) <= 2:
         return True
     if words in (["hi", "there"], ["hello", "there"], ["hey", "there"]):
         return True

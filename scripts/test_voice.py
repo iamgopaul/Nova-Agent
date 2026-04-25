@@ -14,21 +14,21 @@ sys.path.insert(0, ".")
 
 def test_imports() -> None:
     print("── Import checks ─────────────────────────────────────────────")
-    from nova.engines.communication import DraftEmailTool, DraftMessageTool
+    from gaaia.engines.communication import DraftEmailTool, DraftMessageTool
     print("  ✓ engines.communication")
 
-    from nova.engines.media import (
+    from gaaia.engines.media import (
         FindMovieTool, GetNowPlayingTool, PauseMusicTool,
         PlayMusicTool, PlayYouTubeTool,
     )
     print("  ✓ engines.media")
 
-    from nova.engines.dev import (
+    from gaaia.engines.dev import (
         GitStatusTool, ListFilesTool, ReadFileTool, SearchCodeTool,
     )
     print("  ✓ engines.dev")
 
-    from nova.bootstrap import build_registry
+    from gaaia.bootstrap import build_registry
     from config.settings import get_settings
     settings = get_settings()
     registry = build_registry(settings)
@@ -53,7 +53,7 @@ def test_imports() -> None:
 
 async def test_draft_message() -> None:
     print("\n── DraftMessageTool ──────────────────────────────────────────")
-    from nova.engines.communication import DraftMessageTool
+    from gaaia.engines.communication import DraftMessageTool
     tool = DraftMessageTool()
     result = await tool.run(
         recipient="Alice",
@@ -67,7 +67,7 @@ async def test_draft_message() -> None:
 
 async def test_read_file() -> None:
     print("\n── ReadFileTool ──────────────────────────────────────────────")
-    from nova.engines.dev import ReadFileTool
+    from gaaia.engines.dev import ReadFileTool
     import os
     tool = ReadFileTool()
     # Read this script itself
@@ -79,10 +79,10 @@ async def test_read_file() -> None:
 
 async def test_list_files() -> None:
     print("\n── ListFilesTool ─────────────────────────────────────────────")
-    from nova.engines.dev import ListFilesTool
+    from gaaia.engines.dev import ListFilesTool
     tool = ListFilesTool()
     result = await tool.run(path=".", max_depth=2)
-    assert "nova/" in result.content or "config" in result.content
+    assert "gaaia/" in result.content or "config" in result.content
     lines = result.content.splitlines()
     print(f"  ✓ ListFilesTool returned {len(lines)} lines")
     for line in lines[:8]:
@@ -91,7 +91,7 @@ async def test_list_files() -> None:
 
 async def test_git_status() -> None:
     print("\n── GitStatusTool ─────────────────────────────────────────────")
-    from nova.engines.dev import GitStatusTool
+    from gaaia.engines.dev import GitStatusTool
     tool = GitStatusTool()
     result = await tool.run(path=".")
     print(f"  content: {result.content[:200]}")
@@ -101,7 +101,7 @@ async def test_git_status() -> None:
 
 async def test_search_code() -> None:
     print("\n── SearchCodeTool ────────────────────────────────────────────")
-    from nova.engines.dev import SearchCodeTool
+    from gaaia.engines.dev import SearchCodeTool
     tool = SearchCodeTool()
     result = await tool.run(pattern="BaseTool", path=".", file_type="py")
     print(f"  content preview: {result.content[:200]}")
@@ -111,7 +111,7 @@ async def test_search_code() -> None:
 
 async def test_get_now_playing() -> None:
     print("\n── GetNowPlayingTool ─────────────────────────────────────────")
-    from nova.engines.media import GetNowPlayingTool
+    from gaaia.engines.media import GetNowPlayingTool
     tool = GetNowPlayingTool()
     result = await tool.run()
     print(f"  content: {result.content}")
@@ -120,7 +120,7 @@ async def test_get_now_playing() -> None:
 
 async def test_find_movie_fallback() -> None:
     print("\n── FindMovieTool (DDG fallback) ──────────────────────────────")
-    from nova.engines.media import FindMovieTool
+    from gaaia.engines.media import FindMovieTool
     tool = FindMovieTool(tmdb_api_key="")  # force DDG fallback
     result = await tool.run(title="Inception")
     print(f"  content preview: {result.content[:200]}")

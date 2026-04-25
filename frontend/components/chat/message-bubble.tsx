@@ -42,7 +42,7 @@ const _CHART_COLOURS = [
   "#7c3aed", "#0891b2", "#db2777", "#65a30d",
 ]
 
-function NovaChartInner({ spec }: { spec: ChartSpec & { _height?: number } }) {
+function GAAIAChartInner({ spec }: { spec: ChartSpec & { _height?: number } }) {
   const { type, title, labels = [], datasets = [], headers = [], rows = [], xlabel, ylabel } = spec
 
   // Transform spec → recharts data array: [{ name: "Jan", Sales: 100, Profit: 50 }, ...]
@@ -182,7 +182,7 @@ function NovaChartInner({ spec }: { spec: ChartSpec & { _height?: number } }) {
 }
 
 /** Wrapper that adds expand/lightbox to any chart */
-function NovaChart({ spec }: { spec: ChartSpec }) {
+function GAAIAChart({ spec }: { spec: ChartSpec }) {
   const [lightbox, setLightbox] = useState(false)
 
   useEffect(() => {
@@ -203,7 +203,7 @@ function NovaChart({ spec }: { spec: ChartSpec }) {
         >
           <Maximize2 size={13} />
         </button>
-        <NovaChartInner spec={spec} />
+        <GAAIAChartInner spec={spec} />
       </div>
 
       {/* Fullscreen lightbox */}
@@ -230,7 +230,7 @@ function NovaChart({ spec }: { spec: ChartSpec }) {
               </button>
             </div>
             {/* Larger chart in lightbox */}
-            <NovaChartInner spec={{ ...spec, _height: 520 } as ChartSpec} />
+            <GAAIAChartInner spec={{ ...spec, _height: 520 } as ChartSpec} />
           </div>
         </div>
       )}
@@ -2262,7 +2262,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
                           <span className="text-base">🎵</span>
                           Music generation failed (model loading, MPS/VRAM limits, or missing deps). Try
                           again with a short clip, or set{" "}
-                          <code className="text-red-200/80">NOVA_MUSIC_DEVICE=cpu</code> in the server
+                          <code className="text-red-200/80">GAAIA_MUSIC_DEVICE=cpu</code> in the server
                           environment.
                         </div>
                       )
@@ -2319,7 +2319,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
                   : message.chartSpec
                     ? (
                       <div className="rounded-lg border border-border/30 bg-[#0a0f1a] p-3">
-                        <NovaChart spec={message.chartSpec} />
+                        <GAAIAChart spec={message.chartSpec} />
                       </div>
                     )
                     : null

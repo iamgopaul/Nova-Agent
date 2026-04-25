@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
-const COOKIE_NAME = "nova_token"
+const COOKIE_NAME = "gaaia_token"
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)

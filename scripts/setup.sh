@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Nova — First-time setup script
+# GAAIA — First-time setup script
 # Installs all free, local dependencies. Requires no paid services.
 # Run once: bash scripts/setup.sh
 
 set -e
-NOVA_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$NOVA_DIR"
+GAAIA_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$GAAIA_DIR"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Nova — Free Local Setup"
+echo "  GAAIA — Free Local Setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ── 1. Python virtual environment ─────────────────────────────────────
@@ -69,15 +69,15 @@ else
 fi
 
 # ── 5. Data directories ───────────────────────────────────────────────
-mkdir -p ~/Nova/notes
-echo "  ✓ Data directories ready at ~/Nova/"
+mkdir -p ~/GAAIA/notes
+echo "  ✓ Data directories ready at ~/GAAIA/"
 
 # ── 6. Summary ────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Setup complete. Everything runs locally. $0 cost."
 echo ""
-echo "  Test Nova:       .venv/bin/python scripts/test_day1.py"
+echo "  Test GAAIA:       .venv/bin/python scripts/test_day1.py"
 echo "  Run desktop app: .venv/bin/python scripts/run_desktop.py"
 echo ""
 echo "  Stack summary:"

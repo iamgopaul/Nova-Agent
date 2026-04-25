@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Runtime data (mounted as a Docker volume at /app/data)
+data/
+
+# Frontend (built separately in its own Docker stage)
+frontend/
+
+# Git / IDE
+.git/
+.gitignore
+.env
+*.env.*
+!.env.example
+
+# Docs
+*.md

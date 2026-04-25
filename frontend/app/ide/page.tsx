@@ -25,7 +25,7 @@ export default function IdePage() {
               <div className="w-2.5 h-2.5 rounded-full bg-red-400/50" />
               <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/50" />
               <div className="w-2.5 h-2.5 rounded-full bg-green-400/50" />
-              <span className="ml-2 text-xs text-white/25 font-mono">nova_app.py</span>
+              <span className="ml-2 text-xs text-white/25 font-mono">gaaia_app.py</span>
             </div>
             {/* Code */}
             <div className="px-5 py-4 font-mono text-xs space-y-1.5 text-left select-none">
@@ -43,11 +43,11 @@ export default function IdePage() {
               </p>
               <p className="ml-5">
                 <span className="text-violet-400">return</span>{" "}
-                <span className="text-blue-300">NovaAgent</span>
+                <span className="text-blue-300">GAAIAAgent</span>
                 <span className="text-white/30">(</span>
                 <span className="text-orange-300">model</span>
                 <span className="text-white/30">=</span>
-                <span className="text-green-300">&quot;nova-core&quot;</span>
+                <span className="text-green-300">&quot;gaaia-core&quot;</span>
                 <span className="text-white/30">, </span>
                 <span className="text-orange-300">name</span>
                 <span className="text-white/30">=</span>

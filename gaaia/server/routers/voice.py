@@ -87,7 +87,7 @@ def _wake_word_settings(request: Request) -> tuple[bool, list[str], float]:
     require = bool(focus_cfg.get("require_wake_word", False))
     wake_words = [
         str(word).strip().lower()
-        for word in focus_cfg.get("wake_words", ["nova", "hey gaaia"])
+        for word in focus_cfg.get("wake_words", ["gaaia", "hey gaaia"])
         if str(word).strip()
     ]
     active_seconds = float(focus_cfg.get("wake_active_seconds", 45.0))
@@ -118,7 +118,7 @@ def _normalize_wake_homophones(transcript: str) -> str:
     if not text:
         return text
     start_map = (
-        r"^(\s*)(pain over|payn over|pane over|hey no va|hey n ova|a nova|ay nova)\b[:,.!?\s-]*",
+        r"^(\s*)(pain over|payn over|pane over|hey g a a i a|hey g a a i a|hey g a a i a|hey g a a i a)\b[:,.!?\s-]*",
     )
     for pat in start_map:
         if re.search(pat, text, re.IGNORECASE):
@@ -152,7 +152,7 @@ def _touch_voice_active(session_id: str, now: float, active_seconds: float) -> N
         _voice_active_until[session_id] = now + active_seconds
 
 
-def _nova_asked_this_speaker(session_id: str, speaker_label: str | None) -> bool:
+def _gaaia_asked_this_speaker(session_id: str, speaker_label: str | None) -> bool:
     """Return True if GAAIA asked *this* speaker to introduce themselves last turn."""
     key = speaker_label or "_anonymous_"
     with _identity_prompt_lock:
@@ -193,7 +193,7 @@ def _should_append_identity_prompt(
     if declared_name:
         return False
     # Don't repeat if we already asked this speaker on the previous turn.
-    if _nova_asked_this_speaker(session_id, speaker_label):
+    if _gaaia_asked_this_speaker(session_id, speaker_label):
         return False
     band = speaker_identity.confidence_band(speaker_label, voice_confidence)
     if band != "low":
@@ -617,8 +617,8 @@ def _smalltalk_reply(text: str) -> str:
     return "Hey."
 
 
-def _mentions_nova_name(text: str) -> bool:
-    return bool(re.search(r"\bnova\b", text or "", re.IGNORECASE))
+def _mentions_gaaia_name(text: str) -> bool:
+    return bool(re.search(r"\bgaaia\b", text or "", re.IGNORECASE))
 
 
 def _is_anonymous_speaker(name: str | None) -> bool:
@@ -794,7 +794,7 @@ async def transcribe_and_respond(
 
     if not transcript:
         raise HTTPException(status_code=422, detail="No speech detected in audio.")
-    user_said_nova_name = _mentions_nova_name(transcript)
+    user_said_gaaia_name = _mentions_gaaia_name(transcript)
 
     _uid = current_user.id if current_user else None
     sid = memory.get_or_create_session(session_id, user_id=_uid, source="voice")
@@ -811,15 +811,15 @@ async def transcribe_and_respond(
         speaker_label, voice_confidence, declared = speaker_identity.identify(pcm, transcript)
         # Only trust a declared name if GAAIA explicitly asked this speaker to introduce themselves.
         # This prevents random phrases like "I'm located" or "I'm fine" from creating profiles.
-        nova_asked = _nova_asked_this_speaker(sid, speaker_label)
-        if declared_name and nova_asked:
+        gaaia_asked = _gaaia_asked_this_speaker(sid, speaker_label)
+        if declared_name and gaaia_asked:
             learned = speaker_identity.learn_identity(pcm, declared_name, fallback_text=declared_name)
             if learned:
                 speaker_label = learned
                 voice_confidence = 1.0
                 declared = True
                 _clear_identity_asked(sid, speaker_label)
-        elif declared_name and not nova_asked:
+        elif declared_name and not gaaia_asked:
             # Ignore the name — GAAIA didn't ask. Just continue anonymously.
             declared_name = None
     except Exception:
@@ -1116,7 +1116,7 @@ async def transcribe_and_respond(
     ):
         intro = (
             "Hey, can you introduce yourself?"
-            if user_said_nova_name
+            if user_said_gaaia_name
             else "Hey I'm GAIA, nice to meet you — can you introduce yourself?"
         )
         response = (

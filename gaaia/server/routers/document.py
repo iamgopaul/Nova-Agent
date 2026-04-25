@@ -281,7 +281,7 @@ async def _apply_web_images_to_content(content: dict, web_image_urls: list[str])
             async with httpx.AsyncClient(
                 timeout=20.0,
                 follow_redirects=True,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; NovaAgent/1.0)"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; GAAIAAgent/1.0)"},
             ) as client:
                 resp = await client.get(url)
                 if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):

@@ -80,7 +80,7 @@ class WatcherScheduler:
         self._task: asyncio.Task | None = None
 
     def start(self) -> None:
-        self._task = asyncio.create_task(self._loop(), name="nova-web-watcher")
+        self._task = asyncio.create_task(self._loop(), name="gaaia-web-watcher")
         mins = self._interval // 60
         print(f"┌{_DIVIDER}┐", flush=True)
         print(f"│  🔎  Web Watcher — scheduler active                │", flush=True)

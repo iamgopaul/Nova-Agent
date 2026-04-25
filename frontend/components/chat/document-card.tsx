@@ -123,7 +123,7 @@ function DocPreview({ url, format, fullscreen }: { url: string; format: string; 
         const wb = XLSX.read(buf, { type: "array" })
         const firstSheet = wb.Sheets[wb.SheetNames[0]]
         const tableHtml = XLSX.utils.sheet_to_html(firstSheet, {
-          id: "nova-sheet",
+          id: "gaaia-sheet",
           editable: false,
         })
         setHtml(tableHtml)
@@ -200,10 +200,10 @@ function DocPreview({ url, format, fullscreen }: { url: string; format: string; 
       >
         {/* Inject basic table styles for xlsx previews */}
         <style>{`
-          #nova-sheet table { border-collapse: collapse; width: 100%; font-size: 12px; }
-          #nova-sheet td, #nova-sheet th { border: 1px solid #ddd; padding: 4px 8px; }
-          #nova-sheet th { background: #f0f0f0; font-weight: 600; }
-          #nova-sheet tr:nth-child(even) { background: #f9f9f9; }
+          #gaaia-sheet table { border-collapse: collapse; width: 100%; font-size: 12px; }
+          #gaaia-sheet td, #gaaia-sheet th { border: 1px solid #ddd; padding: 4px 8px; }
+          #gaaia-sheet th { background: #f0f0f0; font-weight: 600; }
+          #gaaia-sheet tr:nth-child(even) { background: #f9f9f9; }
         `}</style>
         <div
           className="p-4 prose prose-sm max-w-none"

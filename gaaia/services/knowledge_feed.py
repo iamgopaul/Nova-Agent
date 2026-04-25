@@ -183,7 +183,7 @@ class KnowledgeFeedScheduler:
         self._task: asyncio.Task | None = None
 
     def start(self) -> None:
-        self._task = asyncio.create_task(self._loop(), name="nova-knowledge-feed")
+        self._task = asyncio.create_task(self._loop(), name="gaaia-knowledge-feed")
         mins = self._interval // 60
         print(f"┌{_DIVIDER}┐", flush=True)
         print(f"│  🔄  Knowledge Feed — scheduler active             │", flush=True)

@@ -167,7 +167,7 @@ async def generate_image_endpoint(body: ImageRequest) -> Response:
     return Response(
         content=png_bytes,
         media_type="image/png",
-        headers={"Content-Disposition": "inline; filename=nova_image.png"},
+        headers={"Content-Disposition": "inline; filename=gaaia_image.png"},
     )
 
 

@@ -27,6 +27,7 @@ dependencies = [
     # Database
     "sqlalchemy>=2.0.30",
     "aiosqlite>=0.20.0",
+    "psycopg2-binary>=2.9.9",
 
     # Voice — STT
     "faster-whisper>=1.0.3",

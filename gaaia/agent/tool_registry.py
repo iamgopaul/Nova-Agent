@@ -8,7 +8,7 @@ from gaaia.tools.base import BaseTool, ToolResult
 
 # Dedicated executor so tool coroutines always run in a fresh thread
 # with no existing event loop — avoids "cannot run nested event loop" errors.
-_tool_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nova-tool")
+_tool_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gaaia-tool")
 
 
 class ToolRegistry:

@@ -112,7 +112,7 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
             </button>
             <a
               href={url}
-              download="nova_image.png"
+              download="gaaia_image.png"
               className="p-1 rounded text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
               title="Download PNG"
             >
@@ -160,7 +160,7 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
               </button>
               <a
                 href={url}
-                download="nova_image.png"
+                download="gaaia_image.png"
                 onClick={e => e.stopPropagation()}
                 className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors ml-1"
                 title="Download"
@@ -229,7 +229,7 @@ export function ImageGenerating({ className }: { prompt?: string; className?: st
           style={{
             background: "linear-gradient(108deg, transparent 38%, rgba(220,180,255,0.5) 50%, transparent 62%)",
             backgroundSize: "250% 100%",
-            animation: "nova-shimmer 1.8s linear infinite",
+            animation: "gaaia-shimmer 1.8s linear infinite",
           }}
         />
       </div>
@@ -269,7 +269,7 @@ export function DiagramGenerating({ label, className }: { label?: string; classN
           style={{
             background: "linear-gradient(108deg, transparent 38%, rgba(103,232,249,0.5) 50%, transparent 62%)",
             backgroundSize: "250% 100%",
-            animation: "nova-shimmer 1.8s linear infinite",
+            animation: "gaaia-shimmer 1.8s linear infinite",
           }}
         />
       </div>

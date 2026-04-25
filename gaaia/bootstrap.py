@@ -64,13 +64,16 @@ def build_registry(settings: Settings) -> ToolRegistry:
     return registry
 
 
-def build_nova(settings: Settings) -> tuple[MemoryStore, Orchestrator, ApprovalManager]:
+def build_gaaia(settings: Settings) -> tuple[MemoryStore, Orchestrator, ApprovalManager]:
     """
     Construct and return (memory, orchestrator, approval_manager).
     All three are long-lived singletons — create once, reuse everywhere.
     """
     settings.ensure_dirs()
-    memory   = MemoryStore(settings.db_path)
+    memory   = MemoryStore(
+        settings.db_path,
+        database_url=settings.database_url or None,
+    )
     registry = build_registry(settings)
     approval = ApprovalManager(settings.approval)
     orchestrator = Orchestrator(

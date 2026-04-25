@@ -130,7 +130,7 @@ class AnalyzeVideoTool(BaseTool):
             import yt_dlp
 
             temp_dir = tempfile.gettempdir()
-            output_path = os.path.join(temp_dir, "nova_video_%(id)s.mp4")
+            output_path = os.path.join(temp_dir, "gaaia_video_%(id)s.mp4")
 
             opts = {
                 "format": "best[height<=480]",

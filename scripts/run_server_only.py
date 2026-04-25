@@ -1,11 +1,11 @@
 """
-Nova headless server — no desktop UI.
+GAAIA headless server — no desktop UI.
 
 Usage:
   .venv/bin/python scripts/run_server_only.py
 
 Use this when:
-  - Running Nova on a remote machine (accessed from iPhone / Windows)
+  - Running GAAIA on a remote machine (accessed from iPhone / Windows)
   - CI / testing without a display
   - Developing the API layer independently of the UI
 """
@@ -15,7 +15,7 @@ import sys
 sys.path.insert(0, ".")
 
 import uvicorn
-from nova.server.main import create_app
+from gaaia.server.main import create_app
 
 
 def main() -> None:
@@ -24,7 +24,7 @@ def main() -> None:
     host = s.server.get("host", "127.0.0.1")
     port = s.server.get("port", 8765)
 
-    print(f"Nova server — http://{host}:{port}")
+    print(f"GAAIA server — http://{host}:{port}")
     print(f"  Docs:    http://{host}:{port}/docs")
     print(f"  Health:  http://{host}:{port}/health")
     print(f"  Model:   {s.model.get('name')}")

@@ -405,7 +405,7 @@ export function ChatSidebar({
   const [newFolderName, setNewFolderName] = useState("")
   const newFolderInputRef = useRef<HTMLInputElement>(null)
 
-  const SESSION_MIME = "application/x-nova-chat-session"
+  const SESSION_MIME = "application/x-gaaia-chat-session"
   const rowLocked = (id: string) => isStreaming && id !== activeId
 
   // Keep expanded set in sync when new folders are created externally

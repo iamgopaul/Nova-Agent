@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const fileBuffer  = await upstream.arrayBuffer()
-    const filename    = upstream.headers.get("X-GAAIA-Filename") ?? `nova_document.${fmt}`
+    const filename    = upstream.headers.get("X-GAAIA-Filename") ?? `gaaia_document.${fmt}`
     const contentType = MIME_MAP[fmt] ?? "application/octet-stream"
 
     return new Response(fileBuffer, {

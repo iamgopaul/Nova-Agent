@@ -10,7 +10,7 @@ import type { ChatModelKey } from "@/components/chat/chat-header"
 
 type ChatMessage = {
   id: string
-  role: "user" | "nova"
+  role: "user" | "gaaia"
   text: string
   ts: number
 }
@@ -105,12 +105,12 @@ export default function VoicePage() {
     if (rightTab === "live") chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, rightTab])
 
-  const handleConversationTurn = useCallback((userText: string, novaText: string) => {
+  const handleConversationTurn = useCallback((userText: string, gaaiaText: string) => {
     const now = Date.now()
     setMessages(prev => [
       ...prev,
       { id: `u-${now}`, role: "user", text: userText, ts: now },
-      { id: `n-${now}`, role: "nova", text: novaText, ts: now + 1 },
+      { id: `n-${now}`, role: "gaaia", text: gaaiaText, ts: now + 1 },
     ])
     // Refresh history list when a turn completes
     void loadVoiceSessions()
@@ -148,7 +148,7 @@ export default function VoicePage() {
         const data = await r.json() as Array<{ role: string; content: string; created_at?: string }>
         const msgs: ChatMessage[] = data.map((m, i) => ({
           id: `h-${sid}-${i}`,
-          role: m.role === "user" ? "user" : "nova",
+          role: m.role === "user" ? "user" : "gaaia",
           text: m.content,
           ts: m.created_at ? new Date(m.created_at).getTime() : i,
         }))
@@ -279,15 +279,15 @@ export default function VoicePage() {
                     >
                       <div className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold mt-0.5",
-                        msg.role === "nova"
+                        msg.role === "gaaia"
                           ? "bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-lg shadow-cyan-900/30"
                           : "text-white"
                       )} style={msg.role === "user" && user ? { backgroundColor: user.avatar_color } : {}}>
-                        {msg.role === "nova" ? "N" : (user?.display_name[0].toUpperCase() ?? "U")}
+                        {msg.role === "gaaia" ? "N" : (user?.display_name[0].toUpperCase() ?? "U")}
                       </div>
                       <div className={cn(
                         "px-4 py-2.5 text-sm leading-relaxed",
-                        msg.role === "nova"
+                        msg.role === "gaaia"
                           ? "bg-white/[0.05] text-white/80 rounded-2xl rounded-tl-sm border border-white/[0.07]"
                           : "bg-cyan-600/20 text-white/90 rounded-2xl rounded-tr-sm border border-cyan-500/20"
                       )}>
@@ -407,15 +407,15 @@ export default function VoicePage() {
                     >
                       <div className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold mt-0.5",
-                        msg.role === "nova"
+                        msg.role === "gaaia"
                           ? "bg-gradient-to-br from-cyan-500 to-teal-600 text-white"
                           : "text-white"
                       )} style={msg.role === "user" && user ? { backgroundColor: user.avatar_color } : {}}>
-                        {msg.role === "nova" ? "N" : (user?.display_name[0].toUpperCase() ?? "U")}
+                        {msg.role === "gaaia" ? "N" : (user?.display_name[0].toUpperCase() ?? "U")}
                       </div>
                       <div className={cn(
                         "px-4 py-2.5 text-sm leading-relaxed",
-                        msg.role === "nova"
+                        msg.role === "gaaia"
                           ? "bg-white/[0.05] text-white/75 rounded-2xl rounded-tl-sm border border-white/[0.07]"
                           : "bg-cyan-600/20 text-white/85 rounded-2xl rounded-tr-sm border border-cyan-500/20"
                       )}>

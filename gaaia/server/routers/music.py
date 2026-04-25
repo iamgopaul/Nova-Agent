@@ -53,5 +53,5 @@ async def generate_music_endpoint(body: MusicRequest) -> Response:
     return Response(
         content=wav_bytes,
         media_type="audio/wav",
-        headers={"Content-Disposition": "inline; filename=nova_beat.wav"},
+        headers={"Content-Disposition": "inline; filename=gaaia_beat.wav"},
     )

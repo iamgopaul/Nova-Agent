@@ -43,14 +43,14 @@ def main() -> int:
         if not _wait_for_port("127.0.0.1", 8765, timeout_s=90.0):
             if backend.poll() is not None:
                 return backend.returncode or 1
-            print("[Nova] Backend did not become healthy on 127.0.0.1:8765 in time.", flush=True)
+            print("[GAAIA] Backend did not become healthy on 127.0.0.1:8765 in time.", flush=True)
             return 1
 
         frontend_env = os.environ.copy()
-        _base = (frontend_env.get("NOVA_API_BASE") or "http://127.0.0.1:8765").strip().rstrip("/")
+        _base = (frontend_env.get("GAAIA_API_BASE") or "http://127.0.0.1:8765").strip().rstrip("/")
         if _base.lower().endswith("/api"):
             _base = _base[:-4].rstrip("/")
-        frontend_env["NOVA_API_BASE"] = _base or "http://127.0.0.1:8765"
+        frontend_env["GAAIA_API_BASE"] = _base or "http://127.0.0.1:8765"
         frontend = subprocess.Popen(FRONTEND_CMD, cwd=FRONTEND_DIR, env=frontend_env)
 
         # Keep process alive while the web frontend runs.

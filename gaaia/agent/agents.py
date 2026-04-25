@@ -88,7 +88,7 @@ class BaseAgent:
 
 # ── GAAIA Research ─────────────────────────────────────────────────────────────
 
-class NovaResearchAgent(BaseAgent):
+class GAAIAResearchAgent(BaseAgent):
     name = "GAAIA Research"
     description = "Web search and information synthesis"
 
@@ -144,7 +144,7 @@ class NovaResearchAgent(BaseAgent):
 
 # ── GAIA Code ─────────────────────────────────────────────────────────────────
 
-class NovaCodeAgent(BaseAgent):
+class GAAIACodeAgent(BaseAgent):
     name = "GAIA Code"
     description = "Code writing, debugging, and architecture"
 
@@ -181,7 +181,7 @@ class NovaCodeAgent(BaseAgent):
 
 # ── GAAIA Analyst ──────────────────────────────────────────────────────────────
 
-class NovaAnalystAgent(BaseAgent):
+class GAAIAAnalystAgent(BaseAgent):
     name = "GAAIA Analyst"
     description = "Data analysis, patterns, and strategic insights"
 
@@ -221,7 +221,7 @@ class NovaAnalystAgent(BaseAgent):
 
 # ── GAAIA Writer ───────────────────────────────────────────────────────────────
 
-class NovaWriterAgent(BaseAgent):
+class GAAIAWriterAgent(BaseAgent):
     name = "GAAIA Writer"
     description = "Documents, reports, and long-form writing"
 
@@ -259,7 +259,7 @@ class NovaWriterAgent(BaseAgent):
 
 # ── GAAIA Manager ──────────────────────────────────────────────────────────────
 
-class NovaManagerAgent(BaseAgent):
+class GAAIAManagerAgent(BaseAgent):
     name = "GAAIA Manager"
     description = "Plans and coordinates the specialist agents"
 

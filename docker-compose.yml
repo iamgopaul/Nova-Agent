@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gaaia
+      POSTGRES_USER: gaaia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gaaia -d gaaia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Overrides any DATABASE_URL in .env — always points at the compose postgres service.
+      DATABASE_URL: postgresql+psycopg2://gaaia:${POSTGRES_PASSWORD:-changeme}@postgres:5432/gaaia
+      # Ollama runs on the host machine; host.docker.internal resolves to the host IP.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    volumes:
+      - gaaia_data:/app/data
+    ports:
+      - "8765:8765"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Route server-side Next.js API proxies to the backend service.
+      GAAIA_API_BASE: http://backend:8765
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  gaaia_data:

@@ -121,7 +121,7 @@ export function MusicPlayer({ url, prompt, className }: MusicPlayerProps) {
       {/* Download */}
       <a
         href={url}
-        download="nova_beat.wav"
+        download="gaaia_beat.wav"
         title="Download"
         className="shrink-0 text-violet-400/60 hover:text-violet-300 transition-colors text-xs"
       >
