@@ -1,17 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   Download,
   FileText,
   FileSpreadsheet,
   Presentation,
   File,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   Eye,
-  EyeOff,
+  Minus,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -88,7 +88,7 @@ function formatBytes(bytes: number): string {
 
 type PreviewState = "idle" | "loading" | "ready" | "error"
 
-function DocPreview({ url, format }: { url: string; format: string }) {
+function DocPreview({ url, format, fullscreen }: { url: string; format: string; fullscreen?: boolean }) {
   const fmt = format.toLowerCase()
   const [state, setState] = useState<PreviewState>("idle")
   const [html, setHtml] = useState<string>("")
@@ -168,7 +168,8 @@ function DocPreview({ url, format }: { url: string; format: string }) {
       <iframe
         src={url}
         title="PDF preview"
-        className="w-full h-[500px] bg-white border-t border-inherit"
+        className={cn("w-full bg-white border-t border-inherit", fullscreen ? "h-full" : "h-[500px]")}
+        style={fullscreen ? { minHeight: "calc(100vh - 56px)" } : undefined}
       />
     )
   }
@@ -194,8 +195,8 @@ function DocPreview({ url, format }: { url: string; format: string }) {
     return (
       <div
         ref={containerRef}
-        className="border-t border-inherit overflow-auto max-h-[500px] bg-white text-black"
-        style={{ fontSize: "13px", lineHeight: "1.6" }}
+        className={cn("border-t border-inherit overflow-auto bg-white text-black", fullscreen ? "" : "max-h-[500px]")}
+        style={{ fontSize: "13px", lineHeight: "1.6", ...(fullscreen ? { minHeight: "calc(100vh - 56px)" } : {}) }}
       >
         {/* Inject basic table styles for xlsx previews */}
         <style>{`
@@ -232,76 +233,129 @@ export function DocumentCard({
 }: DocumentCardProps) {
   const meta = getMeta(format)
   const { Icon } = meta
-  const [expanded, setExpanded] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
   const fmt = format.toLowerCase()
 
-  // All formats except pptx support preview
   const canPreview = ["pdf", "docx", "xlsx", "csv", "txt"].includes(fmt)
 
+  // Close modal on Escape
+  useEffect(() => {
+    if (!modalOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setModalOpen(false) }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [modalOpen])
+
   return (
-    <div className={cn("rounded-xl border overflow-hidden", meta.bg, meta.border, className)}>
-      {/* Card header */}
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <div className={cn("flex items-center justify-center w-9 h-9 rounded-lg shrink-0", meta.bg, "border", meta.border)}>
-          <Icon className={cn("w-5 h-5", meta.color)} />
-        </div>
+    <>
+      <div className={cn("rounded-xl border overflow-hidden", meta.bg, meta.border, className)}>
+        {/* Card header */}
+        <div className="flex items-center gap-3 px-3 py-2.5">
+          <div className={cn("flex items-center justify-center w-9 h-9 rounded-lg shrink-0", meta.bg, "border", meta.border)}>
+            <Icon className={cn("w-5 h-5", meta.color)} />
+          </div>
 
-        <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium truncate", meta.color)} title={filename}>
-            {filename}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {meta.label}
-            {sizeBytes != null && ` · ${formatBytes(sizeBytes)}`}
-          </p>
-        </div>
+          <div className="flex-1 min-w-0">
+            <p className={cn("text-sm font-medium truncate", meta.color)} title={filename}>
+              {filename}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {meta.label}
+              {sizeBytes != null && ` · ${formatBytes(sizeBytes)}`}
+            </p>
+          </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Preview toggle — all supported formats */}
-          {canPreview && (
-            <button
-              onClick={() => setExpanded(v => !v)}
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors",
-                meta.color, "hover:bg-white/10"
-              )}
-              title={expanded ? "Hide preview" : "Preview"}
-            >
-              {expanded
-                ? <><EyeOff className="w-3.5 h-3.5" /><span className="hidden sm:inline ml-1">Hide</span></>
-                : <><Eye className="w-3.5 h-3.5" /><span className="hidden sm:inline ml-1">Preview</span></>
-              }
-            </button>
-          )}
-
-          {/* Download */}
-          <a
-            href={url}
-            download={filename}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              "bg-white/10 hover:bg-white/15", meta.color
+          <div className="flex items-center gap-1 shrink-0">
+            {canPreview && (
+              <button
+                onClick={() => setModalOpen(true)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors",
+                  meta.color, "hover:bg-white/10"
+                )}
+                title="Preview document"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1">Preview</span>
+              </button>
             )}
-            title="Download"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Download</span>
-          </a>
+            <a
+              href={url}
+              download={filename}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
+                "bg-white/10 hover:bg-white/15", meta.color
+              )}
+              title="Download"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Download</span>
+            </a>
+          </div>
         </div>
+
+        {prompt && (
+          <div className="px-3 pb-2 border-t border-inherit">
+            <p className="text-xs text-muted-foreground/60 truncate mt-1.5" title={prompt}>
+              {prompt}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Inline preview */}
-      {expanded && <DocPreview url={url} format={fmt} />}
+      {/* Full-screen document preview modal — portal escapes backdrop-blur ancestors */}
+      {modalOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 flex flex-col" style={{ zIndex: 9999, backgroundColor: "rgba(0,0,0,0.85)" }}>
+          {/* Modal header */}
+          <div
+            className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10 shrink-0"
+            style={{ backgroundColor: "var(--surface-2)" }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Icon className={cn("w-4 h-4 shrink-0", meta.color)} />
+              <span className={cn("text-sm font-medium truncate", meta.color)} title={filename}>
+                {filename}
+              </span>
+              {sizeBytes != null && (
+                <span className="text-xs text-white/30 shrink-0">{formatBytes(sizeBytes)}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={url}
+                download={filename}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-white/10 hover:bg-white/15 text-white/70 transition-colors"
+                title="Download"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download</span>
+              </a>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-white/10 hover:bg-white/15 text-white/70 transition-colors"
+                title="Minimize (Esc)"
+              >
+                <Minus className="w-3.5 h-3.5" />
+                <span>Minimize</span>
+              </button>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/70 transition-colors"
+                title="Close (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-      {/* Prompt hint */}
-      {prompt && (
-        <div className="px-3 pb-2 border-t border-inherit">
-          <p className="text-xs text-muted-foreground/60 truncate mt-1.5" title={prompt}>
-            {prompt}
-          </p>
-        </div>
+          {/* Preview content — fills remaining height */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <DocPreview url={url} format={fmt} fullscreen />
+          </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
 }
 

@@ -167,6 +167,7 @@ export function saveSessionMessagesToStorage(sessionId: string, messages: Messag
   } catch (e) {
     if (e instanceof Error && (e as Error & { name?: string }).name === "QuotaExceededError") {
       try {
+        // First fallback: drop web results
         const slimmer: StoredPayload = {
           v: WRAPPER_VERSION,
           messages: messages.map(m => {
@@ -177,7 +178,29 @@ export function saveSessionMessagesToStorage(sessionId: string, messages: Messag
         }
         window.localStorage.setItem(sessionMessagesKey(sessionId), JSON.stringify(slimmer))
       } catch {
-        // give up
+        try {
+          // Second fallback: also strip large data URL payloads (images, music, docs)
+          const stripped: StoredPayload = {
+            v: WRAPPER_VERSION,
+            messages: messages.map(m => {
+              const s = { ...messageToStorable(m) } as Record<string, unknown>
+              delete s.webResults
+              if (typeof s.imageUrl === "string" && (s.imageUrl as string).startsWith("data:")) s.imageUrl = undefined
+              if (Array.isArray(s.imageUrls)) s.imageUrls = []
+              if (typeof s.musicUrl === "string" && (s.musicUrl as string).startsWith("data:")) s.musicUrl = undefined
+              if (Array.isArray(s.docs)) {
+                s.docs = (s.docs as Array<Record<string, unknown>>).map(d => ({ ...d, url: undefined }))
+              }
+              if (Array.isArray(s.storySections)) {
+                s.storySections = (s.storySections as Array<Record<string, unknown>>).map(sec => ({ ...sec, imageUrl: undefined }))
+              }
+              return s
+            }),
+          }
+          window.localStorage.setItem(sessionMessagesKey(sessionId), JSON.stringify(stripped))
+        } catch {
+          // give up
+        }
       }
     }
   }

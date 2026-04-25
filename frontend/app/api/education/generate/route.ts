@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get(COOKIE)?.value
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const upstream = await fetch(`${novaApiBase()}/education/generate`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/education/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

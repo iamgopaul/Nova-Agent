@@ -41,7 +41,7 @@ export function ChatWindow({ messages, isStreaming, onSuggestionClick }: ChatWin
         className="h-full overflow-y-auto scrollbar-thin"
       >
         {messages.length === 0 ? (
-          <ChatWelcome />
+          <ChatWelcome onSuggestionClick={onSuggestionClick} />
         ) : (
           <div className="py-4 space-y-1">
             {messages.map((msg, i) => (
@@ -59,9 +59,10 @@ export function ChatWindow({ messages, isStreaming, onSuggestionClick }: ChatWin
       {/* Scroll to bottom button */}
       <button
         onClick={() => scrollToBottom()}
+        style={{ backgroundColor: "var(--surface-3)" }}
         className={cn(
           "absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full",
-          "bg-[#1a1a26] border border-white/10 text-xs text-white/40 hover:text-white/70 hover:border-blue-500/40 shadow-xl transition-all duration-200",
+          "border border-white/10 text-xs text-white/40 hover:text-white/70 hover:border-blue-500/40 shadow-xl transition-all duration-200",
           showScrollBtn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
         )}
       >

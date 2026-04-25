@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { ChatSidebar, type ChatSessionSummary } from "@/components/chat/chat-sidebar"
 import { ChatWindow } from "@/components/chat/chat-window"
 import { ChatInput } from "@/components/chat/chat-input"
@@ -13,6 +13,9 @@ import {
   saveSessionMessagesToStorage,
 } from "@/lib/chat-messages-persist"
 import { tryHandleSuggestionAction } from "@/lib/suggestion-actions"
+import { chatMessagesStore } from "@/lib/chat-messages-store"
+
+const _EMPTY_MESSAGES: Message[] = []
 
 function newId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -67,10 +70,13 @@ function isChatModelKey(value: string | null): value is ChatModelKey {
 type NovaChunk = {
   type: "text" | "done" | "error" | "status" | "replace" | "music_generate" | "image_generate" | "doc_generate" | "chart_generate" | "mermaid_generate" | "story_sections" | "web_results" | "weather_data" | "clock_widget"
   content: string
-  response?: string   // actual assistant reply, present on doc_generate events
-  web_images?: string // JSON-encoded list of web image URLs, present on doc_generate for essay+images
-  index?: number      // 0-based index for multi-image batches
-  total?: number      // total images requested in this batch
+  response?: string      // actual assistant reply, present on doc_generate events
+  web_images?: string    // JSON-encoded list of web image URLs, present on doc_generate for essay+images
+  index?: number         // 0-based index for multi-image batches
+  total?: number         // total images requested in this batch
+  session_id?: string    // chat session id — for img2img cache keying
+  is_variation?: boolean // true if this is a follow-up edit of the previous image
+  ref_image_url?: string // web reference image URL to ground the generation
 }
 
 
@@ -169,6 +175,15 @@ async function fetchLLMFormat(content: string): Promise<{ intro: string; body: s
   }
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error("FileReader failed"))
+    reader.readAsDataURL(blob)
+  })
+}
+
 async function fetchMusicAudio(prompt: string, duration: number = 12): Promise<string | null> {
   try {
     const res = await fetch("/api/music/generate", {
@@ -178,7 +193,7 @@ async function fetchMusicAudio(prompt: string, duration: number = 12): Promise<s
     })
     if (!res.ok) return null
     const blob = await res.blob()
-    return URL.createObjectURL(blob)
+    return await blobToDataUrl(blob)
   } catch {
     return null
   }
@@ -186,7 +201,16 @@ async function fetchMusicAudio(prompt: string, duration: number = 12): Promise<s
 
 async function fetchImageGen(
   prompt: string,
-  opts?: { width?: number; height?: number; steps?: number; guidance_scale?: number }
+  opts?: {
+    width?: number
+    height?: number
+    steps?: number
+    guidance_scale?: number
+    session_id?: string
+    is_variation?: boolean
+    strength?: number
+    ref_image_url?: string
+  }
 ): Promise<string | null> {
   try {
     const res = await fetch("/api/image/generate", {
@@ -194,15 +218,19 @@ async function fetchImageGen(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt,
-        width:          opts?.width          ?? 640,
-        height:         opts?.height         ?? 640,
-        steps:          opts?.steps          ?? 30,
-        guidance_scale: opts?.guidance_scale ?? 8.5,
+        width:           opts?.width           ?? 640,
+        height:          opts?.height          ?? 640,
+        steps:           opts?.steps           ?? 30,
+        guidance_scale:  opts?.guidance_scale  ?? 8.5,
+        session_id:      opts?.session_id      ?? "",
+        is_variation:    opts?.is_variation    ?? false,
+        strength:        opts?.strength        ?? 0.75,
+        ref_image_url:   opts?.ref_image_url   ?? "",
       }),
     })
     if (!res.ok) return null
     const blob = await res.blob()
-    return URL.createObjectURL(blob)
+    return await blobToDataUrl(blob)
   } catch {
     return null
   }
@@ -227,8 +255,9 @@ async function fetchDocGen(
     })
     if (!res.ok) return null
     const blob     = await res.blob()
-    const filename = res.headers.get("X-Nova-Filename") ?? `nova_document.${format}`
-    return { url: URL.createObjectURL(blob), filename, sizeBytes: blob.size }
+    const filename = res.headers.get("X-GAAIA-Filename") ?? `gaaia_document.${format}`
+    const url = await blobToDataUrl(blob)
+    return { url, filename, sizeBytes: blob.size }
   } catch {
     return null
   }
@@ -331,38 +360,51 @@ function withSidebarPlaceholder(
 }
 
 const MODEL_LABELS: Record<ChatModelKey, { name: string; backend: string }> = {
-  auto:    { name: "Nova Auto",     backend: "llm-router"              },
-  spark:   { name: "Nova Spark",    backend: "llama3.2:3b"             },
-  air:     { name: "Nova Air",      backend: "gemma3:4b"               },
-  core:    { name: "Nova Core",     backend: "mistral:7b"              },
-  pro:     { name: "Nova Pro",      backend: "qwen2.5:72b"             },
-  code:    { name: "Nova Code",     backend: "qwen2.5-coder:32b"       },
-  vision:  { name: "Nova Vision",   backend: "llama3.2-vision:11b"     },
-  mind:    { name: "Nova Mind",     backend: "gemma3:27b"              },
-  creative:{ name: "Nova Creative", backend: "dolphin-mixtral:8x7b"    },
-  insight: { name: "Nova Insight",  backend: "zephyr:7b"               },
-  sage:    { name: "Nova Sage",     backend: "nous-hermes:13b"         },
-  chat:    { name: "Nova Chat",     backend: "neural-chat:7b"          },
-  logic:   { name: "Nova Logic",    backend: "orca-mini:7b"            },
-  mini:    { name: "Nova Mini",     backend: "phi:2.7b"                },
-  star:    { name: "Nova Star",     backend: "starling-lm:7b"          },
-  open:    { name: "Nova Open",     backend: "openchat:7b"             },
+  auto:    { name: "GAAIA Auto",     backend: "llm-router"              },
+  spark:   { name: "GAAIA Spark",    backend: "llama3.2:3b"             },
+  air:     { name: "GAAIA Air",      backend: "gemma3:4b"               },
+  core:    { name: "GAAIA Core",     backend: "mistral:7b"              },
+  pro:     { name: "GAAIA Pro",      backend: "qwen2.5:72b"             },
+  code:    { name: "GAAIA Code",     backend: "qwen2.5-coder:32b"       },
+  vision:  { name: "GAAIA Vision",   backend: "llama3.2-vision:11b"     },
+  mind:    { name: "GAAIA Mind",     backend: "gemma3:27b"              },
+  creative:{ name: "GAAIA Creative", backend: "dolphin-mixtral:8x7b"    },
+  insight: { name: "GAAIA Insight",  backend: "zephyr:7b"               },
+  sage:    { name: "GAAIA Sage",     backend: "nous-hermes:13b"         },
+  chat:    { name: "GAAIA Chat",     backend: "neural-chat:7b"          },
+  logic:   { name: "GAAIA Logic",    backend: "orca-mini:7b"            },
+  mini:    { name: "GAAIA Mini",     backend: "phi:2.7b"                },
+  star:    { name: "GAAIA Star",     backend: "starling-lm:7b"          },
+  open:    { name: "GAAIA Open",     backend: "openchat:7b"             },
   // Quantitative & reasoning specialists
-  quant:   { name: "Nova Quant",   backend: "mathstral:7b"            },
-  reason:  { name: "Nova Reason",  backend: "deepseek-r1:7b"          },
+  quant:   { name: "GAAIA Quant",   backend: "mathstral:7b"            },
+  reason:  { name: "GAAIA Reason",  backend: "deepseek-r1:7b"          },
   // legacy aliases
-  basic:   { name: "Nova Basic",   backend: "llama3.2:3b"             },
-  swift:   { name: "Nova Swift",   backend: "gemma3:4b"               },
+  basic:   { name: "GAAIA Basic",   backend: "llama3.2:3b"             },
+  swift:   { name: "GAAIA Swift",   backend: "gemma3:4b"               },
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([])
   const [sessions, setSessions] = useState<ChatSessionSummary[]>([])
   const [folders, setFolders] = useState<string[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [isLoadingSessions, setIsLoadingSessions] = useState(true)
   const [activeSessionId, setActiveSessionId] = useState("")
   const [selectedModelKey, setSelectedModelKey] = useState<ChatModelKey>("auto")
+
+  // Messages are held in the module-level store so they survive navigation.
+  // An active SSE stream keeps writing here even while the component is unmounted.
+  const messages = useSyncExternalStore(
+    chatMessagesStore.subscribe,
+    () => chatMessagesStore.getMessages(activeSessionId),
+    () => _EMPTY_MESSAGES,
+  )
+  const setMessages = useCallback(
+    (updater: Message[] | ((prev: Message[]) => Message[])) => {
+      chatMessagesStore.setMessages(activeSessionId, updater)
+    },
+    [activeSessionId],
+  )
 
   const stopRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -403,13 +445,17 @@ export default function ChatPage() {
     }
   }, [])
 
+  // Helper: revoke blobs and load new messages for a session
+  const applyHistoryMessages = useCallback((sessionId: string, next: Message[]) => {
+    revokeAttachmentUrls(chatMessagesStore.getMessages(sessionId))
+    chatMessagesStore.loadMessages(sessionId, next)
+  }, [revokeAttachmentUrls])
+
   const loadHistory = useCallback(async (sessionId: string) => {
     if (!sessionId) {
       loadedSessionRef.current = ""
-      setMessages(prev => {
-        revokeAttachmentUrls(prev)
-        return []
-      })
+      revokeAttachmentUrls(chatMessagesStore.getMessages(""))
+      chatMessagesStore.loadMessages("", [])
       return
     }
 
@@ -417,6 +463,13 @@ export default function ChatPage() {
     // or from a previous load).  Don't replace them — we would lose all rich UI
     // state: attachments, blob URLs, suggestions, sections, generated images, docs.
     if (loadedSessionRef.current === sessionId) {
+      return
+    }
+
+    // If a stream is actively writing to this session (user navigated away and back),
+    // claim ownership without overwriting the in-progress messages.
+    if (chatMessagesStore.isStreamingSession(sessionId)) {
+      loadedSessionRef.current = sessionId
       return
     }
 
@@ -428,20 +481,14 @@ export default function ChatPage() {
     if (typeof window !== "undefined") {
       const fromStorage = loadSessionMessagesFromStorage(sessionId)
       if (fromStorage !== null) {
-        setMessages(prev => {
-          revokeAttachmentUrls(prev)
-          return fromStorage
-        })
+        applyHistoryMessages(sessionId, fromStorage)
         return
       }
     }
 
     if (historyWarmCacheRef.current.has(sessionId)) {
       const warm = historyWarmCacheRef.current.get(sessionId)!
-      setMessages(prev => {
-        revokeAttachmentUrls(prev)
-        return warm
-      })
+      applyHistoryMessages(sessionId, warm)
     }
 
     historyFetchAbortRef.current?.abort()
@@ -455,10 +502,7 @@ export default function ChatPage() {
       )
       if (!response.ok) {
         if (!historyWarmCacheRef.current.has(sessionId)) {
-          setMessages(prev => {
-            revokeAttachmentUrls(prev)
-            return []
-          })
+          applyHistoryMessages(sessionId, [])
         }
         return
       }
@@ -466,22 +510,16 @@ export default function ChatPage() {
       const history = await response.json() as HistoryMessage[]
       const mapped = apiHistoryToMessages(sessionId, history)
       historyWarmCacheRef.current.set(sessionId, mapped)
-      setMessages(prev => {
-        revokeAttachmentUrls(prev)
-        return mapped
-      })
+      applyHistoryMessages(sessionId, mapped)
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         return
       }
       if (!historyWarmCacheRef.current.has(sessionId)) {
-        setMessages(prev => {
-          revokeAttachmentUrls(prev)
-          return []
-        })
+        applyHistoryMessages(sessionId, [])
       }
     }
-  }, [revokeAttachmentUrls])
+  }, [revokeAttachmentUrls, applyHistoryMessages])
 
   const refreshSessions = useCallback(async (preferredSessionId?: string) => {
     setIsLoadingSessions(true)
@@ -650,6 +688,10 @@ export default function ChatPage() {
   }, [activeSessionId])
 
   useEffect(() => {
+    // Sync isStreaming React state when user navigates back during an active stream
+    if (chatMessagesStore.isStreamingSession(activeSessionId)) {
+      setIsStreaming(true)
+    }
     void loadHistory(activeSessionId)
   }, [activeSessionId, loadHistory])
 
@@ -718,6 +760,12 @@ export default function ChatPage() {
     // Claim session ownership so loadHistory never overwrites our in-progress messages
     loadedSessionRef.current = sessionId
 
+    // Shadow the outer setMessages with a session-bound version that writes to the
+    // module-level store directly. This keeps working even after the component unmounts
+    // (user navigates away), so the stream survives navigation.
+    const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) =>
+      chatMessagesStore.setMessages(sessionId, updater)
+
     const controller = new AbortController()
     abortRef.current = controller
     let receivedText = false
@@ -753,8 +801,8 @@ export default function ChatPage() {
       message.id === aiMsgId
         ? {
           ...message,
-          statusText: "Connecting to Nova backend",
-          statusSteps: appendStatusStep(message.statusSteps, "Connecting to Nova backend"),
+          statusText: "Connecting to GAAIA backend",
+          statusSteps: appendStatusStep(message.statusSteps, "Connecting to GAAIA backend"),
           thinking: true,
         }
         : message
@@ -887,9 +935,12 @@ export default function ChatPage() {
         }
 
         if (chunk.type === "image_generate") {
-          const imagePrompt = chunk.content || ""
-          const imgIdx   = chunk.index ?? 0
-          const imgTotal = chunk.total ?? 1
+          const imagePrompt   = chunk.content || ""
+          const imgIdx        = chunk.index ?? 0
+          const imgTotal      = chunk.total ?? 1
+          const imgSessionId  = chunk.session_id ?? ""
+          const imgIsVariation = chunk.is_variation ?? false
+          const imgRefUrl     = chunk.ref_image_url ?? ""
 
           // Mark generating + reserve a slot for this image index
           setMessages(prev => prev.map(message => {
@@ -906,7 +957,11 @@ export default function ChatPage() {
             }
           }))
 
-          void fetchImageGen(imagePrompt).then(imageUrl => {
+          void fetchImageGen(imagePrompt, {
+            session_id:    imgSessionId,
+            is_variation:  imgIsVariation,
+            ref_image_url: imgRefUrl,
+          }).then(imageUrl => {
             setMessages(prev => prev.map(message => {
               if (message.id !== aiMsgId) return message
               const slots = [...(message.imageUrls ?? [])]
@@ -1002,7 +1057,7 @@ export default function ChatPage() {
               })
             })
           } catch (e) {
-            console.error("[Nova] story_sections parse error", e)
+            console.error("[GAAIA] story_sections parse error", e)
           }
           continue
         }
@@ -1016,7 +1071,7 @@ export default function ChatPage() {
                 : message
             )))
           } catch (e) {
-            console.error("[Nova] web_results parse error", e)
+            console.error("[GAAIA] web_results parse error", e)
           }
           continue
         }
@@ -1030,7 +1085,7 @@ export default function ChatPage() {
                 : message
             )))
           } catch (e) {
-            console.error("[Nova] weather_data parse error", e)
+            console.error("[GAAIA] weather_data parse error", e)
           }
           continue
         }
@@ -1063,7 +1118,7 @@ export default function ChatPage() {
         }
 
         if (chunk.type === "mermaid_generate") {
-          // Strip any standalone label line that Nova wrote immediately before
+          // Strip any standalone label line that GAAIA wrote immediately before
           // the ```mermaid fence (e.g. "Timeline Image\n", "Diagram:\n").
           // These are 1-5 word headings/labels sitting on a line by themselves
           // right before the code block — the MermaidDiagram component already
@@ -1198,14 +1253,15 @@ export default function ChatPage() {
       attachments: attachmentPreviews,
     }
 
-    setMessages(prev => [...prev, userMsg])
+    chatMessagesStore.setMessages(sessionId, prev => [...prev, userMsg])
+    chatMessagesStore.beginStream(sessionId)
     setIsStreaming(true)
     stopRef.current = false
 
     const thinkingId = newId()
     const initialSteps = buildInitialSteps(attachments)
     const firstInitialStep = initialSteps[0] || "Reading your request"
-    setMessages(prev => [...prev, {
+    chatMessagesStore.setMessages(sessionId, prev => [...prev, {
       id: thinkingId,
       role: "assistant",
       content: "",
@@ -1227,7 +1283,7 @@ export default function ChatPage() {
     } catch (err) {
       if (!stopRef.current) {
         const message = err instanceof Error ? err.message : "Request failed"
-        setMessages(prev => prev.map(entry => (
+        chatMessagesStore.setMessages(sessionId, prev => prev.map(entry => (
           entry.id === thinkingId
             ? { ...entry, content: `[Error] ${message}`, statusText: "", thinking: false }
             : entry
@@ -1235,6 +1291,7 @@ export default function ChatPage() {
       }
     } finally {
       abortRef.current = null
+      chatMessagesStore.endStream()
       setIsStreaming(false)
       historyWarmCacheRef.current.delete(sessionId)
     }
@@ -1249,6 +1306,10 @@ export default function ChatPage() {
         void handleSend(text, [])
       })
       if (action === "consumed" || action === "direct-send") {
+        return
+      }
+      if (!messageContent.trim()) {
+        void handleSend(suggestion, [])
         return
       }
       const preview = messageContent.trim().slice(0, 300)
@@ -1286,10 +1347,8 @@ export default function ChatPage() {
     // Claim ownership before setActiveSessionId so loadHistory skips
     loadedSessionRef.current = newSessionId
     setActiveSessionId(newSessionId)
-    setMessages(prev => {
-      revokeAttachmentUrls(prev)
-      return []
-    })
+    revokeAttachmentUrls(chatMessagesStore.getMessages(activeSessionId))
+    chatMessagesStore.loadMessages(newSessionId, [])
   }
 
   const handleSelectSession = (sessionId: string) => {
@@ -1324,10 +1383,8 @@ export default function ChatPage() {
         activeSessionRef.current = fallbackSessionId
         setActiveSessionId(fallbackSessionId)
         if (!fallbackSessionId) {
-          setMessages(prev => {
-            revokeAttachmentUrls(prev)
-            return []
-          })
+          revokeAttachmentUrls(chatMessagesStore.getMessages(fallbackSessionId))
+          chatMessagesStore.loadMessages(fallbackSessionId, [])
         }
       }
       void refreshSessions(fallbackSessionId)
@@ -1422,6 +1479,7 @@ export default function ChatPage() {
     stopRef.current = true
     abortRef.current?.abort()
     abortRef.current = null
+    chatMessagesStore.endStream()
     setIsStreaming(false)
   }
 
@@ -1458,7 +1516,7 @@ export default function ChatPage() {
         />
       }
     >
-      {/* Home card: Nova Chat — blue-400 icon, from-blue-500/20 via-cyan-500/10, border-blue-500/30 */}
+      {/* Home card: GAAIA Chat — blue-400 icon, from-blue-500/20 via-cyan-500/10, border-blue-500/30 */}
       <div className="relative flex h-full min-h-0 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.08] via-cyan-500/[0.05] to-transparent" />

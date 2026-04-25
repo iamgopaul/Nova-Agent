@@ -5,7 +5,7 @@ import { Mic, MicOff, X, Volume2, VolumeX, Settings, Camera, User } from "lucide
 import { cn } from "@/lib/utils"
 import { fingerSegmentDisplayLabel, mapNormBoxToDisplayPixels } from "@/lib/camera-overlay"
 import { VoiceOrb } from "./voice-orb"
-import { NovaIcon } from "@/components/icons/nova-icon"
+import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 import type { ChatModelKey } from "./chat-header"
 
 interface VoiceConversationProps {
@@ -28,6 +28,7 @@ type VoiceDiagnosticStage =
   | "Capturing audio"
   | "Waiting for speech"
   | "Sending audio"
+  | "Thinking"
   | "Transcribing"
   | "Retrying listen"
   | "Speaking"
@@ -48,7 +49,7 @@ type VoiceStreamEvent =
  * Open `/api/voice/stream` as an NDJSON stream and yield parsed events.
  * The stream surfaces the transcript the instant STT finishes, then each
  * sentence from the LLM as soon as it completes — so TTS can start while
- * Nova is still generating the rest of her reply.
+ * GAAIA is still generating the rest of her reply.
  */
 async function* streamVoiceTurn(
   audioBlob: Blob,
@@ -431,15 +432,14 @@ function cleanSpokenText(input: string) {
 
 const TURN_MAX_MS = 18000
 const PRE_SPEECH_TIMEOUT_MS = 6000
-// Real-time conversation: shorter end-of-utterance silence so Nova doesn't
-// feel like she's "waiting" after you stop talking. 400 ms is aggressive
-// but still safer than 300 ms against mid-sentence pauses.
-const SILENCE_TIMEOUT_MS = 400
-const MIN_VOICE_TURN_MS = 280
+// 240 ms is the sweet spot: short enough to feel instant, long enough to
+// survive brief mid-sentence hesitations without cutting the speaker off.
+const SILENCE_TIMEOUT_MS = 240
+const MIN_VOICE_TURN_MS = 220
 const SPEECH_RMS_THRESHOLD = 0.0003
 const MAX_POST_SPEECH_MS = 7000
 const MIN_SPEECH_STREAK = 1
-// Barge-in: while Nova is speaking, user speech above this RMS for this many
+// Barge-in: while GAAIA is speaking, user speech above this RMS for this many
 // consecutive audio chunks will cut her off and flip to listening. Chosen
 // higher than SPEECH_RMS_THRESHOLD to reject residual TTS bleed-through.
 const BARGEIN_RMS_THRESHOLD = 0.015
@@ -479,7 +479,7 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
   const bargeInRef = useRef(false)
   /** Active TTS streaming session; `abort()` stops all in-flight audio. */
   const ttsSessionRef = useRef<TtsSession | null>(null)
-  /** Dedicated mic stream + analyser that listens while Nova is speaking. */
+  /** Dedicated mic stream + analyser that listens while GAAIA is speaking. */
   const bargeInStreamRef = useRef<MediaStream | null>(null)
   const bargeInCtxRef = useRef<AudioContext | null>(null)
   const bargeInRafRef = useRef<number | null>(null)
@@ -491,7 +491,7 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
   const sinkNodeRef = useRef<GainNode | null>(null)
   const activeAudioRef = useRef<HTMLAudioElement | null>(null)
   const activeAudioUrlRef = useRef<string | null>(null)
-  /** TTS read-back from Nova (separate from capture `audioCtxRef`) */
+  /** TTS read-back from GAAIA (separate from capture `audioCtxRef`) */
   const speakTtsContextRef = useRef<AudioContext | null>(null)
   /** Output AudioContext created/resumed on Start (user gesture) for autoplay policy. */
   const playbackAudioCtxRef = useRef<AudioContext | null>(null)
@@ -836,9 +836,9 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
   }, [])
 
   /**
-   * While Nova is speaking, keep a lightweight mic analyser running so we can
+   * While GAAIA is speaking, keep a lightweight mic analyser running so we can
    * detect when the user starts talking again and cut her off instantly. The
-   * analyser uses a *higher* RMS threshold than normal listening so Nova's
+   * analyser uses a *higher* RMS threshold than normal listening so GAAIA's
    * own TTS bleeding through the mic (no echo cancellation during capture)
    * won't false-trigger.
    */
@@ -1244,13 +1244,18 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
       }
 
       setState("thinking")
-      setDiagnosticStage("Sending audio")
+      setDiagnosticStage("Thinking")
 
-      // Snapshot one lightweight camera frame *before* opening the stream so
-      // the upload isn't bottlenecked by the JPEG encode.
+      // Capture a frame concurrently — race against a 60ms deadline so JPEG
+      // encode never delays the audio upload. The continuous live-buffer
+      // provides fallback context if we miss the snapshot.
       let camFrame: Blob | null = null
       try {
-        camFrame = await captureFrameJpegScaled(640, 0.78)
+        const frameRace = Promise.race([
+          captureFrameJpegScaled(320, 0.65),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 60)),
+        ])
+        camFrame = await frameRace
       } catch {
         camFrame = null
       }
@@ -1266,7 +1271,7 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
       })
       ttsSessionRef.current = tts
 
-      // Barge-in: as soon as Nova starts speaking (first sentence arrives),
+      // Barge-in: as soon as GAAIA starts speaking (first sentence arrives),
       // open a dedicated mic analyser. If it hears the user, we abort TTS,
       // cancel the in-flight HTTP stream (so the LLM doesn't keep generating
       // sentences we'll never play), and loop back to listening instantly.
@@ -1452,7 +1457,7 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
       return
     }
     forceFinalizeRef.current = true
-    setDiagnosticStage("Sending audio")
+    setDiagnosticStage("Thinking")
   }
 
   useEffect(() => {
@@ -1508,11 +1513,14 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
   }
 
   return (
-    <div className={cn(
-      embedded
-        ? "relative flex flex-col items-center justify-center w-full h-full bg-[#0a0a0f]"
-        : "fixed inset-0 z-50 bg-[#0a0a0f] flex flex-col items-center justify-center"
-    )}>
+    <div
+      className={cn(
+        embedded
+          ? "relative flex flex-col items-center justify-center w-full h-full"
+          : "fixed inset-0 z-50 flex flex-col items-center justify-center"
+      )}
+      style={{ backgroundColor: "var(--surface-0)" }}
+    >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
           className={cn(
@@ -1537,8 +1545,8 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
             className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-white/10 transition-colors"
             aria-label="Go to Home"
           >
-            <NovaIcon size={24} />
-            <span className="text-white/80 text-sm font-semibold tracking-wide">Nova</span>
+            <GaaiaIcon size={24} />
+            <span className="text-white/80 text-sm font-semibold tracking-wide">GAAIA</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -1689,7 +1697,7 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
             </div>
             <div className="flex items-center justify-between gap-4">
               <span>STT engine</span>
-              <span className="text-white/50">Nova Whisper backend</span>
+              <span className="text-white/50">GAAIA Whisper backend</span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <span>Model</span>

@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get(COOKIE)?.value
-  const upstream = await fetch(`${novaApiBase()}/camera/identities`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/camera/identities`, {
     headers: token ? { Cookie: `${COOKIE}=${token}` } : {},
   })
   const body = await upstream.text()

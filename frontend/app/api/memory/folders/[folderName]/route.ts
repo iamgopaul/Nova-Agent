@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
@@ -9,10 +9,10 @@ export async function DELETE(
   { params }: { params: Promise<{ folderName: string }> },
 ) {
   const { folderName } = await params
-  const token = req.cookies.get("nova_token")?.value
-  const upstream = await fetch(`${novaApiBase()}/memory/folders/${encodeURIComponent(folderName)}`, {
+  const token = req.cookies.get("gaaia_token")?.value
+  const upstream = await fetch(`${gaaiaApiBase()}/memory/folders/${encodeURIComponent(folderName)}`, {
     method: "DELETE",
-    headers: token ? { Cookie: `nova_token=${token}` } : {},
+    headers: token ? { Cookie: `gaaia_token=${token}` } : {},
   })
   if (upstream.status === 204) return new Response(null, { status: 204, headers: { "Cache-Control": "no-cache" } })
   const body = await upstream.text()

@@ -28,24 +28,24 @@ const SPEED_LABEL: Record<SpeedTier, string> = {
 }
 
 const MODELS = [
-  { key: "auto",     name: "Nova Auto",     description: "Intelligently picks the best model",              badge: "AUTO",   speed: "fast"    as SpeedTier, icon: Zap },
-  { key: "spark",    name: "Nova Spark",    description: "Ultra-fast · voice queries & instant replies",    badge: "FAST",   speed: "instant" as SpeedTier, icon: Zap },
-  { key: "air",      name: "Nova Air",      description: "Light & snappy conversational chat",                               speed: "fast"    as SpeedTier, icon: MessagesSquare },
-  { key: "core",     name: "Nova Core",     description: "Balanced everyday queries with full tool access",                  speed: "fast"    as SpeedTier, icon: Star },
-  { key: "pro",      name: "Nova Pro",      description: "Most powerful · deep reasoning & web search",     badge: "PRO",   speed: "slow"    as SpeedTier, icon: Brain },
-  { key: "code",     name: "Nova Code",     description: "Coding specialist · generation & debugging",      badge: "CODE",  speed: "slow"    as SpeedTier, icon: Code2 },
-  { key: "quant",    name: "Nova Quant",    description: "Maths, calculus & quantitative finance",          badge: "MATH",  speed: "medium"  as SpeedTier, icon: Sigma },
-  { key: "reason",   name: "Nova Reason",   description: "Proofs, derivations & chain-of-thought",          badge: "THINK", speed: "medium"  as SpeedTier, icon: Brain },
-  { key: "vision",   name: "Nova Vision",   description: "Image & scene understanding",                     badge: "VISION",speed: "medium"  as SpeedTier, icon: Eye },
-  { key: "mind",     name: "Nova Mind",     description: "Deep, nuanced conversation",                                       speed: "slow"    as SpeedTier, icon: Brain },
-  { key: "creative", name: "Nova Creative", description: "Writing, brainstorming & creative style",         badge: "CREATE",speed: "slow"    as SpeedTier, icon: FlaskConical },
-  { key: "insight",  name: "Nova Insight",  description: "Focused analysis and sharp reasoning",                             speed: "medium"  as SpeedTier, icon: Lightbulb },
-  { key: "sage",     name: "Nova Sage",     description: "Strong instruction following & structured output", badge: "SMART", speed: "medium"  as SpeedTier, icon: Star },
-  { key: "chat",     name: "Nova Chat",     description: "Friendly & natural conversational flow",                           speed: "fast"    as SpeedTier, icon: MessagesSquare },
-  { key: "logic",    name: "Nova Logic",    description: "Concise and precise logical tasks",                                speed: "fast"    as SpeedTier, icon: Brain },
-  { key: "mini",     name: "Nova Mini",     description: "Smallest & snappiest · ultra-lightweight",                         speed: "instant" as SpeedTier, icon: Zap },
-  { key: "star",     name: "Nova Star",     description: "Polished, well-rounded general responses",                         speed: "medium"  as SpeedTier, icon: Star },
-  { key: "open",     name: "Nova Open",     description: "OpenChat baseline · open-ended conversation",                      speed: "medium"  as SpeedTier, icon: MessagesSquare },
+  { key: "auto",     name: "GAAIA Auto",     description: "Intelligently picks the best model",              badge: "AUTO",   speed: "fast"    as SpeedTier, icon: Zap },
+  { key: "spark",    name: "GAAIA Spark",    description: "Ultra-fast · voice queries & instant replies",    badge: "FAST",   speed: "instant" as SpeedTier, icon: Zap },
+  { key: "air",      name: "GAAIA Air",      description: "Light & snappy conversational chat",                               speed: "fast"    as SpeedTier, icon: MessagesSquare },
+  { key: "core",     name: "GAAIA Core",     description: "Balanced everyday queries with full tool access",                  speed: "fast"    as SpeedTier, icon: Star },
+  { key: "pro",      name: "GAAIA Pro",      description: "Most powerful · deep reasoning & web search",     badge: "PRO",   speed: "slow"    as SpeedTier, icon: Brain },
+  { key: "code",     name: "GAAIA Code",     description: "Coding specialist · generation & debugging",      badge: "CODE",  speed: "slow"    as SpeedTier, icon: Code2 },
+  { key: "quant",    name: "GAAIA Quant",    description: "Maths, calculus & quantitative finance",          badge: "MATH",  speed: "medium"  as SpeedTier, icon: Sigma },
+  { key: "reason",   name: "GAAIA Reason",   description: "Proofs, derivations & chain-of-thought",          badge: "THINK", speed: "medium"  as SpeedTier, icon: Brain },
+  { key: "vision",   name: "GAAIA Vision",   description: "Image & scene understanding",                     badge: "VISION",speed: "medium"  as SpeedTier, icon: Eye },
+  { key: "mind",     name: "GAAIA Mind",     description: "Deep, nuanced conversation",                                       speed: "slow"    as SpeedTier, icon: Brain },
+  { key: "creative", name: "GAAIA Creative", description: "Writing, brainstorming & creative style",         badge: "CREATE",speed: "slow"    as SpeedTier, icon: FlaskConical },
+  { key: "insight",  name: "GAAIA Insight",  description: "Focused analysis and sharp reasoning",                             speed: "medium"  as SpeedTier, icon: Lightbulb },
+  { key: "sage",     name: "GAAIA Sage",     description: "Strong instruction following & structured output", badge: "SMART", speed: "medium"  as SpeedTier, icon: Star },
+  { key: "chat",     name: "GAAIA Chat",     description: "Friendly & natural conversational flow",                           speed: "fast"    as SpeedTier, icon: MessagesSquare },
+  { key: "logic",    name: "GAAIA Logic",    description: "Concise and precise logical tasks",                                speed: "fast"    as SpeedTier, icon: Brain },
+  { key: "mini",     name: "GAAIA Mini",     description: "Smallest & snappiest · ultra-lightweight",                         speed: "instant" as SpeedTier, icon: Zap },
+  { key: "star",     name: "GAAIA Star",     description: "Polished, well-rounded general responses",                         speed: "medium"  as SpeedTier, icon: Star },
+  { key: "open",     name: "GAAIA Open",     description: "OpenChat baseline · open-ended conversation",                      speed: "medium"  as SpeedTier, icon: MessagesSquare },
 ]
 
 export type ChatModelKey = (typeof MODELS)[number]["key"]
@@ -55,7 +55,7 @@ interface ChatHeaderProps {
   onModelChange: (modelKey: ChatModelKey) => void
 }
 
-/** Per-model badge color overrides — falls back to blue (Nova Chat theme). */
+/** Per-model badge color overrides — falls back to blue (GAAIA Chat theme). */
 function badgeClass(key: string): string {
   switch (key) {
     case "vision":   return "bg-violet-500/15 text-violet-400 border-violet-500/20"
@@ -122,7 +122,7 @@ export function ChatHeader({ selectedModelKey, onModelChange }: ChatHeaderProps)
 
       {/* Dropdown — right-aligned so it never clips off the edge */}
       {open && (
-        <div className="absolute top-full right-0 mt-2 w-80 rounded-2xl border border-white/[0.08] bg-[#0f0f17] shadow-2xl shadow-black/70 z-50 overflow-hidden">
+        <div className="absolute top-full right-0 mt-2 w-80 rounded-2xl border border-white/[0.08] shadow-2xl shadow-black/70 z-50 overflow-hidden" style={{ backgroundColor: "var(--surface-2)" }}>
           <div className="px-3 pt-3 pb-1">
             <p className="text-[9px] font-bold uppercase tracking-widest text-white/25 px-1">Select Model</p>
           </div>

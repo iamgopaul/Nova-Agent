@@ -64,7 +64,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
   }
 
   return (
-    <div className="w-full px-4 pb-4 pt-2 bg-gradient-to-b from-[#0d0d12] to-blue-950/20 border-t border-blue-500/20">
+    <div className="w-full px-4 pb-4 pt-2 border-t border-blue-500/15" style={{ background: "linear-gradient(to bottom, var(--surface-1), oklch(0.11 0.01 240 / 0.95))" }}>
       <div className="max-w-3xl mx-auto">
         <div
           className={cn(
@@ -96,7 +96,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
             value={value}
             onChange={e => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message Nova…"
+            placeholder="Message GAAIA…"
             rows={1}
             disabled={disabled}
             className={cn(
@@ -112,7 +112,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
                 type="button"
                 onClick={() => router.push("/voice")}
                 className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors"
-                title="Nova Voice"
+                title="GAAIA Voice"
               >
                 <Mic className="w-4 h-4" />
               </button>
@@ -147,22 +147,22 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
         </div>
 
         {attachments.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1.5 max-w-3xl mx-auto">
             {attachments.map((file, index) => (
               <div
                 key={`${file.name}-${file.size}-${index}`}
-                className="flex items-center gap-2 max-w-full rounded-full border border-white/[0.08] bg-white/[0.05] px-3 py-1.5 text-xs text-white/70"
+                className="flex items-center gap-2 max-w-full rounded-lg border border-blue-500/20 bg-blue-500/[0.07] px-2.5 py-1.5 text-xs text-white/60"
               >
-                <span className="max-w-[240px] truncate" title={file.name}>
+                <span className="max-w-[200px] truncate font-medium" title={file.name}>
                   {file.name}
                 </span>
-                <span className="text-muted-foreground shrink-0">
-                  {file.type.startsWith("image/") ? "image" : file.type || "file"}
+                <span className="text-white/25 shrink-0 text-[10px]">
+                  {file.type.startsWith("image/") ? "img" : file.type?.split("/")[1] || "file"}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(index)}
-                  className="ml-1 rounded-full px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  className="w-4 h-4 rounded flex items-center justify-center text-white/25 hover:text-white/70 hover:bg-white/[0.1] transition-colors"
                   aria-label={`Remove ${file.name}`}
                 >
                   ×
@@ -173,7 +173,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
         )}
 
         <p className="text-center text-[10px] text-white/15 mt-2">
-          Nova can make mistakes. Consider verifying important information.
+          GAAIA can make mistakes. Consider verifying important information.
         </p>
       </div>
     </div>

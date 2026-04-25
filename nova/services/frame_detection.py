@@ -56,6 +56,14 @@ def _get_yolo():
                 _yolo_model = YOLOE(name)
             else:
                 _yolo_model = YOLO(name)
+
+            # Pre-fuse so first inference doesn't hit 'Conv has no attribute bn'.
+            # Weights saved in a fused state raise AttributeError — that's fine, skip.
+            try:
+                _yolo_model.fuse()
+            except AttributeError:
+                pass
+
             _yolo_model_name = name
             print(f"[Nova] YOLO loaded: {name}", flush=True)
         except Exception as exc:

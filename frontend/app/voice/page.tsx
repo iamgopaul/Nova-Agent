@@ -160,7 +160,7 @@ export default function VoicePage() {
 
   return (
     <AppShell title="Voice" titleColor="text-cyan-400">
-      {/* Home card: Nova Voice — cyan-400 icon, from-cyan-500/20 via-teal-500/10, border-cyan-500/30 */}
+      {/* Home card: GAAIA Voice — cyan-400 icon, from-cyan-500/20 via-teal-500/10, border-cyan-500/30 */}
       <div className="relative flex h-full min-h-0 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.08] via-teal-500/[0.05] to-transparent" />
@@ -173,7 +173,7 @@ export default function VoicePage() {
 
         {/* Left column — voice orb (full height) */}
         <div className="flex flex-col w-[40%] min-w-[280px] max-w-[480px] border-r border-cyan-500/15 min-h-0">
-          <div className="flex-1 min-h-0 relative overflow-hidden bg-[#070710]">
+          <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: "var(--surface-0)" }}>
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-gradient-to-br from-cyan-500/12 to-teal-500/8 blur-3xl" />
               <div className="absolute bottom-1/4 left-1/4 w-48 h-48 rounded-full bg-teal-500/10 blur-3xl" />
@@ -191,14 +191,14 @@ export default function VoicePage() {
         </div>
 
         {/* Right column — camera (top) + live conversation + history */}
-        <div className="flex-1 flex flex-col bg-[#09090f] min-w-0 min-h-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0" style={{ backgroundColor: "var(--surface-1)" }}>
 
           {/* Top: Camera panel — sized to show the full frame */}
-          <div className="h-64 shrink-0 border-b border-white/[0.07] bg-[#060609] flex flex-col">
+          <div className="h-64 shrink-0 border-b border-white/[0.07] flex flex-col" style={{ backgroundColor: "var(--surface-0)" }}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.07] shrink-0">
               <div className="flex items-center gap-1.5">
                 <Camera className="w-3 h-3 text-cyan-400/70" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Nova Camera</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">GAAIA Camera</span>
               </div>
               <span className={cn("text-[10px] font-medium", cameraStream ? "text-emerald-400" : "text-white/20")}>
                 {cameraStream ? "● Live" : "Off"}
@@ -217,7 +217,7 @@ export default function VoicePage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-white/[0.07] shrink-0 bg-[#09090f]">
+          <div className="flex border-b border-white/[0.07] shrink-0" style={{ backgroundColor: "var(--surface-1)" }}>
             <button
               onClick={() => setRightTab("live")}
               className={cn(
@@ -298,7 +298,7 @@ export default function VoicePage() {
                 )}
                 <div ref={chatEndRef} />
               </div>
-              <div className="px-5 py-2.5 border-t border-white/[0.07] shrink-0 flex items-center justify-between bg-[#09090f]">
+              <div className="px-5 py-2.5 border-t border-white/[0.07] shrink-0 flex items-center justify-between" style={{ backgroundColor: "var(--surface-1)" }}>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] text-white/20">
                     {messages.length === 0 ? "Transcript will appear here" : `${messages.length} turn${messages.length !== 1 ? "s" : ""}`}
@@ -379,7 +379,7 @@ export default function VoicePage() {
           {/* ── History detail view ── */}
           {rightTab === "history" && selectedSession && (
             <>
-              <div className="px-4 py-3 border-b border-white/[0.07] shrink-0 flex items-center gap-3 bg-[#09090f]">
+              <div className="px-4 py-3 border-b border-white/[0.07] shrink-0 flex items-center gap-3" style={{ backgroundColor: "var(--surface-1)" }}>
                 <button
                   onClick={() => setSelectedSession(null)}
                   className="text-[11px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"

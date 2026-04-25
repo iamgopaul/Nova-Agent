@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
@@ -11,10 +11,10 @@ export async function GET(
   const { sessionId } = await params
   const url = new URL(req.url)
   const limit = url.searchParams.get("n") || "2000"
-  const token = req.cookies.get("nova_token")?.value
+  const token = req.cookies.get("gaaia_token")?.value
   const upstream = await fetch(
-    `${novaApiBase()}/memory/history/${encodeURIComponent(sessionId)}?n=${encodeURIComponent(limit)}`,
-    { headers: token ? { Cookie: `nova_token=${token}` } : {} },
+    `${gaaiaApiBase()}/memory/history/${encodeURIComponent(sessionId)}?n=${encodeURIComponent(limit)}`,
+    { headers: token ? { Cookie: `gaaia_token=${token}` } : {} },
   )
   const body = await upstream.text()
   return new Response(body, {

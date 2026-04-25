@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { NovaIcon } from "@/components/icons/nova-icon"
+import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 import { LogOut } from "lucide-react"
 
 const REDIRECT_DELAY = 4 // seconds
@@ -59,16 +59,16 @@ export default function SignOutPage() {
           </svg>
         </div>
 
-        {/* Nova logo */}
+        {/* GAAIA logo */}
         <div className="flex items-center gap-2">
-          <NovaIcon size={22} />
-          <span className="font-bold text-base tracking-tight">Nova</span>
+          <GaaiaIcon size={22} />
+          <span className="font-bold text-base tracking-tight">GAAIA</span>
         </div>
 
         <div>
           <h1 className="text-2xl font-bold mb-2">You&apos;ve been signed out</h1>
           <p className="text-sm text-muted-foreground">
-            Thanks for using Nova. Redirecting you back in{" "}
+            Thanks for using GAAIA. Redirecting you back in{" "}
             <span className="font-semibold text-foreground">{countdown}s</span>…
           </p>
         </div>

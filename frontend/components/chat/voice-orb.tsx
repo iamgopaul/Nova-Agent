@@ -8,7 +8,7 @@ interface VoiceOrbProps {
   className?: string
 }
 
-// ─── Color palettes per state (matches home “Nova Voice” card: cyan + teal) ─
+// ─── Color palettes per state (matches home “GAAIA Voice” card: cyan + teal) ─
 const PALETTE = {
   idle:      { core: "#0d9488", mid: "#2dd4bf", outer: "#134e4a", glow: "20,184,166" },
   listening: { core: "#06b6d4", mid: "#22d3ee", outer: "#164e63", glow: "6,182,212"  },

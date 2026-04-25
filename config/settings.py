@@ -43,9 +43,13 @@ class Settings(BaseSettings):
 
     # ── YAML config (loaded separately, attached at construction) ─────
     _yaml: dict[str, Any] = {}
+    # Populated at server startup by the model router — overrides YAML model keys
+    # for any models that don't fit in system RAM or aren't installed.
+    _effective_model_overrides: dict[str, Any] = {}
 
     def model_post_init(self, __context: Any) -> None:
         object.__setattr__(self, "_yaml", _load_yaml())
+        object.__setattr__(self, "_effective_model_overrides", {})
 
     # ── Convenience accessors ─────────────────────────────────────────
 
@@ -55,7 +59,14 @@ class Settings(BaseSettings):
 
     @property
     def model(self) -> dict[str, Any]:
-        return self._yaml.get("model", {})
+        """Merge YAML model config with runtime overrides from the model router."""
+        base = dict(self._yaml.get("model", {}))
+        base.update(self._effective_model_overrides)
+        return base
+
+    def apply_model_routing(self, overrides: dict[str, Any]) -> None:
+        """Called once at startup with the RAM-constrained model overrides."""
+        object.__setattr__(self, "_effective_model_overrides", dict(overrides))
 
     @property
     def personality(self) -> dict[str, Any]:

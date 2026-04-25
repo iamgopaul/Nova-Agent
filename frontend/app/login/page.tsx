@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { NovaIcon } from "@/components/icons/nova-icon"
+import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -43,9 +43,9 @@ export default function LoginPage() {
         <div className="rounded-3xl border border-border/50 bg-card/60 backdrop-blur-md p-8 shadow-[0_8px_48px_oklch(0.72_0.14_220_/_0.10)]">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <NovaIcon size={56} className="mb-3" />
+            <GaaiaIcon size={56} className="mb-3" />
             <h1 className="text-xl font-bold">Welcome back</h1>
-            <p className="text-sm text-muted-foreground mt-1">Sign in to your Nova account</p>
+            <p className="text-sm text-muted-foreground mt-1">Sign in to your GAAIA account</p>
           </div>
 
           {/* OAuth buttons */}
@@ -127,7 +127,7 @@ export default function LoginPage() {
         </p>
         <div className="text-center mt-3">
           <Link href="/" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
-            ← Back to Nova
+            ← Back to GAAIA
           </Link>
         </div>
       </div>

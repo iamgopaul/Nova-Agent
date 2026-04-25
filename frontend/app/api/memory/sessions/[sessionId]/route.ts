@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
 
 function cookieHeader(req: NextRequest): Record<string, string> {
-  const token = req.cookies.get("nova_token")?.value
-  return token ? { Cookie: `nova_token=${token}` } : {}
+  const token = req.cookies.get("gaaia_token")?.value
+  return token ? { Cookie: `gaaia_token=${token}` } : {}
 }
 
 export async function DELETE(
@@ -14,7 +14,7 @@ export async function DELETE(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params
-  const upstream = await fetch(`${novaApiBase()}/memory/sessions/${encodeURIComponent(sessionId)}`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/memory/sessions/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",
     headers: cookieHeader(req),
   })
@@ -32,7 +32,7 @@ export async function PATCH(
 ) {
   const { sessionId } = await params
   const payload = await req.json()
-  const upstream = await fetch(`${novaApiBase()}/memory/sessions/${encodeURIComponent(sessionId)}`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/memory/sessions/${encodeURIComponent(sessionId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...cookieHeader(req) },
     body: JSON.stringify(payload || {}),

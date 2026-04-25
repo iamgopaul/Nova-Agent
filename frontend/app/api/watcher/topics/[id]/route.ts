@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 function cookieHeader(req: NextRequest): Record<string, string> {
   const token = req.cookies.get(COOKIE)?.value
@@ -16,7 +16,7 @@ export async function PATCH(
 ) {
   const { id } = await params
   const body = await req.json()
-  const upstream = await fetch(`${novaApiBase()}/watcher/topics/${encodeURIComponent(id)}`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/watcher/topics/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...cookieHeader(req) },
     body: JSON.stringify(body),
@@ -34,7 +34,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const upstream = await fetch(`${novaApiBase()}/watcher/topics/${encodeURIComponent(id)}`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/watcher/topics/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: cookieHeader(req),
   })

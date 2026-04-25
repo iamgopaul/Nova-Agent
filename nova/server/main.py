@@ -29,7 +29,7 @@ from nova.server.security import SecurityHeadersMiddleware
 
 from config.settings import get_settings
 from nova.bootstrap import build_nova
-from nova.server.routers import auth, camera, chart, chat, document, education, image, memory, music, oauth, stats, voice, watcher
+from nova.server.routers import agents, auth, camera, chart, chat, debate, document, education, image, memory, music, oauth, podcast, stats, voice, watcher
 from nova.services.knowledge_feed import KnowledgeFeedScheduler
 from nova.services.web_watcher import WatcherScheduler
 from nova.services.location import get_location, location_context
@@ -42,6 +42,31 @@ async def lifespan(app: FastAPI):
     resource_advisor.initialize()
 
     settings = get_settings()
+
+    # ── Model routing — pick best models that fit in system RAM ──────────────
+    from nova.services.model_router import run_model_routing
+    _ollama_host = str(settings._yaml.get("model", {}).get("host") or "http://localhost:11434")
+    _mr_overrides, _mr_ram_gb, _mr_installed, _mr_logs = run_model_routing(
+        settings._yaml.get("model", {}),
+        host=_ollama_host,
+    )
+    settings.apply_model_routing(_mr_overrides)
+    print(
+        f"[ModelRouter] System RAM: {_mr_ram_gb:.1f} GB | "
+        f"Installed models: {len(_mr_installed)} | "
+        f"Role overrides: {len(_mr_overrides)}",
+        flush=True,
+    )
+    for line in _mr_logs:
+        print(f"[ModelRouter]{line}", flush=True)
+    # Store routing info for the /stats/models endpoint
+    app.state.model_routing = {
+        "ram_gb": round(_mr_ram_gb, 1),
+        "installed_models": sorted(_mr_installed),
+        "overrides": _mr_overrides,
+        "log": _mr_logs,
+    }
+
     mem, orchestrator, approval = build_nova(settings)
 
     app.state.settings    = settings
@@ -164,6 +189,9 @@ def create_app() -> FastAPI:
         allow_credentials=True,
     )
 
+    app.include_router(agents.router,      prefix="/agents",          tags=["Agents"])
+    app.include_router(debate.router,      prefix="/debate",          tags=["Debate"])
+    app.include_router(podcast.router,     prefix="/podcast",         tags=["Podcast"])
     app.include_router(auth.router,        prefix="/auth",            tags=["Auth"])
     app.include_router(oauth.router,       prefix="/auth/oauth",      tags=["OAuth"])
     app.include_router(chat.router,       prefix="/chat",       tags=["Chat"])

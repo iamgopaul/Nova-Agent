@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 function cookieHeader(req: NextRequest): Record<string, string> {
   const token = req.cookies.get(COOKIE)?.value
@@ -11,7 +11,7 @@ function cookieHeader(req: NextRequest): Record<string, string> {
 }
 
 export async function GET(req: NextRequest) {
-  const upstream = await fetch(`${novaApiBase()}/watcher/topics`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/watcher/topics`, {
     headers: cookieHeader(req),
   })
   const body = await upstream.text()
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ detail: "Not authenticated." }), { status: 401 })
   }
   const body = await req.json()
-  const upstream = await fetch(`${novaApiBase()}/watcher/topics`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/watcher/topics`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: `${COOKIE}=${token}` },
     body: JSON.stringify(body),

@@ -10,21 +10,23 @@ import {
   Network,
   Scale,
   Code2,
+  GraduationCap,
   ArrowRight,
   Sparkles,
   Zap,
   Shield,
 } from "lucide-react"
-import { NovaIcon } from "@/components/icons/nova-icon"
+import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 import { cn } from "@/lib/utils"
 
 const FEATURES = [
-  { icon: MessageSquare, label: "Nova Chat",    color: "text-blue-400",    bg: "bg-blue-500/10",    description: "Multi-model AI conversations with web search & document creation." },
-  { icon: Mic,           label: "Nova Voice",   color: "text-cyan-400",    bg: "bg-cyan-500/10",    description: "Real-time voice conversations. Speak naturally, get spoken responses." },
-  { icon: Headphones,    label: "Nova Podcast", color: "text-violet-400",  bg: "bg-violet-500/10",  description: "Two AI models host a dynamic podcast on any topic you choose." },
-  { icon: Network,       label: "Nova Agents",  color: "text-emerald-400", bg: "bg-emerald-500/10", description: "Assign tasks to specialised Nova models working in parallel." },
-  { icon: Scale,         label: "Nova Debate",  color: "text-orange-400",  bg: "bg-orange-500/10",  description: "Watch two AI models argue opposing sides of any topic." },
-  { icon: Code2,         label: "Nova IDE",     color: "text-indigo-400",  bg: "bg-indigo-500/10",  description: "AI-powered code editor — write, debug, and ship with Nova as co-pilot." },
+  { icon: MessageSquare, label: "GAAIA Chat",      color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",    description: "Multi-model conversations with web search, image generation & document creation." },
+  { icon: Mic,           label: "GAAIA Voice",     color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20",    description: "Real-time voice conversations. Speak naturally, get spoken responses." },
+  { icon: GraduationCap, label: "GAAIA Education", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20",    description: "AI-powered lessons, quizzes, and exams — graded with instant feedback." },
+  { icon: Headphones,    label: "GAAIA Podcast",   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",description: "Two AI models host a dynamic podcast on any topic you choose." },
+  { icon: Network,       label: "GAAIA Agents",    color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", description: "Assign tasks to specialised GAAIA models working in parallel." },
+  { icon: Scale,         label: "GAAIA Debate",    color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20", description: "Watch two AI models argue opposing sides of any topic." },
+  { icon: Code2,         label: "GAAIA IDE",       color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20", description: "AI-powered code editor — write, debug, and ship with GAAIA as co-pilot." },
 ]
 
 const PILLARS = [
@@ -37,23 +39,18 @@ export default function LandingPage() {
   const router = useRouter()
   const [resuming, setResuming] = useState(false)
 
-  // If already authenticated, go straight to /home
   useEffect(() => {
     fetch("/api/auth/me")
       .then(r => {
-        if (r.ok) {
-          setResuming(true)
-          router.replace("/home")
-        }
+        if (r.ok) { setResuming(true); router.replace("/home") }
       })
       .catch(() => {})
   }, [router])
 
-  // Brief "resuming" overlay while the redirect fires
   if (resuming) {
     return (
       <div className="min-h-screen aurora-bg flex flex-col items-center justify-center gap-4 text-foreground">
-        <NovaIcon size={56} className="animate-pulse" />
+        <GaaiaIcon size={56} className="animate-pulse" />
         <p className="text-sm text-muted-foreground">Resuming your session…</p>
       </div>
     )
@@ -63,16 +60,16 @@ export default function LandingPage() {
     <div className="min-h-screen aurora-bg relative overflow-x-hidden text-foreground">
       {/* Ambient blobs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute top-1/2 -right-40 w-96 h-96 rounded-full bg-violet-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-cyan-500/8 blur-3xl" />
+        <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-blue-500/[0.09] blur-3xl" />
+        <div className="absolute top-1/2 -right-40 w-96 h-96 rounded-full bg-violet-500/[0.09] blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-cyan-500/[0.07] blur-3xl" />
       </div>
 
       {/* ── Nav ─────────────────────────────────────────────────────── */}
       <nav className="relative z-10 flex items-center justify-between px-6 md:px-12 py-5 max-w-7xl mx-auto">
         <div className="flex items-center gap-2.5">
-          <NovaIcon size={30} />
-          <span className="font-bold text-lg tracking-tight">Nova</span>
+          <GaaiaIcon size={28} />
+          <span className="font-bold text-lg tracking-tight">GAAIA</span>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -105,7 +102,7 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-          Chat, voice, podcast, debate, agents, and IDE — all powered by the world&apos;s leading AI models,
+          Chat, voice, podcast, debate, agents, IDE, and education — all powered by the world&apos;s leading AI models,
           unified in one beautifully designed app.
         </p>
 
@@ -127,19 +124,19 @@ export default function LandingPage() {
 
       {/* ── Feature grid ────────────────────────────────────────────── */}
       <section className="relative z-10 max-w-6xl mx-auto px-6 pb-28">
-        <p className="text-center text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-10">
-          Six experiences. One account.
+        <p className="text-center text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-10">
+          Seven experiences. One account.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
           {FEATURES.map(f => {
             const Icon = f.icon
             return (
               <div
                 key={f.label}
-                className="flex items-start gap-4 p-5 rounded-2xl border border-border/50 bg-card/40 backdrop-blur-sm hover:bg-card/60 transition-all"
+                className="flex items-start gap-3.5 p-4 rounded-2xl border border-border/50 bg-card/40 backdrop-blur-sm hover:bg-card/60 hover:border-border/80 transition-all"
               >
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", f.bg)}>
-                  <Icon className={cn("w-5 h-5", f.color)} />
+                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border", f.bg)}>
+                  <Icon className={cn("w-4 h-4", f.color)} />
                 </div>
                 <div>
                   <p className="text-sm font-semibold mb-1">{f.label}</p>
@@ -171,10 +168,8 @@ export default function LandingPage() {
 
       {/* ── CTA Banner ──────────────────────────────────────────────── */}
       <section className="relative z-10 max-w-3xl mx-auto px-6 pb-28 text-center">
-        <div className="rounded-3xl border border-primary/20 bg-primary/5 backdrop-blur-sm px-10 py-12">
-          <h2 className="text-3xl font-extrabold tracking-tight mb-3">
-            Ready to meet Nova?
-          </h2>
+        <div className="rounded-3xl border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-10 py-12">
+          <h2 className="text-3xl font-extrabold tracking-tight mb-3">Ready for GAAIA?</h2>
           <p className="text-muted-foreground mb-8 text-sm">
             Create your free account and start exploring every AI experience in seconds.
           </p>
@@ -191,14 +186,14 @@ export default function LandingPage() {
       <footer className="relative z-10 border-t border-border/30 px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <NovaIcon size={20} />
-            <span className="text-sm font-bold text-muted-foreground">Nova</span>
+            <GaaiaIcon size={20} />
+            <span className="text-sm font-bold text-muted-foreground">GAAIA</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-muted-foreground">
             <Link href="/login"  className="hover:text-foreground transition-colors">Sign in</Link>
             <Link href="/signup" className="hover:text-foreground transition-colors">Sign up</Link>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">Your data stays on your machine. Always.</p>
+          <p className="text-[11px] text-muted-foreground/50">Your data stays on your machine. Always.</p>
         </div>
       </footer>
     </div>

@@ -55,21 +55,22 @@ if [[ ! -f "$STAMP" || "$PYPROJECT" -nt "$STAMP" ]]; then
     echo "[Nova] Python dependencies ready."
 fi
 
-# ── Node / pnpm — install frontend deps if node_modules missing or stale ─────
+# ── Bun — install frontend deps if node_modules missing or stale ─────────────
 PKGJSON="$ROOT_DIR/frontend/package.json"
 NODE_MODULES="$ROOT_DIR/frontend/node_modules"
-PNPM_LOCK="$ROOT_DIR/frontend/pnpm-lock.yaml"
+BUN_LOCK="$ROOT_DIR/frontend/bun.lockb"
 NODE_STAMP="$ROOT_DIR/frontend/node_modules/.nova_install_stamp"
 
-if ! command -v pnpm &>/dev/null; then
-    echo "[Nova] pnpm not found — installing via npm..."
-    npm install -g pnpm
+if ! command -v bun &>/dev/null; then
+    echo "[Nova] Bun not found — installing..."
+    curl -fsSL https://bun.sh/install | bash
+    export PATH="$HOME/.bun/bin:$PATH"
 fi
 
-if [[ ! -d "$NODE_MODULES" || ! -f "$NODE_STAMP" || "$PKGJSON" -nt "$NODE_STAMP" || ( -f "$PNPM_LOCK" && "$PNPM_LOCK" -nt "$NODE_STAMP" ) ]]; then
+if [[ ! -d "$NODE_MODULES" || ! -f "$NODE_STAMP" || "$PKGJSON" -nt "$NODE_STAMP" || ( -f "$BUN_LOCK" && "$BUN_LOCK" -nt "$NODE_STAMP" ) ]]; then
     echo "[Nova] Installing frontend dependencies..."
-    pnpm install --dir "$ROOT_DIR/frontend" --frozen-lockfile 2>/dev/null \
-        || pnpm install --dir "$ROOT_DIR/frontend"
+    bun install --cwd "$ROOT_DIR/frontend" --frozen-lockfile 2>/dev/null \
+        || bun install --cwd "$ROOT_DIR/frontend"
     touch "$NODE_STAMP"
     echo "[Nova] Frontend dependencies ready."
 fi

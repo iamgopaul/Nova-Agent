@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get(COOKIE)?.value
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   // Forward to FastAPI's /voice/stream. We keep the stream body flowing
   // through so NDJSON events arrive at the browser the moment the Python
   // side yields them — no intermediate buffering.
-  const upstream = await fetch(`${novaApiBase()}/voice/stream`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/voice/stream`, {
     method: "POST",
     headers: { Cookie: `${COOKIE}=${token}` },
     body: form,
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const text = await upstream.text().catch(() => "")
     const hint =
       upstream.status === 404
-        ? " Nova API returned 404 — set NOVA_API_BASE to the Python server root (e.g. http://127.0.0.1:8765) with no /api suffix, then restart Next.js."
+        ? " GAAIA API returned 404 — set GAAIA_API_BASE to the Python server root (e.g. http://127.0.0.1:8765) with no /api suffix, then restart Next.js."
         : ""
     return new Response(
       text ||

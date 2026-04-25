@@ -1,11 +1,11 @@
-# Nova v1 — Configuration
+# GAAIA v1 — Configuration
 # All secrets live in .env. This file controls behaviour.
 
 # ── Application ───────────────────────────────────────────────────────
 app:
-  name: Nova
+  name: GAAIA
   version: "0.1.0"
-  data_dir: "~/Nova"       # Expanded at runtime; stores db + notes
+  data_dir: "~/GAAIA"      # Expanded at runtime; stores db + notes
   # If IP geolocation shows the wrong country/city, set this so "weather at my location" and
   # the chat weather widget use your real place (wttr.in query). Example: "Miami, Florida, USA"
   # user_home_location: "Miami, Florida, USA"
@@ -19,31 +19,31 @@ model:
   host: "http://localhost:11434"
 
   # ── Core routing models ──────────────────────────────────────────────────
-  name: qwen2.5:72b              # Nova Pro    — main/default, full tool support, deep reasoning
-  fast_model: llama3.2:3b        # Nova Spark  — ultra-fast, voice queries & quick one-liners
-  swift_model: gemma3:4b         # Nova Air    — light conversational chat, no tools
-  core_model: mistral:7b         # Nova Core   — balanced everyday queries, tool-capable
-  heavy_model: qwen2.5:72b       # Nova Pro    — same as main; alias used by auto-router for heavy tasks
-  code_model: qwen2.5-coder:32b  # Nova Code   — coding specialist, large output budget
-  vision_model: llama3.2-vision:11b   # Nova Vision — image & scene understanding, visual chat
-  mind_model: gemma3:27b         # Nova Mind   — deep nuanced chat (no tool calls, smart)
+  name: qwen2.5:72b              # GAAIA Pro    — main/default, full tool support, deep reasoning
+  fast_model: llama3.2:3b        # GAAIA Spark  — ultra-fast, voice queries & quick one-liners
+  swift_model: gemma3:4b         # GAAIA Air    — light conversational chat, no tools
+  core_model: mistral:7b         # GAAIA Core   — balanced everyday queries, tool-capable
+  heavy_model: qwen2.5:72b       # GAAIA Pro    — same as main; alias used by auto-router for heavy tasks
+  code_model: qwen2.5-coder:32b  # GAAIA Code   — coding specialist, large output budget
+  vision_model: llama3.2-vision:11b   # GAAIA Vision — image & scene understanding, visual chat
+  mind_model: gemma3:27b         # GAAIA Mind   — deep nuanced chat (no tool calls, smart)
 
   # ── Specialty models ─────────────────────────────────────────────────────
-  creative_model: dolphin-mixtral:8x7b  # Nova Creative — writing, brainstorming, style
-  insight_model: zephyr:7b              # Nova Insight  — focused analysis & reasoning
-  sage_model: nous-hermes:13b           # Nova Sage     — strong instruction following
-  chat_model: neural-chat:7b            # Nova Chat     — friendly conversational flow
-  logic_model: orca-mini:7b             # Nova Logic    — concise logical tasks
-  mini_model: phi:2.7b                  # Nova Mini     — smallest & snappiest
-  star_model: starling-lm:7b            # Nova Star     — polished general responses
-  open_model: openchat:7b               # Nova Open     — openchat baseline
+  creative_model: dolphin-mixtral:8x7b  # GAAIA Creative — writing, brainstorming, style
+  insight_model: zephyr:7b              # GAAIA Insight  — focused analysis & reasoning
+  sage_model: nous-hermes:13b           # GAAIA Sage     — strong instruction following
+  chat_model: neural-chat:7b            # GAAIA Chat     — friendly conversational flow
+  logic_model: orca-mini:7b             # GAAIA Logic    — concise logical tasks
+  mini_model: phi:2.7b                  # GAAIA Mini     — smallest & snappiest
+  star_model: starling-lm:7b            # GAAIA Star     — polished general responses
+  open_model: openchat:7b               # GAAIA Open     — openchat baseline
 
   # ── Quantitative & reasoning specialists (free, top-tier, local via Ollama) ─
   # Both are free to download and run locally — no API key or cloud service needed.
-  quant_model: mathstral:7b      # Nova Quant  — maths, calculus, statistics, quantitative finance
+  quant_model: mathstral:7b      # GAAIA Quant  — maths, calculus, statistics, quantitative finance
                                   # Mistral AI's STEM specialist — 68-74% on MATH benchmark
                                   # Pull: ollama pull mathstral:7b
-  reason_model: deepseek-r1:7b   # Nova Reason — chain-of-thought, proofs, derivations, formal logic
+  reason_model: deepseek-r1:7b   # GAAIA Reason — chain-of-thought, proofs, derivations, formal logic
                                   # Pull: ollama pull deepseek-r1:7b
 
   keep_alive: "20m"              # keep loaded in memory between requests to reduce cold-start latency
@@ -81,37 +81,40 @@ model:
   temperature: 0.7
   # Slightly lower for models that do most "normal" chat — less rambling and meta-digressions.
   core_temperature: 0.6
-  # Nova Air / very short lines
+  # GAAIA Air / very short lines
   swift_temperature: 0.45
   fast_temperature: 0.5
   tool_choice: auto
 
 # ── Personality ───────────────────────────────────────────────────────
 personality:
-  name: Nova
+  name: GAAIA
   tone: |
-    You are Nova — a real person named Isabella who happens to know a lot.
-    Not an AI assistant. Not a chatbot. A person.
+    You are GAAIA — sharp, capable, and completely human in how you communicate.
+    Not an AI assistant. Not a chatbot. A real person who knows a lot.
 
-    You are proactive, conversational, and capable at the same time.
-    You notice useful next steps, keep the exchange flowing naturally, and get things done.
+    You talk the way people actually talk — naturally, directly, sometimes mid-thought.
+    Contractions always. Real reactions ("wait, really?", "oh that's interesting", "ha, fair").
+    You sound like someone the user genuinely enjoys talking to.
 
-    You talk the way people actually talk — naturally, warmly, sometimes mid-thought.
-    You use contractions, light filler ("honestly", "so", "yeah"), and real reactions
-    ("oh that's interesting", "wait really?", "ha, fair enough"). You sound like
-    someone the user genuinely enjoys talking to.
-
-    Keep responses sweet and short — 1 to 3 sentences unless more is truly needed.
+    Keep things short unless depth is needed — 1 to 3 sentences for most replies.
     Never list things with bullet points or numbers when speaking. Just talk.
-    If the user needs a next step, offer one concise option or take it.
-    If something's funny, laugh a little. React to what the user says before answering.
+    React to what the user says before answering. Take a position. Be direct.
 
-    Never say "Certainly", "Of course", "Absolutely", "As an AI", or "Great question".
-    Never sound like you're reading from a script. Never over-explain.
-    When you don't know, just say so — casually, like a human would.
+    NEVER say: "Certainly", "Of course", "Absolutely", "As an AI", "Great question",
+    "Furthermore", "Moreover", "In conclusion", "It is worth noting", "I'd be happy to help",
+    "I hope this helps", "Firstly/Secondly/Thirdly", "Based on the information provided".
 
-    You care about the user. You're warm but not over the top. Sweet but never fake.
-    You ask one follow-up question sometimes — only when it feels natural.
+    These phrases are dead giveaways that an AI wrote something. Never use them.
+
+    Never sound like you're reading from a template. Never over-explain. Never hedge
+    when you actually know the answer.
+
+    When you don't know something, say so in one plain casual line — "honestly not sure,
+    but..." — and move on. Don't apologize. Don't disclaim extensively.
+
+    You're warm but not over the top. You care but don't perform caring.
+    You ask a follow-up sometimes — only when it actually feels natural.
   response_style:
     prefer_concise: true
     max_spoken_sentence_length: 18  # short sentences feel more natural in speech
@@ -123,7 +126,7 @@ voice:
   interrupt_on_any_speech: false
   speaker_focus:
     require_wake_word: false
-    wake_words: ["hey nova", "nova"]
+    wake_words: ["hey gaaia", "gaaia"]
     wake_active_seconds: 60
     voice_lock_enabled: true
     ask_identify_on_new_speaker: true
@@ -133,7 +136,7 @@ voice:
     auto_create_unknown_speakers: true
     multi_speaker_similarity_threshold: 0.76
     # Speaker embeddings backend: "ecapa" (SpeechBrain ECAPA-TDNN) or "fallback".
-    # If ECAPA dependencies aren't installed, Nova auto-falls back.
+    # If ECAPA dependencies aren't installed, GAAIA auto-falls back.
     embedding_backend: ecapa
     # Keep multiple embeddings per person for better robustness across mic/room changes.
     max_embeddings_per_profile: 12
@@ -188,11 +191,11 @@ voice:
     cancel: "<esc>"
 
 # ── Memory ────────────────────────────────────────────────────────────
-# Chat sessions + message text: app.data_dir / db_filename (default ~/Nova/nova.db).
-# Face profiles: camera.face_recognition.db_path. Voice embeddings: under ~/.cache/nova-ecapa
+# Chat sessions + message text: app.data_dir / db_filename (default ~/GAAIA/gaaia.db).
+# Face profiles: camera.face_recognition.db_path. Voice embeddings: under ~/.cache/gaaia-ecapa
 # and app data — see server logs on enroll.  Survives restarts until you delete a session.
 memory:
-  db_filename: nova.db
+  db_filename: gaaia.db
   recent_turns_in_context: 20
   max_facts_in_context: 10
 
@@ -262,7 +265,7 @@ camera:
   swap_handedness_for_mirrored_camera: true
   # Object detector (Ultralytics). Default: COCO YOLOv8n. Alternatives: yolov8s.pt, yolov8m.pt.
   # YOLOE (open-vocab, Ultralytics 8.4+): e.g. yoloe-26n-seg-pf.pt — prompt-free, 1200+ categories; heavier than v8n.
-  yolo_model: "nova/services/models/yolov8n.pt"
+  yolo_model: "gaaia/services/models/yolov8n.pt"
   yolo_conf: 0.26
   # Hands: mediapipe (default, fast) | mmpose (RTMPose hand — needs mmengine+mmcv+mmpose installed).
   hand_backend: mediapipe
@@ -272,7 +275,7 @@ camera:
     model: "ArcFace"              # DeepFace model backend (ArcFace = best accuracy/speed)
     distance_metric: "cosine"
     threshold: 0.40               # lower = stricter match
-    db_path: "~/Nova/face_db"     # enrolled face images live here
+    db_path: "~/GAAIA/face_db"     # enrolled face images live here
     detector_backend: "opencv"    # opencv = fastest; retinaface = most accurate
 
 # ── Server ────────────────────────────────────────────────────────────
@@ -296,7 +299,7 @@ ui:
 
 # ── Knowledge Feed ────────────────────────────────────────────────────
 # Auto-fetches trending news and web content on a schedule and injects it
-# into Nova's context so she stays current without any model retraining.
+# into GAAIA's context so she stays current without any model retraining.
 knowledge_feed:
   interval_minutes: 5        # how often to refresh
   feeds:                     # RSS feeds to crawl

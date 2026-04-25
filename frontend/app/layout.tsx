@@ -7,12 +7,12 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Nova AI',
-  description: 'Your personal AI assistant powered by Nova',
+  title: 'GAAIA',
+  description: 'Gopaul Advanced Artificial Intelligence & Automation — local, private AI platform',
   generator: 'v0.app',
   icons: {
     icon: [
-      { url: '/nova-icon.svg', type: 'image/svg+xml' },
+      { url: '/gaaia-icon.svg', type: 'image/svg+xml' },
       { url: '/icon-dark-32x32.png', sizes: '32x32' },
     ],
     apple: '/apple-icon.png',

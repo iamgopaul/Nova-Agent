@@ -1,11 +1,24 @@
 from __future__ import annotations
 
-import io
-import json
 import shutil
 import threading
-import time
 from pathlib import Path
+
+# Lazy singleton — imported once on the first identify() call under a module lock
+# so concurrent threads can't race on TensorFlow's module import machinery.
+_deepface_cls = None
+_deepface_import_lock = threading.Lock()
+
+
+def _get_deepface():
+    global _deepface_cls
+    if _deepface_cls is not None:
+        return _deepface_cls
+    with _deepface_import_lock:
+        if _deepface_cls is None:
+            from deepface import DeepFace  # type: ignore
+            _deepface_cls = DeepFace
+    return _deepface_cls
 
 
 class FaceIdentityStore:
@@ -33,7 +46,6 @@ class FaceIdentityStore:
         self.enabled = enabled
         self.detector_backend = detector_backend
         self._lock = threading.Lock()
-        self._identifying = False  # prevents overlapping identify calls
 
         if self.enabled:
             self.db_path.mkdir(parents=True, exist_ok=True)
@@ -54,13 +66,13 @@ class FaceIdentityStore:
         if not profiles:
             return None, 0.0
 
-        # Non-blocking: drop frame if a prior identify call is still running
-        if self._identifying:
+        # Non-blocking: drop frame if a prior identify call is still running.
+        # Using a trylock instead of a flag so the check+acquire is atomic.
+        if not self._lock.acquire(blocking=False):
             return None, 0.0
-        self._identifying = True
 
         try:
-            from deepface import DeepFace  # type: ignore
+            DeepFace = _get_deepface()
 
             from nova.services.image_decode import bgr_from_bytes
 
@@ -69,16 +81,15 @@ class FaceIdentityStore:
                 return None, 0.0
             img = dec[0]
 
-            with self._lock:
-                results = DeepFace.find(
-                    img_path=img,
-                    db_path=str(self.db_path),
-                    model_name=self.model_name,
-                    distance_metric=self.distance_metric,
-                    detector_backend=self.detector_backend,
-                    enforce_detection=False,
-                    silent=True,
-                )
+            results = DeepFace.find(
+                img_path=img,
+                db_path=str(self.db_path),
+                model_name=self.model_name,
+                distance_metric=self.distance_metric,
+                detector_backend=self.detector_backend,
+                enforce_detection=False,
+                silent=True,
+            )
 
             if not results or results[0].empty:
                 return None, 0.0
@@ -102,7 +113,7 @@ class FaceIdentityStore:
             print(f"[Nova] Face identify error: {exc}")
             return None, 0.0
         finally:
-            self._identifying = False
+            self._lock.release()
 
     def enroll(self, name: str, image_bytes_list: list[bytes]) -> int:
         """

@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get(COOKIE)?.value
   const body = await req.text()
 
-  const upstream = await fetch(`${novaApiBase()}/voice/speak/stream`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/voice/speak/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

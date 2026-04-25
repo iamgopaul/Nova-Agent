@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nova-agent"
+name = "gaia-agent"
 version = "0.1.0"
-description = "Nova — personal AI chief of staff"
+description = "GAAIA — Gopaul Advanced Artificial Intelligence & Automation"
 requires-python = ">=3.12"
 dependencies = [
     # Core AI — local LLM via Ollama (free, no API key)
@@ -112,7 +112,7 @@ docgen = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["nova*", "config*"]
+include = ["gaaia*", "config*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

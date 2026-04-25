@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const upstream = await fetch(`${novaApiBase()}/auth/login`, {
+  const upstream = await fetch(`${gaaiaApiBase()}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

@@ -2,33 +2,31 @@
 
 import Link from "next/link"
 import type { ReactNode } from "react"
-import { NovaIcon } from "@/components/icons/nova-icon"
+import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 import { AppFooter } from "@/components/app-footer"
 import { StatsBar } from "@/components/chat/stats-bar"
 import { cn } from "@/lib/utils"
 
 interface AppShellProps {
-  /** Page name — rendered as "Nova [title]" in the top bar, e.g. "Nova Chat" */
+  /** Page name — rendered as "GAAIA [title]" in the top bar */
   title: string
   /**
-   * Tailwind text-color class applied to the page title portion of the header.
-   * Defaults to neutral white/80. Pass e.g. "text-blue-400" for Nova Chat
-   * or "text-cyan-400" for Nova Voice to match the home-page card accent.
+   * Tailwind text-color class for the title accent.
+   * e.g. "text-blue-400" for GAAIA Chat, "text-cyan-400" for GAAIA Voice.
    */
   titleColor?: string
   /** Slot for page-specific controls on the right side of the top bar */
   headerActions?: ReactNode
-  /** Passed through to StatsBar — set true while a model is streaming */
+  /** Set true while a model is streaming */
   isStreaming?: boolean
   children: ReactNode
 }
 
 /**
- * Consistent bordered frame used by every app page (chat, voice, podcast, …).
+ * Consistent frame used by every app page.
  *
- * Layout:
  *  ┌── border ──────────────────────────────────────────┐
- *  │  top bar:  [Nova / Title]          [headerActions] │
+ *  │  top bar:  [GAAIA / Title]          [headerActions] │
  *  ├────────────────────────────────────────────────────┤
  *  │  stats bar (collapsible)                           │
  *  ├────────────────────────────────────────────────────┤
@@ -36,24 +34,29 @@ interface AppShellProps {
  *  │   {children}                                       │
  *  │                                                    │
  *  ├────────────────────────────────────────────────────┤
- *  │  footer:  [avatar · name]           [Settings ⚙]  │
- *  └── border ──────────────────────────────────────────┘
+ *  │  footer bar                                        │
+ *  └────────────────────────────────────────────────────┘
  */
 export function AppShell({ title, titleColor, headerActions, isStreaming = false, children }: AppShellProps) {
   return (
-    <div className="h-screen flex flex-col bg-[#0a0a10] border border-white/[0.07] overflow-hidden">
-
-      {/* ── Top bar ───────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-5 h-11 shrink-0 border-b border-white/[0.07] bg-[#0d0d12]">
+    <div
+      className="h-screen flex flex-col border border-white/[0.06] overflow-hidden"
+      style={{ backgroundColor: "var(--surface-1)" }}
+    >
+      {/* ── Top bar ─────────────────────────────────────────────────── */}
+      <header
+        className="flex items-center justify-between px-5 h-11 shrink-0 border-b border-white/[0.07]"
+        style={{ backgroundColor: "var(--surface-2)" }}
+      >
         <Link
           href="/home"
           className="flex items-center gap-2 hover:opacity-75 transition-opacity"
-          title="Go to Home"
+          title="Back to hub"
         >
-          <NovaIcon size={20} />
-          <span className={cn("text-sm font-bold tracking-wide", titleColor ?? "text-white/80")}>
-            Nova{" "}
-            <span className={titleColor ?? "text-white/80"}>{title}</span>
+          <GaaiaIcon size={20} />
+          <span className="text-sm font-bold tracking-wide text-white/50">
+            GAAIA
+            <span className={cn("ml-1.5", titleColor ?? "text-white/80")}>{title}</span>
           </span>
         </Link>
 
@@ -64,17 +67,16 @@ export function AppShell({ title, titleColor, headerActions, isStreaming = false
         )}
       </header>
 
-      {/* ── Stats bar ─────────────────────────────────────────────────── */}
+      {/* ── Stats bar ───────────────────────────────────────────────── */}
       <StatsBar isStreaming={isStreaming} />
 
-      {/* ── Page content ──────────────────────────────────────────────── */}
+      {/* ── Page content ────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {children}
       </div>
 
-      {/* ── Footer bar ────────────────────────────────────────────────── */}
+      {/* ── Footer bar ──────────────────────────────────────────────── */}
       <AppFooter fixed={false} />
-
     </div>
   )
 }

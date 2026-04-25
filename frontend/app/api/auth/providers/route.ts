@@ -1,17 +1,17 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get("nova_token")?.value
+  const token = req.cookies.get("gaaia_token")?.value
   if (!token) {
     return new Response(JSON.stringify({ detail: "Not authenticated." }), { status: 401 })
   }
 
-  const upstream = await fetch(`${novaApiBase()}/auth/providers`, {
-    headers: { Cookie: `nova_token=${token}` },
+  const upstream = await fetch(`${gaaiaApiBase()}/auth/providers`, {
+    headers: { Cookie: `gaaia_token=${token}` },
   })
   const text = await upstream.text()
   return new Response(text, {

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Download, ImageIcon, Maximize2, X, ZoomIn, ZoomOut } from "lucide-react"
+import { createPortal } from "react-dom"
+import { Download, ImageIcon, Maximize2, Minus, X, ZoomIn, ZoomOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ImagePreviewProps {
@@ -121,69 +122,93 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
         </div>
       </div>
 
-      {/* Lightbox */}
-      {lightbox && (
+      {/* Lightbox — rendered via portal so backdrop-blur ancestors don't clip it */}
+      {lightbox && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          className="fixed inset-0 flex flex-col bg-black/90"
+          style={{ zIndex: 9999 }}
           onClick={() => setLightbox(false)}
         >
+          {/* Toolbar */}
           <div
-            className="relative max-w-[95vw] max-h-[95vh] flex flex-col gap-2"
+            className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/10"
+            style={{ backgroundColor: "rgba(10,10,20,0.95)" }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}
-                  className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
-                  title="Zoom out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <span className="text-white text-xs tabular-nums px-2">{Math.round(zoom * 100)}%</span>
-                <button
-                  onClick={() => setZoom(z => Math.min(4, z + 0.25))}
-                  className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
-                  title="Zoom in"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-                <a
-                  href={url}
-                  download="nova_image.png"
-                  onClick={e => e.stopPropagation()}
-                  className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors ml-1"
-                  title="Download"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
-              </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}
+                className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+                title="Zoom out"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="text-white/70 text-xs tabular-nums w-10 text-center">{Math.round(zoom * 100)}%</span>
+              <button
+                onClick={() => setZoom(z => Math.min(4, z + 0.25))}
+                className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+                title="Zoom in"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setZoom(1)}
+                className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white/60 text-xs transition-colors ml-1"
+                title="Reset zoom"
+              >
+                Reset
+              </button>
+              <a
+                href={url}
+                download="nova_image.png"
+                onClick={e => e.stopPropagation()}
+                className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors ml-1"
+                title="Download"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {displayLabel && (
+                <span className="text-white/40 text-xs truncate max-w-[200px] hidden sm:block">{displayLabel}</span>
+              )}
+              <button
+                onClick={() => setLightbox(false)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white/70 text-xs transition-colors"
+                title="Minimize (Esc)"
+              >
+                <Minus className="w-3.5 h-3.5" />
+                <span>Minimize</span>
+              </button>
               <button
                 onClick={() => setLightbox(false)}
                 className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
-                title="Close"
+                title="Close (Esc)"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Zoomed image */}
-            <div className="overflow-auto rounded-lg max-w-[95vw] max-h-[85vh]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt={prompt ?? "Generated image"}
-                style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}
-                className="transition-transform duration-200"
-              />
-            </div>
-
-            {displayLabel && (
-              <p className="text-white/60 text-xs text-center truncate px-4">{displayLabel}</p>
-            )}
           </div>
-        </div>
+
+          {/* Scrollable image area */}
+          <div
+            className="flex-1 overflow-auto flex items-start justify-center p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={prompt ?? "Generated image"}
+              style={{
+                display: "block",
+                width: zoom === 1 ? "auto" : `${zoom * 100}%`,
+                maxWidth: zoom === 1 ? "100%" : "none",
+                transition: "width 0.2s ease",
+              }}
+            />
+          </div>
+        </div>,
+        document.body,
       )}
     </>
   )
@@ -196,7 +221,7 @@ export function ImageGenerating({ className }: { prompt?: string; className?: st
       "inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border border-blue-500/30 bg-gradient-to-r from-blue-950/50 to-cyan-950/30 backdrop-blur-sm",
       className,
     )}>
-      {/* Compact animated icon — matches home Nova Chat card (blue + cyan) */}
+      {/* Compact animated icon — matches home GAAIA Chat card (blue + cyan) */}
       <div className="relative flex items-center justify-center w-7 h-7 rounded-md bg-blue-500/15 border border-cyan-500/25 overflow-hidden">
         <ImageIcon className="w-3.5 h-3.5 text-cyan-200/90 relative z-10" />
         <div

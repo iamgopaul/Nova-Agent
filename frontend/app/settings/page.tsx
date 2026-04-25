@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Camera,
@@ -57,7 +57,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType; description: stri
   { id: "profile",      label: "Profile",           icon: UserCircle, description: "Name, avatar & display preferences" },
   { id: "account",      label: "Account",           icon: KeyRound,   description: "Linked accounts & security"         },
   { id: "voice-camera", label: "Voice & Camera",    icon: Mic,        description: "Enrollment & recognition setup"     },
-  { id: "web-watch",    label: "Web Watch",         icon: Globe,      description: "Topics Nova actively monitors"      },
+  { id: "web-watch",    label: "Web Watch",         icon: Globe,      description: "Topics GAAIA actively monitors"      },
   { id: "developer",    label: "Developer",         icon: Code2,      description: "API endpoints & configuration"      },
 ]
 
@@ -105,7 +105,7 @@ function ProfileTab({ user, onUserChange }: { user: UserInfo | null; onUserChang
     <div className="space-y-8 max-w-lg">
       <div>
         <h2 className="text-lg font-semibold">Profile</h2>
-        <p className="text-sm text-muted-foreground mt-1">Manage how you appear across Nova.</p>
+        <p className="text-sm text-muted-foreground mt-1">Manage how you appear across GAAIA.</p>
       </div>
 
       {/* Avatar preview + color picker */}
@@ -299,7 +299,7 @@ function AccountTab({ user, onUserChange }: { user: UserInfo | null; onUserChang
           <h3 className="text-sm font-semibold">Username</h3>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">
-          This is your display name across all Nova experiences.
+          This is your display name across all GAAIA experiences.
         </p>
 
         <div className="space-y-2">
@@ -460,7 +460,7 @@ function AccountTab({ user, onUserChange }: { user: UserInfo | null; onUserChang
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Session</h3>
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Sign out of Nova</p>
+            <p className="text-sm font-medium">Sign out of GAAIA</p>
             <p className="text-xs text-muted-foreground mt-0.5">You&apos;ll be redirected to the landing page.</p>
           </div>
           <button
@@ -638,7 +638,7 @@ function VoiceCameraTab() {
     <div className="space-y-8 max-w-xl">
       <div>
         <h2 className="text-lg font-semibold">Voice & Camera</h2>
-        <p className="text-sm text-muted-foreground mt-1">Enroll your face and voice so Nova can recognize you.</p>
+        <p className="text-sm text-muted-foreground mt-1">Enroll your face and voice so GAAIA can recognize you.</p>
       </div>
 
       {/* How-to */}
@@ -646,7 +646,7 @@ function VoiceCameraTab() {
         <p className="font-semibold text-cyan-300 mb-2">How to enroll</p>
         <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
           <li>Allow camera & microphone access when prompted.</li>
-          <li>Enter the name Nova should remember you by.</li>
+          <li>Enter the name GAAIA should remember you by.</li>
           <li>Click <strong className="text-foreground">Enroll Face</strong> and keep your face centered.</li>
           <li>Click <strong className="text-foreground">Enroll Voice</strong> and speak naturally for ~10 s.</li>
         </ol>
@@ -907,7 +907,7 @@ function WebWatchTab() {
       <div>
         <h2 className="text-lg font-semibold">Web Watch</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Nova automatically searches these topics every hour so she always has fresh context.
+          GAAIA automatically searches these topics every hour so she always has fresh context.
           Results are injected into her knowledge when you chat.
         </p>
       </div>
@@ -1008,7 +1008,7 @@ function WebWatchTab() {
           <div className="rounded-xl border border-dashed border-white/10 px-5 py-6 text-center">
             <Globe className="w-8 h-8 mx-auto text-white/20 mb-2" />
             <p className="text-sm text-muted-foreground">No active watch topics yet.</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Add some above to keep Nova informed.</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Add some above to keep GAAIA informed.</p>
           </div>
         ) : (
           <ul className="space-y-2">
@@ -1177,7 +1177,7 @@ function DeveloperTab() {
       {/* API base URL */}
       <section className="space-y-3">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Backend API URL</h3>
-        <p className="text-xs text-muted-foreground">The URL where Nova's FastAPI backend is running.</p>
+        <p className="text-xs text-muted-foreground">The URL where GAAIA's FastAPI backend is running.</p>
         <div className="flex gap-2">
           <input
             type="text"
@@ -1280,7 +1280,7 @@ function DeveloperTab() {
 
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialTab = (searchParams.get("tab") as Tab | null) ?? "profile"
@@ -1352,5 +1352,13 @@ export default function SettingsPage() {
         </main>
       </div>
     </AppShell>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsPageContent />
+    </Suspense>
   )
 }

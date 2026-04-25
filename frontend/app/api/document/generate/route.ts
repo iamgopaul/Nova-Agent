@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 const MIME_MAP: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const fmt: string = (body.format ?? "docx").toLowerCase().replace(/^\./, "")
 
-    const upstream = await fetch(`${novaApiBase()}/document/generate`, {
+    const upstream = await fetch(`${gaaiaApiBase()}/document/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const fileBuffer  = await upstream.arrayBuffer()
-    const filename    = upstream.headers.get("X-Nova-Filename") ?? `nova_document.${fmt}`
+    const filename    = upstream.headers.get("X-GAAIA-Filename") ?? `nova_document.${fmt}`
     const contentType = MIME_MAP[fmt] ?? "application/octet-stream"
 
     return new Response(fileBuffer, {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "X-Nova-Filename": filename,
+        "X-GAAIA-Filename": filename,
       },
     })
   } catch (err) {

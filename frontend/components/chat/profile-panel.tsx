@@ -402,12 +402,12 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
           <section className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4 text-sm text-foreground/90">
             <p className="font-semibold text-cyan-300">How to enroll your face</p>
             <ol className="mt-2 space-y-1 text-sm text-muted-foreground list-decimal list-inside">
-              <li>Allow camera access when Nova asks.</li>
+              <li>Allow camera access when GAAIA asks.</li>
               <li>Keep your face centered and well lit.</li>
               <li>Use your name, then click Enroll Face.</li>
             </ol>
             <p className="mt-2 text-xs text-muted-foreground">
-              You only need to do this once on this device. Nova will keep the face profile locally.
+              You only need to do this once on this device. GAAIA will keep the face profile locally.
             </p>
           </section>
 
@@ -452,7 +452,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
               Enrolled Users
             </h3>
             <p className="mb-2 text-xs text-muted-foreground">
-              This is the list of people Nova can recognize on this device. It only shows whether face and/or voice data are stored.
+              This is the list of people GAAIA can recognize on this device. It only shows whether face and/or voice data are stored.
             </p>
             {loadingProfiles ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -461,7 +461,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
             ) : profiles.length === 0 ? (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">No users are enrolled yet.</p>
-                <p className="text-xs text-muted-foreground">Start the camera and enroll once so Nova can remember this person in future chats.</p>
+                <p className="text-xs text-muted-foreground">Start the camera and enroll once so GAAIA can remember this person in future chats.</p>
               </div>
             ) : (
               <ul className="space-y-1.5">
@@ -492,12 +492,12 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
                 type="text"
                 value={enrollName}
                 onChange={e => setEnrollName(e.target.value)}
-                placeholder="Enter the name Nova should remember"
+                placeholder="Enter the name GAAIA should remember"
                 className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
               />
 
               <p className="text-xs text-muted-foreground">
-                Use the same name for face and voice so Nova stores both under one private profile.
+                Use the same name for face and voice so GAAIA stores both under one private profile.
               </p>
 
               {/* Camera preview */}

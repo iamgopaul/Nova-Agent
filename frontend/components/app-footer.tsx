@@ -41,14 +41,14 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
     <footer
       className={cn(
         fixed ? "fixed bottom-0 left-0 right-0 z-50" : "shrink-0",
-        "border-t border-blue-500/20 bg-gradient-to-t from-blue-950/40 via-[#0d0d12]/95 to-[#0d0d12]/95 backdrop-blur-md",
-        "px-5 py-2",
+        "border-t border-white/[0.07] backdrop-blur-md px-5 py-2",
         className
       )}
+      style={{ backgroundColor: "var(--surface-2)" }}
     >
       <div className="flex items-center justify-between gap-4">
 
-        {/* ── Profile ─────────────────────────────────────────────────── */}
+        {/* ── Profile ─────────────────────────────────────────────── */}
         <div className="relative">
           <button
             onClick={() => setShowMenu(prev => !prev)}
@@ -84,7 +84,10 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
           {showMenu && user && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute bottom-full left-0 mb-2 w-52 rounded-2xl border border-white/[0.09] bg-[#0f0f18] shadow-2xl overflow-hidden z-20">
+              <div
+                className="absolute bottom-full left-0 mb-2 w-52 rounded-2xl border border-white/[0.09] shadow-2xl overflow-hidden z-20"
+                style={{ backgroundColor: "var(--surface-3)" }}
+              >
                 {/* User card */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.07] bg-white/[0.02]">
                   <div
@@ -95,7 +98,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white/85 truncate">{user.display_name}</p>
-                    <p className="text-[10px] text-white/30">Nova Account</p>
+                    <p className="text-[10px] text-white/30">GAAIA Account</p>
                   </div>
                 </div>
                 {/* Actions */}
@@ -130,7 +133,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
           )}
         </div>
 
-        {/* ── Settings shortcut ────────────────────────────────────────── */}
+        {/* ── Settings shortcut ────────────────────────────────────── */}
         <Link
           href="/settings"
           className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/65 transition-colors"

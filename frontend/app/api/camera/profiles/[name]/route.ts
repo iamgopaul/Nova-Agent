@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server"
-import { novaApiBase } from "@/lib/nova-api-base"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
 
 export const runtime = "nodejs"
 
-const COOKIE = "nova_token"
+const COOKIE = "gaaia_token"
 
 export async function DELETE(
   req: NextRequest,
@@ -13,7 +13,7 @@ export async function DELETE(
   const token = req.cookies.get(COOKIE)?.value
 
   const upstream = await fetch(
-    `${novaApiBase()}/camera/profiles/${encodeURIComponent(name)}`,
+    `${gaaiaApiBase()}/camera/profiles/${encodeURIComponent(name)}`,
     {
       method: "DELETE",
       headers: token ? { Cookie: `${COOKIE}=${token}` } : {},

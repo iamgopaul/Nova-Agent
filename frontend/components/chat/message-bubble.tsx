@@ -6,7 +6,7 @@ import {
   Copy, Check, User, Paperclip, Volume2, Square,
   BarChart2, GitBranch, Download, Maximize2, X, ExternalLink, ChevronDown, ChevronUp,
 } from "lucide-react"
-import { NovaIcon } from "@/components/icons/nova-icon"
+import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 import { cn } from "@/lib/utils"
 import { MusicGenerating, MusicPlayer } from "@/components/chat/music-player"
 import { DocumentCard, DocumentGenerating } from "@/components/chat/document-card"
@@ -665,7 +665,7 @@ function parseContent(content: string) {
   while ((match = codeRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
       let textChunk = content.slice(lastIndex, match.index)
-      // Strip a trailing label line (e.g. "Timeline Image\n") that Nova writes
+      // Strip a trailing label line (e.g. "Timeline Image\n") that GAAIA writes
       // before ```mermaid / ```json blocks — the UI already shows its own header.
       const lang = (match[1] || "").toLowerCase()
       if (lang === "mermaid" || lang === "json") {
@@ -687,7 +687,7 @@ function parseContent(content: string) {
 }
 
 function FormattedText({ text }: { text: string }) {
-  // Strip standalone label lines that Nova wrote immediately before a ```mermaid
+  // Strip standalone label lines that GAAIA wrote immediately before a ```mermaid
   // or ```json fence (e.g. "Timeline Image\n```mermaid"). The component for each
   // type already renders its own header so the extra label is noise.
   const cleaned = text.replace(
@@ -1774,9 +1774,8 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     // Register this instance as the active speaker
     _globalStopSpeaking = stopSpeaking
 
-    // Use the body section for TTS + word tracking so offsets align with rendered parts.
-    // If there's no section split yet, fall back to full content.
-    const bodyText = sections.body || message.content
+    // Always read the full message content so intro and outro are not silently dropped.
+    const bodyText = message.content
     const clean = stripMarkdownForTTS(bodyText)
     if (!clean) return
 
@@ -1872,7 +1871,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
           // Pipelined decode: while chunk N plays, N+1 is being decoded to avoid gaps.
           const decodeWav = (blob: Blob) =>
             blob.arrayBuffer().then(raw => ctx.decodeAudioData(raw.slice(0)))
-          let nextTime = ctx.currentTime + 0.04
+          let nextTime = ctx.currentTime + 0.06
           const decodeStream = (async function* () {
             for (;;) {
               while (chunkQueue.length === 0 && !streamDone) {
@@ -1891,6 +1890,30 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
               yield buffer
             }
           })()
+
+          // Pre-buffer 2 chunks before starting playback — ensures the second chunk
+          // is already decoded when the first ends, eliminating Kokoro synthesis gaps.
+          const preBuffered: AudioBuffer[] = []
+          for (let i = 0; i < 2 && !stopRequestedRef.current; i++) {
+            const next = await decodeStream.next()
+            if (next.done) break
+            preBuffered.push(next.value)
+          }
+          for (const buf of preBuffered) {
+            if (stopRequestedRef.current) break
+            const t = Math.max(nextTime, ctx.currentTime)
+            try {
+              const src = ctx.createBufferSource()
+              src.buffer = buf
+              src.connect(ctx.destination)
+              src.start(t)
+              currentAudioElRef.current = null
+              currentChunkIdxRef.current += 1
+              nextTime = t + buf.duration
+            } catch { /* */ }
+          }
+
+          // Stream remaining chunks, pipelining decode with playback
           let r = await decodeStream.next()
           while (!r.done) {
             if (stopRequestedRef.current) {
@@ -1973,13 +1996,13 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
             }
           }
         }
-        // If we exited with an empty queue (0 chunks streamed = backend produced
-        // nothing), reset the button so the user can try again.
         if (!stopRequestedRef.current) {
           if (currentChunkIdxRef.current > 0) {
             finishReading()
           } else {
-            stopSpeaking()
+            // 0 chunks means the stream protocol was incompatible (e.g. macOS say
+            // returns non-framed audio). Throw to trigger the non-streaming fallback.
+            throw new Error("no-chunks")
           }
         }
       }
@@ -2027,7 +2050,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     return (
       <div className="flex items-start gap-3 px-4 py-4 max-w-3xl mx-auto w-full msg-in">
         <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-400/35 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(59,130,246,0.2)]">
-          <NovaIcon size={20} />
+          <GaaiaIcon size={20} />
         </div>
         <div className="pt-1.5 text-sm text-muted-foreground min-w-0">
           <div className="flex items-center gap-2">
@@ -2113,15 +2136,15 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
         /* ── Assistant message box ── */
         <div className="flex items-start gap-3 max-w-3xl mx-auto w-full">
           <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-400/40 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_12px_rgba(59,130,246,0.25)]">
-            <NovaIcon size={22} />
+            <GaaiaIcon size={22} />
           </div>
           <WebEmbedContext.Provider value={webEmbedApi}>
           <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm border border-blue-500/20 bg-card/60 backdrop-blur-sm overflow-hidden shadow-[0_2px_20px_rgba(59,130,246,0.08)]">
 
-            {/* Card header: Nova label + action icons */}
+            {/* Card header: GAAIA label + action icons */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/30 bg-muted/20">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/80 flex items-center gap-1">
-                <NovaIcon size={12} /> Nova
+                <GaaiaIcon size={12} /> GAAIA
               </span>
               <div className="flex items-center gap-0.5">
                 {/* Read aloud */}
