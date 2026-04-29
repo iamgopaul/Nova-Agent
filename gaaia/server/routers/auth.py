@@ -46,6 +46,12 @@ _OAUTH_SENTINELS = {"", "oauth_account"}
 _CROSS_DOMAIN_COOKIES = (os.environ.get("GAAIA_CROSS_DOMAIN_COOKIES") or "").strip().lower() in ("1", "true", "yes")
 _COOKIE_SAMESITE: Literal["lax", "none"] = "none" if _CROSS_DOMAIN_COOKIES else "lax"
 _COOKIE_SECURE = _CROSS_DOMAIN_COOKIES
+# Explicit cookie domain for production. Without this the browser stores the
+# cookie scoped to the exact host of the response (e.g. gaaia.co only), so
+# www.gaaia.co — or any other subdomain — won't see the auth cookie. Setting
+# `.gaaia.co` makes the cookie valid for the apex AND every subdomain. Leave
+# unset for local dev so cookies stick to localhost.
+_COOKIE_DOMAIN: str | None = (os.environ.get("GAAIA_COOKIE_DOMAIN") or "").strip() or None
 
 
 def _has_password(user: User) -> bool:
@@ -76,6 +82,7 @@ def _set_auth_cookie(response: Response, user: User) -> None:
         path="/",
         max_age=_COOKIE_MAX_AGE,
         secure=_COOKIE_SECURE,
+        domain=_COOKIE_DOMAIN,
     )
 
 
@@ -173,7 +180,18 @@ def login(
 
 @router.post("/logout", status_code=204)
 def logout(response: Response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/", samesite=_COOKIE_SAMESITE)
+    # The delete-cookie Set-Cookie header MUST mirror the attributes the cookie
+    # was set with, otherwise the browser refuses the deletion. In particular:
+    # SameSite=None requires Secure — Chrome silently rejects a delete header
+    # that has SameSite=None without Secure, and the original cookie persists.
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        samesite=_COOKIE_SAMESITE,
+        secure=_COOKIE_SECURE,
+        httponly=True,
+        domain=_COOKIE_DOMAIN,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
