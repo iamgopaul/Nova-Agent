@@ -1974,6 +1974,33 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     setActiveWordIdx(0)
     stopRequestedRef.current = false
 
+    // CRITICAL for iOS Safari: create + resume the AudioContext synchronously
+    // here, INSIDE the user-gesture click handler, BEFORE any await. If we
+    // wait until after `fetch()` resolves, iOS treats the context as
+    // gesture-less and pins it to "suspended" forever (silent playback). The
+    // playQueue below reuses this preWarmedCtx so we don't construct another.
+    let preWarmedCtx: AudioContext | null = null
+    const AC = typeof window !== "undefined"
+      ? window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      : null
+    if (AC) {
+      try {
+        if (ttsAudioContextRef.current) {
+          try { void ttsAudioContextRef.current.close() } catch { /* */ }
+          ttsAudioContextRef.current = null
+        }
+        preWarmedCtx = new AC()
+        ttsAudioContextRef.current = preWarmedCtx
+        // resume() returns a Promise but we don't await it — we just kick it
+        // off inside the gesture so iOS unlocks the context.
+        if (preWarmedCtx.state === "suspended") {
+          void preWarmedCtx.resume()
+        }
+      } catch {
+        preWarmedCtx = null
+      }
+    }
+
     // Streaming endpoint — plays first WAV chunk immediately
     try {
       const res = await fetch("/api/voice/speak/stream", {
@@ -2011,14 +2038,10 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
       }
 
       const playQueue = async () => {
-        const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-        if (AC) {
-          if (ttsAudioContextRef.current) {
-            try { void ttsAudioContextRef.current.close() } catch { /* */ }
-            ttsAudioContextRef.current = null
-          }
-          const ctx = new AC()
-          ttsAudioContextRef.current = ctx
+        // Reuse the AudioContext that was pre-warmed during the user click —
+        // creating a new one here would re-trigger the iOS-gesture issue.
+        const ctx = preWarmedCtx
+        if (ctx) {
           try {
             if (ctx.state === "suspended") {
               await ctx.resume()
