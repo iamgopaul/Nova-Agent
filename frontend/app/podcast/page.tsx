@@ -376,7 +376,7 @@ export default function PodcastPage() {
   if (status === "idle" || status === "starting") {
     return (
       <AppShell title="Podcast" titleColor="text-violet-400">
-        <div className="flex h-full flex-col items-center justify-center px-6 py-10 relative overflow-hidden">
+        <div className="flex h-full flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-10 relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 page-gradient-podcast" />
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute -top-20 left-1/4 w-96 h-96 rounded-full bg-violet-500/[0.07] blur-3xl" />

@@ -904,7 +904,7 @@ function WebWatchTab() {
   const presetQueries = new Set(topics.map(t => t.query))
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-6 sm:space-y-8 max-w-2xl">
       <div>
         <h2 className="text-lg font-semibold">Web Watch</h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -1625,12 +1625,15 @@ function SettingsPageContent() {
 
   return (
     <AppShell title="Settings">
-      <div className="flex h-full overflow-hidden">
-        {/* Left sidebar */}
-        <aside className="w-56 shrink-0 border-r border-white/[0.07] px-3 py-5 space-y-1 bg-[#0d0d12] overflow-y-auto">
-          {/* User mini-card */}
+      {/* Stack on mobile (tabs as a horizontal scroller above the content),
+          side-by-side on md+ where the aside fits comfortably. */}
+      <div className="flex flex-col md:flex-row h-full overflow-hidden">
+        {/* Settings nav: sidebar on md+, horizontal scroll tabs on mobile */}
+        <aside className="md:w-56 shrink-0 md:border-r border-b md:border-b-0 border-white/[0.07] md:px-3 md:py-5 px-2 py-2 md:space-y-1 bg-[#0d0d12] md:overflow-y-auto overflow-x-auto md:overflow-x-hidden">
+          {/* User mini-card — md+ only; phones already show the avatar in the
+              top bar via AppShell, so this would be redundant on mobile. */}
           {user && (
-            <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <div className="hidden md:flex items-center gap-3 px-3 py-3 mb-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div
                 className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0"
                 style={{ backgroundColor: user.avatar_color }}
@@ -1644,29 +1647,31 @@ function SettingsPageContent() {
             </div>
           )}
 
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-100 text-left",
-                  isActive
-                    ? "bg-indigo-600/20 text-white border border-indigo-500/20"
-                    : "text-white/35 hover:text-white/70 hover:bg-white/[0.05] border border-transparent"
-                )}
-              >
-                <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-indigo-400" : "text-white/25")} />
-                {tab.label}
-              </button>
-            )
-          })}
+          <div className="flex md:flex-col md:space-y-1 gap-1.5 md:gap-0 min-w-max md:min-w-0">
+            {TABS.map(tab => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={cn(
+                    "shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:py-2.5 rounded-xl text-sm font-medium transition-all duration-100 text-left whitespace-nowrap",
+                    isActive
+                      ? "bg-indigo-600/20 text-white border border-indigo-500/20"
+                      : "text-white/35 hover:text-white/70 hover:bg-white/[0.05] border border-transparent"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-indigo-400" : "text-white/25")} />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto px-8 py-7 bg-[#0a0a10]">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 py-5 sm:py-7 bg-[#0a0a10]">
           {activeTab === "profile"      && <ProfileTab user={user} onUserChange={u => setUser(u)} />}
           {activeTab === "account"      && <AccountTab user={user} onUserChange={u => setUser(u)} />}
           {activeTab === "security"     && <SecurityTab />}

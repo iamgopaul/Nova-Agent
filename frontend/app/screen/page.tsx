@@ -109,10 +109,10 @@ export default function ScreenPage() {
           <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-cyan-500/[0.05] blur-3xl" />
         </div>
 
-        <div className="relative z-10 flex flex-col h-full px-6 py-5 gap-4">
+        <div className="relative z-10 flex flex-col h-full px-4 sm:px-6 py-4 sm:py-5 gap-4">
 
           {/* ── Action cards ── */}
-          <div className="grid grid-cols-2 gap-3 shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
             {/* Screen card */}
             <button
               onClick={() => runAction("screen")}

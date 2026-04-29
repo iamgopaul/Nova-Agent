@@ -123,7 +123,7 @@ export default function VideoPage() {
           <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-violet-500/[0.05] blur-3xl" />
         </div>
 
-        <div className="relative z-10 flex flex-col h-full px-6 py-5 gap-4">
+        <div className="relative z-10 flex flex-col h-full px-4 sm:px-6 py-4 sm:py-5 gap-4">
 
           {/* ── URL input ── */}
           <div className="shrink-0 space-y-3">

@@ -428,8 +428,8 @@ function ReportCard({
         </div>
       )}
 
-      {/* Two-column: elimination log + score table */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Two-column: elimination log + score table — stacks on mobile. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Elimination log */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 mb-2">Elimination Log</p>
@@ -781,7 +781,7 @@ export default function DebatePage() {
   if (status === "idle" || status === "starting") {
     return (
       <AppShell title="Debate" titleColor="text-orange-400">
-        <div className="flex h-full flex-col items-center justify-center px-6 py-10 relative overflow-hidden">
+        <div className="flex h-full flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-10 relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute -top-20 left-[15%] w-80 h-80 rounded-full bg-blue-500/[0.06] blur-3xl" />
             <div className="absolute top-0 right-[20%] w-72 h-72 rounded-full bg-violet-500/[0.06] blur-3xl" />

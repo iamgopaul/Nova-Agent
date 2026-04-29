@@ -365,7 +365,7 @@ export default function EducationPage() {
         <div className="pointer-events-none absolute inset-0 z-0 page-gradient-education" />
 
         <div className="relative z-[1] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-          <div className="max-w-3xl mx-auto w-full px-5 py-6 space-y-7 pb-24">
+          <div className="max-w-3xl mx-auto w-full px-4 sm:px-5 py-4 sm:py-6 space-y-5 sm:space-y-7 pb-24">
 
             {/* Header */}
             <header className="flex items-start justify-between gap-4">

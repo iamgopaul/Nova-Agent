@@ -168,11 +168,11 @@ export default function VoicePage() {
           <div className="absolute bottom-8 left-1/4 w-72 h-72 rounded-full bg-teal-500/8 blur-3xl" />
         </div>
         <div className="relative z-[1] flex h-full w-full min-h-0 overflow-hidden">
-        {/* ── Main 2-column body ──────────────────────────────────────────── */}
-        <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+        {/* ── Main body — stack vertically on mobile, 2-column from md+ ─── */}
+        <div className="flex flex-col md:flex-row h-full min-h-0 flex-1 overflow-hidden">
 
-        {/* Left column — voice orb (full height) */}
-        <div className="flex flex-col w-[40%] min-w-[280px] max-w-[480px] border-r border-cyan-500/15 min-h-0">
+        {/* Left column / mobile-top — voice orb (full height) */}
+        <div className="flex flex-col w-full md:w-[40%] md:min-w-[280px] md:max-w-[480px] border-b md:border-b-0 md:border-r border-cyan-500/15 min-h-0 flex-1 md:flex-initial">
           <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: "var(--surface-0)" }}>
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-gradient-to-br from-cyan-500/12 to-teal-500/8 blur-3xl" />
@@ -193,8 +193,9 @@ export default function VoicePage() {
         {/* Right column — camera (top) + live conversation + history */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0" style={{ backgroundColor: "var(--surface-1)" }}>
 
-          {/* Top: Camera panel — sized to show the full frame */}
-          <div className="h-64 shrink-0 border-b border-white/[0.07] flex flex-col" style={{ backgroundColor: "var(--surface-0)" }}>
+          {/* Top: Camera panel — sized to show the full frame. Smaller on
+              mobile so it doesn't dominate the (already-tight) viewport. */}
+          <div className="h-40 sm:h-52 md:h-64 shrink-0 border-b border-white/[0.07] flex flex-col" style={{ backgroundColor: "var(--surface-0)" }}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.07] shrink-0">
               <div className="flex items-center gap-1.5">
                 <Camera className="w-3 h-3 text-cyan-400/70" />
