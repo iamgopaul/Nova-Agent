@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
@@ -17,6 +17,20 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    title: 'GAAIA',
+    statusBarStyle: 'black-translucent',
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Allow user to pinch-zoom for accessibility (don't lock with maximumScale=1)
+  themeColor: '#0d0d12',
+  // Render under iPhone notch / Dynamic Island so safe-area-inset CSS applies
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({

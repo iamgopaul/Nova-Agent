@@ -8,6 +8,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Menu,
   MessageSquare,
   MoreHorizontal,
   MoveRight,
@@ -397,6 +398,10 @@ export function ChatSidebar({
   onNewChat, onSelect, onRename, onMove, onCreateFolder, onDeleteFolder, onDelete,
 }: ChatSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  // Mobile drawer state: hidden by default, opens when the hamburger is tapped.
+  // Only relevant below the `md` breakpoint — desktop ignores this and uses
+  // the `collapsed` flag for in-flow expand/collapse.
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
@@ -500,39 +505,86 @@ export function ChatSidebar({
   }
 
   return (
-    <aside
-      style={{ backgroundColor: "var(--surface-1)" }}
-      className={cn(
-        "flex flex-col h-full transition-all duration-300 ease-in-out shrink-0",
-        "border-r border-blue-500/10 text-white/80",
-        collapsed ? "w-14" : "w-64"
+    <>
+      {/* Mobile hamburger — visible only on <md and only when drawer is shut.
+          Floats top-left over the chat content. Tapping it opens the sidebar.
+          On desktop the hamburger is hidden; the in-flow sidebar is always
+          present (collapsed or expanded). */}
+      {!mobileOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open chat list"
+          className="md:hidden fixed top-2 left-2 z-30 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-white/70 hover:text-white border border-white/[0.08] backdrop-blur-sm"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
       )}
-    >
+
+      {/* Mobile backdrop — tap-to-close when the drawer is open. Desktop
+          ignores it (md:hidden). */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        style={{ backgroundColor: "var(--surface-1)" }}
+        className={cn(
+          // Desktop: in-flow sidebar, sized by `collapsed` flag.
+          "md:relative md:flex md:translate-x-0",
+          // Mobile: fixed slide-over drawer; transform controls visibility.
+          "fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          // Common: vertical flex column.
+          "flex flex-col h-full shrink-0",
+          "border-r border-blue-500/10 text-white/80",
+          // Width: mobile always full-ish; desktop respects `collapsed`.
+          "w-72",
+          collapsed ? "md:w-14" : "md:w-64"
+        )}
+      >
       {/* ── Top bar ── */}
       <div className={cn(
         "flex items-center py-4 border-b border-white/[0.06] shrink-0",
-        collapsed ? "justify-center px-0" : "justify-between px-4"
+        collapsed ? "md:justify-center md:px-0 justify-between px-4" : "justify-between px-4"
       )}>
         <Link href="/home" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" title="Go to Home">
           <GaaiaIcon size={24} />
-          {!collapsed && <span className="font-bold text-sm text-white tracking-wide">GAAIA</span>}
+          {(!collapsed || mobileOpen) && (
+            <span className="font-bold text-sm text-white tracking-wide md:inline">GAAIA</span>
+          )}
         </Link>
-        {!collapsed && (
+        <div className="flex items-center gap-1">
+          {/* Mobile close button — visible only when drawer is open on <md. */}
           <button
-            onClick={() => setCollapsed(true)}
-            className="p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.07] transition-colors"
-            title="Collapse sidebar"
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.07] transition-colors"
+            aria-label="Close chat list"
           >
-            <PanelLeftClose className="w-4 h-4" />
+            <X className="w-4 h-4" />
           </button>
-        )}
+          {/* Desktop collapse button — only on md+ when expanded. */}
+          {!collapsed && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="hidden md:inline-flex p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.07] transition-colors"
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── New Chat ── */}
       <div className={cn("py-3 shrink-0", collapsed ? "px-2" : "px-3")}>
         <button
           type="button"
-          onClick={onNewChat}
+          onClick={() => { onNewChat(); setMobileOpen(false) }}
           disabled={isStreaming}
           title={isStreaming ? "Wait for the reply to finish" : "Start a new chat"}
           className={cn(
@@ -636,7 +688,7 @@ export function ChatSidebar({
                                 isActive={activeId === s.id}
                                 locked={rowLocked(s.id)}
                                 isDragging={draggingId === s.id}
-                                onSelect={() => onSelect(s.id)}
+                                onSelect={() => { onSelect(s.id); setMobileOpen(false) }}
                                 onRename={onRename}
                                 onMove={onMove}
                                 onCreateFolderAndMove={handleCreateFolderAndMove}
@@ -702,7 +754,7 @@ export function ChatSidebar({
                             isActive={activeId === convo.id}
                             locked={rowLocked(convo.id)}
                             isDragging={draggingId === convo.id}
-                            onSelect={() => onSelect(convo.id)}
+                            onSelect={() => { onSelect(convo.id); setMobileOpen(false) }}
                             onRename={onRename}
                             onMove={onMove}
                             onCreateFolderAndMove={handleCreateFolderAndMove}
@@ -735,7 +787,7 @@ export function ChatSidebar({
               return (
                 <button
                   key={session.id}
-                  onClick={() => { if (!locked) onSelect(session.id) }}
+                  onClick={() => { if (!locked) { onSelect(session.id); setMobileOpen(false) } }}
                   className={cn(
                     "flex items-center justify-center p-2.5 rounded-lg transition-colors",
                     isActive ? "bg-blue-600/25 text-blue-400" : "text-white/25 hover:bg-white/[0.06] hover:text-white/60",
@@ -770,6 +822,7 @@ export function ChatSidebar({
           </button>
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   )
 }

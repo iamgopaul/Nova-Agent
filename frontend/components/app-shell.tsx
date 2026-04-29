@@ -40,13 +40,19 @@ interface AppShellProps {
 export function AppShell({ title, titleColor, headerActions, isStreaming = false, children }: AppShellProps) {
   return (
     <div
-      className="h-screen flex flex-col border border-white/[0.06] overflow-hidden"
+      // h-[100dvh] / dvh dynamic viewport units avoid the mobile-Safari URL-bar
+      // bug where 100vh exceeds the visible area when the bar is showing.
+      // pb-[env(safe-area-inset-bottom)] keeps content above iPhone home bar.
+      className="h-[100dvh] flex flex-col border border-white/[0.06] overflow-hidden"
       style={{ backgroundColor: "var(--surface-1)" }}
     >
       {/* ── Top bar ─────────────────────────────────────────────────── */}
       <header
-        className="flex items-center justify-between px-5 h-11 shrink-0 border-b border-white/[0.07]"
-        style={{ backgroundColor: "var(--surface-2)" }}
+        className="flex items-center justify-between px-3 sm:px-5 h-11 shrink-0 border-b border-white/[0.07]"
+        style={{
+          backgroundColor: "var(--surface-2)",
+          paddingTop: "env(safe-area-inset-top)",
+        }}
       >
         <Link
           href="/home"
