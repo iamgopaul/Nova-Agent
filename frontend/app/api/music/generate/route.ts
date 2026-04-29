@@ -29,11 +29,13 @@ export async function POST(req: NextRequest) {
     }
 
     const audioBuffer = await upstream.arrayBuffer()
+    const assetUrl    = upstream.headers.get("X-GAAIA-Asset-URL") ?? ""
     return new Response(audioBuffer, {
       status: 200,
       headers: {
         "Content-Type": "audio/wav",
         "Content-Disposition": "inline; filename=gaaia_beat.wav",
+        ...(assetUrl ? { "X-GAAIA-Asset-URL": assetUrl } : {}),
       },
     })
   } catch (err) {

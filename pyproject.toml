@@ -29,6 +29,20 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "psycopg2-binary>=2.9.9",
 
+    # 2FA
+    "pyotp>=2.9.0",
+    "qrcode[pil]>=7.4.0",
+
+    # Email (Resend)
+    "resend>=2.0.0",
+
+    # Billing (Stripe)
+    "stripe>=10.0.0",
+
+    # File processing (RAG)
+    "pypdf>=4.0.0",
+    "APScheduler>=3.10.0",
+
     # Voice — STT
     "faster-whisper>=1.0.3",
 
@@ -70,7 +84,7 @@ dependencies = [
     "python-multipart>=0.0.9",
 
     # Vision stack (camera overlays + identity)
-    "opencv-python>=4.10.0",
+    "opencv-python-headless>=4.10.0",
     "mediapipe>=0.10.14",
     "ultralytics>=8.2.0",
     "deepface>=0.0.93",
@@ -102,6 +116,7 @@ musicgen = [
 imagegen = [
     "diffusers>=0.26.0",
     "accelerate>=0.27.0",
+    "peft>=0.10.0",
 ]
 # Optional: Document generation (Word, Excel, PDF, PowerPoint, CSV, plain text).
 docgen = [

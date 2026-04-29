@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
 
     const fileBuffer  = await upstream.arrayBuffer()
     const filename    = upstream.headers.get("X-GAAIA-Filename") ?? `gaaia_document.${fmt}`
+    const assetUrl    = upstream.headers.get("X-GAAIA-Asset-URL") ?? ""
     const contentType = MIME_MAP[fmt] ?? "application/octet-stream"
 
     return new Response(fileBuffer, {
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "X-GAAIA-Filename": filename,
+        ...(assetUrl ? { "X-GAAIA-Asset-URL": assetUrl } : {}),
       },
     })
   } catch (err) {

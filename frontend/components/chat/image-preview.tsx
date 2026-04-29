@@ -215,34 +215,64 @@ export function ImagePreview({ url, prompt, caption, className }: ImagePreviewPr
 }
 
 
-export function ImageGenerating({ className }: { prompt?: string; className?: string }) {
+export function ImageGenerating({
+  className,
+  progress,
+}: {
+  prompt?: string
+  className?: string
+  progress?: { step: number; total: number }
+}) {
+  const hasProgress = progress && progress.total > 0
+  const pct = hasProgress ? Math.round((progress.step / progress.total) * 100) : 0
+
   return (
     <div className={cn(
-      "inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border border-blue-500/30 bg-gradient-to-r from-blue-950/50 to-cyan-950/30 backdrop-blur-sm",
+      "flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-blue-500/30 bg-gradient-to-r from-blue-950/50 to-cyan-950/30 backdrop-blur-sm",
+      hasProgress ? "w-56" : "inline-flex items-center",
       className,
     )}>
-      {/* Compact animated icon — matches home GAAIA Chat card (blue + cyan) */}
-      <div className="relative flex items-center justify-center w-7 h-7 rounded-md bg-blue-500/15 border border-cyan-500/25 overflow-hidden">
-        <ImageIcon className="w-3.5 h-3.5 text-cyan-200/90 relative z-10" />
-        <div
-          className="absolute inset-0 opacity-60 pointer-events-none"
-          style={{
-            background: "linear-gradient(108deg, transparent 38%, rgba(220,180,255,0.5) 50%, transparent 62%)",
-            backgroundSize: "250% 100%",
-            animation: "gaaia-shimmer 1.8s linear infinite",
-          }}
-        />
+      <div className="flex items-center gap-2.5">
+        {/* Animated icon */}
+        <div className="relative flex items-center justify-center w-7 h-7 rounded-md bg-blue-500/15 border border-cyan-500/25 overflow-hidden shrink-0">
+          <ImageIcon className="w-3.5 h-3.5 text-cyan-200/90 relative z-10" />
+          <div
+            className="absolute inset-0 opacity-60 pointer-events-none"
+            style={{
+              background: "linear-gradient(108deg, transparent 38%, rgba(220,180,255,0.5) 50%, transparent 62%)",
+              backgroundSize: "250% 100%",
+              animation: "gaaia-shimmer 1.8s linear infinite",
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between flex-1 min-w-0">
+          <span className="text-[12.5px] font-medium text-blue-100/90 tracking-tight">
+            {hasProgress ? "Generating" : "Generating image"}
+          </span>
+          {hasProgress ? (
+            <span className="text-[11px] tabular-nums text-cyan-300/70 font-mono ml-2 shrink-0">
+              {progress.step}/{progress.total}
+            </span>
+          ) : (
+            <span className="flex gap-0.5 items-center ml-2">
+              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "0ms" }} />
+              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "150ms" }} />
+              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "300ms" }} />
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Text with subtle dot pulse */}
-      <span className="text-[12.5px] font-medium text-blue-100/90 tracking-tight">
-        Generating image
-      </span>
-      <span className="flex gap-0.5 items-center">
-        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "0ms" }} />
-        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "150ms" }} />
-        <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" style={{ animationDelay: "300ms" }} />
-      </span>
+      {/* Progress bar — only when we have real step data */}
+      {hasProgress && (
+        <div className="w-full h-1 rounded-full bg-blue-900/60 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 transition-all duration-300 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
     </div>
   )
 }

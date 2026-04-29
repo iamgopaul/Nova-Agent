@@ -1,0 +1,29 @@
+import { NextRequest } from "next/server"
+import { gaaiaApiBase } from "@/lib/gaaia-api-base"
+
+export const runtime = "nodejs"
+
+export async function GET(req: NextRequest) {
+  const upstream = await fetch(`${gaaiaApiBase()}/files`, {
+    headers: { cookie: req.headers.get("cookie") ?? "" },
+  })
+  const text = await upstream.text()
+  return new Response(text, {
+    status: upstream.status,
+    headers: { "Content-Type": upstream.headers.get("content-type") || "application/json" },
+  })
+}
+
+export async function POST(req: NextRequest) {
+  const formData = await req.formData()
+  const upstream = await fetch(`${gaaiaApiBase()}/files`, {
+    method: "POST",
+    headers: { cookie: req.headers.get("cookie") ?? "" },
+    body: formData,
+  })
+  const text = await upstream.text()
+  return new Response(text, {
+    status: upstream.status,
+    headers: { "Content-Type": upstream.headers.get("content-type") || "application/json" },
+  })
+}

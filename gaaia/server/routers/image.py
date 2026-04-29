@@ -18,15 +18,50 @@ GET  /image/model
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
+import uuid as _uuid_mod
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _image_assets_dir() -> Path:
+    """Return (and create) the directory where generated images are persisted."""
+    base = Path(os.path.expanduser("~/GAAIA/assets/images"))
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _save_image_asset(png_bytes: bytes) -> str:
+    """Save *png_bytes* to disk and return the backend URL path."""
+    filename = f"{_uuid_mod.uuid4()}.png"
+    (_image_assets_dir() / filename).write_bytes(png_bytes)
+    return f"/image/assets/{filename}"
+
+
+@router.get("/assets/{filename}")
+async def serve_image_asset(filename: str) -> Response:
+    """Serve a previously generated image from the local asset store."""
+    assets_dir = _image_assets_dir()
+    # Reject path traversal attempts
+    if "/" in filename or "\\" in filename or filename.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    filepath = assets_dir / filename
+    if not filepath.exists() or not filepath.is_file():
+        raise HTTPException(status_code=404, detail="Image not found.")
+    return Response(
+        content=filepath.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 # ── Session image cache (in-process, cleared on restart) ─────────────────────
 # Maps session_id → last generated PNG bytes so follow-up requests can use
@@ -164,10 +199,112 @@ async def generate_image_endpoint(body: ImageRequest) -> Response:
     # Cache result for future variation requests
     _cache_store(session_id, png_bytes)
 
+    # Persist to disk so the URL survives page refreshes
+    asset_url = _save_image_asset(png_bytes)
+
     return Response(
         content=png_bytes,
         media_type="image/png",
-        headers={"Content-Disposition": "inline; filename=gaaia_image.png"},
+        headers={
+            "Content-Disposition": "inline; filename=gaaia_image.png",
+            "X-GAAIA-Asset-URL": asset_url,
+        },
+    )
+
+
+@router.post("/generate/stream")
+async def generate_image_stream(body: ImageRequest) -> StreamingResponse:
+    """
+    SSE endpoint that streams diffusion step progress then delivers a stable asset URL.
+
+    Events:
+      data: {"type": "progress", "step": N, "total": T}
+      data: {"type": "done",     "url": "/image/assets/<uuid>.png"}
+      data: {"type": "error",    "detail": "..."}
+    """
+    from gaaia.services.image_generator import generate_image, generate_image_variation
+
+    session_id   = body.session_id.strip()
+    is_variation = body.is_variation
+    cached_img   = _cache_get(session_id) if session_id else None
+
+    loop = asyncio.get_running_loop()
+    q: asyncio.Queue = asyncio.Queue()
+
+    def step_cb(step: int, total: int) -> None:
+        try:
+            loop.call_soon_threadsafe(q.put_nowait, {"type": "progress", "step": step, "total": total})
+        except Exception:
+            pass
+
+    async def run() -> None:
+        try:
+            if is_variation and cached_img is not None:
+                logger.info("[ImageRouter/stream] img2img variation (session=%s)", session_id)
+                png_bytes = await asyncio.to_thread(
+                    generate_image_variation,
+                    cached_img,
+                    body.prompt.strip(),
+                    body.negative_prompt.strip(),
+                    body.strength,
+                    body.steps,
+                    body.guidance_scale,
+                )
+            elif body.ref_image_url.strip():
+                ref_bytes = await _fetch_ref_image(body.ref_image_url.strip())
+                if ref_bytes:
+                    logger.info("[ImageRouter/stream] img2img from web ref (session=%s)", session_id)
+                    png_bytes = await asyncio.to_thread(
+                        generate_image_variation,
+                        ref_bytes,
+                        body.prompt.strip(),
+                        body.negative_prompt.strip(),
+                        0.35,
+                        body.steps,
+                        body.guidance_scale,
+                    )
+                else:
+                    png_bytes = await asyncio.to_thread(
+                        generate_image,
+                        body.prompt.strip(),
+                        body.negative_prompt.strip(),
+                        body.width,
+                        body.height,
+                        body.steps,
+                        body.guidance_scale,
+                        step_cb,
+                    )
+            else:
+                png_bytes = await asyncio.to_thread(
+                    generate_image,
+                    body.prompt.strip(),
+                    body.negative_prompt.strip(),
+                    body.width,
+                    body.height,
+                    body.steps,
+                    body.guidance_scale,
+                    step_cb,
+                )
+
+            _cache_store(session_id, png_bytes)
+            asset_url = _save_image_asset(png_bytes)
+            await q.put({"type": "done", "url": asset_url})
+        except Exception as exc:
+            await q.put({"type": "error", "detail": str(exc)})
+
+    asyncio.create_task(run())
+
+    async def stream():
+        while True:
+            evt = await q.get()
+            yield f"data: {json.dumps(evt)}\n\n"
+            if evt["type"] in ("done", "error"):
+                break
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
 
 

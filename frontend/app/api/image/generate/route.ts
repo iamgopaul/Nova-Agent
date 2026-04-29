@@ -29,11 +29,13 @@ export async function POST(req: NextRequest) {
     }
 
     const imageBuffer = await upstream.arrayBuffer()
+    const assetUrl    = upstream.headers.get("X-GAAIA-Asset-URL") ?? ""
     return new Response(imageBuffer, {
       status: 200,
       headers: {
         "Content-Type": "image/png",
         "Content-Disposition": "inline; filename=gaaia_image.png",
+        ...(assetUrl ? { "X-GAAIA-Asset-URL": assetUrl } : {}),
       },
     })
   } catch (err) {

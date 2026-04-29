@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ChevronUp, Cog, LogOut, UserCircle } from "lucide-react"
+import { ChevronUp, Cog, CreditCard, LogOut, ShieldCheck, UserCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface UserInfo {
@@ -118,6 +118,22 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   >
                     <UserCircle className="w-4 h-4" />
                     Edit profile
+                  </Link>
+                  <Link
+                    href="/settings?tab=security"
+                    onClick={() => setShowMenu(false)}
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/[0.07] transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Security &amp; 2FA
+                  </Link>
+                  <Link
+                    href="/billing"
+                    onClick={() => setShowMenu(false)}
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/[0.07] transition-colors"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Billing &amp; Plans
                   </Link>
                   <div className="my-1 border-t border-white/[0.06]" />
                   <button

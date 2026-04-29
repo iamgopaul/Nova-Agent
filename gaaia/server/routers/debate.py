@@ -54,20 +54,30 @@ def _pick_contestants(settings) -> tuple[list[dict], dict]:
     """Return 4 contestants across light→heavy tiers + a judge model."""
     m = settings.model
 
+    # Models that should never appear in a debate (domain-specific, not general reasoners)
+    _DEBATE_EXCLUDE = {"coder", "math", "stral"}
+
+    def _is_debate_model(name: str) -> bool:
+        low = (name or "").lower()
+        return not any(x in low for x in _DEBATE_EXCLUDE)
+
     slots = [
-        ("alpha", ["fast_model",  "swift_model", "core_model"],              "GAIA Spark", "blue"),
-        ("beta",  ["swift_model", "fast_model",  "core_model"],              "GAIA Air",   "violet"),
-        ("gamma", ["core_model",  "mind_model",  "name"],                    "GAIA Core",  "amber"),
-        ("delta", ["heavy_model", "name",        "core_model", "mind_model"],"GAIA Pro",   "rose"),
+        ("alpha", ["fast_model",  "swift_model", "core_model"],                      "GAIA Spark",   "blue"),
+        ("beta",  ["swift_model", "fast_model",  "core_model"],                      "GAIA Air",     "violet"),
+        ("gamma", ["core_model",  "swift_model", "fast_model"],                      "GAIA Core",    "amber"),
+        ("delta", ["insight_model", "sage_model", "core_model", "swift_model"],      "GAIA Insight", "rose"),
     ]
     contestants: list[dict] = []
     for cid, fallbacks, identity, color in slots:
-        model = next((m.get(k) for k in fallbacks if m.get(k)), None) or "llama3.2:3b"
+        model = next(
+            (m.get(k) for k in fallbacks if m.get(k) and _is_debate_model(m.get(k))),
+            None,
+        ) or "mistral:7b"
         contestants.append({"id": cid, "model": model, "identity": identity, "color": color})
 
     judge_model = (
-        m.get("heavy_model") or m.get("name") or m.get("insight_model")
-        or m.get("core_model") or "mistral:7b"
+        m.get("core_model") or m.get("insight_model") or m.get("swift_model")
+        or m.get("fast_model") or "mistral:7b"
     )
     judge = {"model": judge_model, "identity": "GAIA Judge"}
     return contestants, judge

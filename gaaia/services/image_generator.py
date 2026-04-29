@@ -151,6 +151,25 @@ _STYLE_MAP = {
 }
 
 
+def _clip_truncate(text: str, max_tokens: int = 75) -> str:
+    """
+    Truncate *text* to at most *max_tokens* CLIP tokens without loading the
+    tokenizer — uses a conservative character-based estimate (≈ 4 chars/token).
+    Splits cleanly on commas so quality tags stay intact up to the limit.
+    """
+    limit = max_tokens * 4
+    if len(text) <= limit:
+        return text
+    parts = [p.strip() for p in text.split(",")]
+    out, total = [], 0
+    for p in parts:
+        if total + len(p) + 2 > limit:
+            break
+        out.append(p)
+        total += len(p) + 2
+    return ", ".join(out) if out else text[:limit]
+
+
 def _detect_artistic_style(prompt: str) -> str | None:
     """Return a style key from _STYLE_MAP if the prompt requests an artistic style."""
     lowered = prompt.lower()
@@ -349,7 +368,7 @@ def _load_sd15_model(model_id: str, force_cpu: bool = False) -> tuple:
     _apply_dpm_scheduler(pipe)
     pipe.enable_attention_slicing()
     try:
-        pipe.enable_vae_slicing()
+        pipe.vae.enable_slicing()
     except Exception:
         pass
     if device == "cpu":
@@ -369,7 +388,7 @@ def _load_sdxl_lightning(force_cpu: bool = False) -> tuple:
     from diffusers import StableDiffusionXLPipeline
     from huggingface_hub import hf_hub_download
 
-    # SDXL Lightning works with float16 on MPS (unlike SD 1.5) — no NaN issue
+    # MPS is excluded by _load_best before reaching here (float16 SDXL → blank PNGs on MPS)
     if force_cpu:
         device, dtype = "cpu", torch.float32
     elif torch.cuda.is_available():
@@ -397,7 +416,7 @@ def _load_sdxl_lightning(force_cpu: bool = False) -> tuple:
     _apply_euler_trailing(pipe)
     pipe.enable_attention_slicing()
     try:
-        pipe.enable_vae_slicing()
+        pipe.vae.enable_slicing()
     except Exception:
         pass
 
@@ -411,18 +430,31 @@ def _free_ram_gb() -> float:
     return psutil.virtual_memory().available / (1024 ** 3)
 
 
+def _is_mps() -> bool:
+    try:
+        import torch
+        return hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+    except Exception:
+        return False
+
+
 def _load_best(force_cpu: bool = False) -> tuple:
     """
     Pick and load the highest-quality tier that fits in available RAM.
 
-      ≥ 8 GB free  →  SDXL Lightning (1024 px, 4 steps)
-      ≥ 4 GB free  →  Dreamlike Photoreal 2.0 (640 px, 30 steps)
-      fallback     →  Stable Diffusion v1.5   (640 px, 30 steps)
+      ≥ 8 GB free + CUDA  →  SDXL Lightning (1024 px, 4 steps)
+      ≥ 4 GB free         →  Dreamlike Photoreal 2.0 (640 px, 30 steps)
+      fallback            →  Stable Diffusion v1.5   (640 px, 30 steps)
+
+    SDXL Lightning is skipped on MPS (Apple Silicon): float16 SDXL produces
+    blank images on MPS due to NaN in the VAE decoder, and float32 SDXL is
+    impractically slow. Dreamlike Photoreal with float32 is fast and reliable.
     """
     free_gb = _free_ram_gb()
     print(f"[ImageGen] Available RAM: {free_gb:.1f} GB", flush=True)
 
-    if not force_cpu and free_gb >= 8.0:
+    # SDXL Lightning only on CUDA — MPS float16 SDXL always produces blank PNGs
+    if not force_cpu and not _is_mps() and free_gb >= 8.0:
         try:
             return _load_sdxl_lightning()
         except Exception as e:
@@ -449,6 +481,11 @@ def _get_pipe(force_cpu: bool = False) -> tuple:
             reload = True
         elif force_cpu and _pipe_device != "cpu":
             print("[ImageGen] Switching to CPU fallback pipeline …", flush=True)
+            _pipe = None
+            reload = True
+        elif _pipe_device == "mps" and _pipe_type == "sdxl":
+            # SDXL Lightning on MPS produces blank images — evict and reload as SD 1.5
+            print("[ImageGen] Evicting SDXL Lightning on MPS (produces blank images) — reloading …", flush=True)
             _pipe = None
             reload = True
         elif _pipe_device == "mps" and _pipe_type == "sd15":
@@ -487,6 +524,7 @@ def generate_image(
     height: int = 640,
     steps: int = 30,
     guidance_scale: float = 8.5,
+    step_callback=None,
 ) -> bytes:
     """
     Generate an image from *prompt* and return PNG bytes.
@@ -494,9 +532,9 @@ def generate_image(
     The function automatically selects the best available pipeline tier:
       - SDXL Lightning → ignores width/height/steps/guidance (fixed: 1024 px, 4 steps)
       - Dreamlike / SD 1.5 → uses supplied parameters
-    """
-    import torch
 
+    step_callback(step: int, total: int) is called after each denoising step when provided.
+    """
     pipe, pipe_type = _get_pipe()
 
     # Upgrade the prompt with quality boosters (anime-aware)
@@ -506,16 +544,30 @@ def generate_image(
     negative_prompt = _build_negative_prompt(enriched, negative_prompt)
 
     if pipe_type == "sdxl":
-        return _generate_sdxl(pipe, enriched)
+        return _generate_sdxl(pipe, enriched, step_callback=step_callback)
     else:
-        return _generate_sd15(pipe, enriched, negative_prompt, width, height, steps, guidance_scale)
+        return _generate_sd15(pipe, enriched, negative_prompt, width, height, steps, guidance_scale, step_callback=step_callback)
 
 
-def _generate_sdxl(pipe, prompt: str) -> bytes:
+def _make_step_cb(step_callback, total_steps: int):
+    """Return a diffusers callback_on_step_end-compatible callable, or None."""
+    if step_callback is None:
+        return None
+    def _cb(pipeline, i, t, cb_kwargs):
+        try:
+            step_callback(i + 1, total_steps)
+        except Exception:
+            pass
+        return {}   # no tensor inputs requested, must return empty dict
+    return _cb
+
+
+def _generate_sdxl(pipe, prompt: str, step_callback=None) -> bytes:
     """SDXL Lightning — fixed 4 steps, no CFG, 1024 × 1024."""
     import torch
 
-    print(f"[ImageGen] SDXL Lightning: '{prompt[:100]}' (4 steps, 1024×1024) …", flush=True)
+    _SDXL_STEPS = 4
+    print(f"[ImageGen] SDXL Lightning: '{prompt[:100]}' ({_SDXL_STEPS} steps, 1024×1024) …", flush=True)
 
     generator = None
     if _pipe_device == "mps":
@@ -524,20 +576,26 @@ def _generate_sdxl(pipe, prompt: str) -> bytes:
         except Exception:
             pass
 
+    _cb = _make_step_cb(step_callback, _SDXL_STEPS)
+    _cb_kwargs = {"callback_on_step_end": _cb, "callback_on_step_end_tensor_inputs": []} if _cb else {}
+
     with _inference_lock:
         result = pipe(
             prompt=prompt,
-            num_inference_steps=4,
+            num_inference_steps=_SDXL_STEPS,
             guidance_scale=0.0,    # Lightning distillation doesn't use CFG
             height=1024,
             width=1024,
             generator=generator,
+            **_cb_kwargs,
         )
 
     image = result.images[0]
 
     if _is_blank_image(image):
         print("[ImageGen] SDXL Lightning produced blank — retrying with 8 steps …", flush=True)
+        _cb2 = _make_step_cb(step_callback, 8)
+        _cb2_kwargs = {"callback_on_step_end": _cb2, "callback_on_step_end_tensor_inputs": []} if _cb2 else {}
         with _inference_lock:
             result2 = pipe(
                 prompt=prompt,
@@ -545,6 +603,7 @@ def _generate_sdxl(pipe, prompt: str) -> bytes:
                 guidance_scale=0.0,
                 height=1024,
                 width=1024,
+                **_cb2_kwargs,
             )
         image = result2.images[0]
 
@@ -558,6 +617,7 @@ def _generate_sdxl(pipe, prompt: str) -> bytes:
 def _generate_sd15(
     pipe, prompt: str, negative_prompt: str,
     width: int, height: int, steps: int, guidance_scale: float,
+    step_callback=None,
 ) -> bytes:
     """Dreamlike Photoreal 2.0 / SD 1.5 path."""
     import torch
@@ -565,6 +625,11 @@ def _generate_sd15(
     width  = min(768, max(256, (width  // 8) * 8))
     height = min(768, max(256, (height // 8) * 8))
     steps  = max(15, min(60, steps))
+
+    # SD 1.5 CLIP tokenizer hard-caps at 77 tokens — truncate before inference
+    # to avoid transformers noise in logs.
+    prompt          = _clip_truncate(prompt)
+    negative_prompt = _clip_truncate(negative_prompt)
 
     print(
         f"[ImageGen] SD 1.5 ({_pipe_type}): '{prompt[:100]}' "
@@ -579,6 +644,9 @@ def _generate_sd15(
         except Exception:
             pass
 
+    _cb = _make_step_cb(step_callback, steps)
+    _cb_kwargs = {"callback_on_step_end": _cb, "callback_on_step_end_tensor_inputs": []} if _cb else {}
+
     with _inference_lock:
         result = pipe(
             prompt=prompt,
@@ -589,6 +657,7 @@ def _generate_sd15(
             guidance_scale=guidance_scale,
             num_images_per_prompt=1,
             generator=generator,
+            **_cb_kwargs,
         )
 
     image = result.images[0]
@@ -641,7 +710,7 @@ def _get_img2img_pipe():
 
             _img2img_pipe.enable_attention_slicing()
             try:
-                _img2img_pipe.enable_vae_slicing()
+                _img2img_pipe.vae.enable_slicing()
             except Exception:
                 pass
 

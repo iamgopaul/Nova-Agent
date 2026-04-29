@@ -39,7 +39,18 @@ kill_port_listener 3002
 # ── Python venv — create and install if missing ───────────────────────────────
 if [[ ! -f "$ROOT_DIR/.venv/bin/activate" ]]; then
     echo "[GAAIA] Creating Python virtual environment..."
-    python3 -m venv "$ROOT_DIR/.venv"
+    # Require Python 3.12+ (pyproject.toml: requires-python = ">=3.12")
+    PYTHON_BIN="$(command -v python3.12 || command -v python3.13 || command -v python3 || true)"
+    if [[ -z "$PYTHON_BIN" ]]; then
+        echo "[GAAIA] ERROR: Python 3.12+ not found. Install via: brew install python@3.12" >&2
+        exit 1
+    fi
+    PY_VER="$("$PYTHON_BIN" -c 'import sys; print(sys.version_info[:2])')"
+    if [[ "$PY_VER" < "(3, 12)" ]]; then
+        echo "[GAAIA] ERROR: Found $PYTHON_BIN ($PY_VER) but need >= 3.12. Install via: brew install python@3.12" >&2
+        exit 1
+    fi
+    "$PYTHON_BIN" -m venv "$ROOT_DIR/.venv"
 fi
 
 source "$ROOT_DIR/.venv/bin/activate"
@@ -50,7 +61,7 @@ PYPROJECT="$ROOT_DIR/pyproject.toml"
 if [[ ! -f "$STAMP" || "$PYPROJECT" -nt "$STAMP" ]]; then
     echo "[GAAIA] Installing Python dependencies..."
     pip install --quiet --upgrade pip
-    pip install --quiet -e "$ROOT_DIR"
+    pip install --quiet -e "$ROOT_DIR[imagegen,docgen,musicgen]"
     touch "$STAMP"
     echo "[GAAIA] Python dependencies ready."
 fi

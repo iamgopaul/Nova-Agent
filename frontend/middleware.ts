@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// Pages that require authentication
 const PROTECTED_PREFIXES = [
   "/chat",
   "/voice",
@@ -10,14 +9,18 @@ const PROTECTED_PREFIXES = [
   "/ide",
   "/settings",
   "/home",
+  "/billing",
+  "/screen",
+  "/video",
+  "/education",
+  "/admin",
 ]
 
-// Pages only for unauthenticated users (redirect away if already signed in)
 const AUTH_PAGES = ["/login", "/signup"]
 
 const COOKIE = "gaaia_token"
 
-export function proxy(request: NextRequest) {
+export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get(COOKIE)?.value
 
@@ -48,14 +51,32 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/chat",
     "/chat/:path*",
+    "/voice",
     "/voice/:path*",
+    "/podcast",
     "/podcast/:path*",
+    "/agents",
     "/agents/:path*",
+    "/debate",
     "/debate/:path*",
+    "/ide",
     "/ide/:path*",
+    "/settings",
     "/settings/:path*",
+    "/home",
     "/home/:path*",
+    "/billing",
+    "/billing/:path*",
+    "/screen",
+    "/screen/:path*",
+    "/video",
+    "/video/:path*",
+    "/education",
+    "/education/:path*",
+    "/admin",
+    "/admin/:path*",
     "/login",
     "/signup",
   ],

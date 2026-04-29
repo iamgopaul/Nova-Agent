@@ -75,3 +75,41 @@ def decode_token(token: str) -> tuple[str, int] | None:
         return user_id, version
     except JWTError:
         return None
+
+
+# ── 2FA challenge tokens ──────────────────────────────────────────────────────
+# These short-lived tokens gate the second factor — they cannot issue a session.
+
+CHALLENGE_EXPIRE_MINUTES = 10
+
+
+def create_challenge_token(user_id: str, method: str) -> str:
+    """Return a 10-min JWT that permits only the 2FA verify endpoint."""
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=CHALLENGE_EXPIRE_MINUTES)
+    return jwt.encode(
+        {
+            "sub": user_id,
+            "type": "2fa_challenge",
+            "method": method,
+            "iat": int(now.timestamp()),
+            "exp": expire,
+        },
+        _get_secret(),
+        algorithm=ALGORITHM,
+    )
+
+
+def decode_challenge_token(token: str) -> tuple[str, str] | None:
+    """Return ``(user_id, method)`` or ``None`` if invalid/expired/wrong type."""
+    try:
+        payload = jwt.decode(token, _get_secret(), algorithms=[ALGORITHM])
+        if payload.get("type") != "2fa_challenge":
+            return None
+        user_id = payload.get("sub")
+        method = payload.get("method", "totp")
+        if not user_id:
+            return None
+        return user_id, method
+    except JWTError:
+        return None

@@ -41,7 +41,23 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
 
-    # PostgreSQL connection string (production / Docker).
+    # ── Resend (transactional email) ──────────────────────────────────
+    # Get a free key at resend.com (3k emails/month free).
+    resend_api_key: str = ""
+    resend_from_email: str = "GAAIA <noreply@gaaia.io>"
+
+    # ── Stripe (billing) ──────────────────────────────────────────────
+    # Secret key from stripe.com/developers (test key starts with sk_test_)
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    # Price IDs from your Stripe dashboard (Products → Prices)
+    stripe_pro_monthly_price_id: str = ""
+    stripe_pro_yearly_price_id: str = ""
+    stripe_teams_monthly_price_id: str = ""
+    stripe_teams_yearly_price_id: str = ""
+
+    # ── PostgreSQL connection string (production / Docker). ───────────
     # Format: postgresql+psycopg2://user:password@host:5432/gaaia
     # When set, MemoryStore uses PostgreSQL with `auth` and `data` schemas.
     # When blank, SQLite is used (local dev default — no setup required).
@@ -132,9 +148,16 @@ class Settings(BaseSettings):
     def notes_dir(self) -> Path:
         return self.data_dir / "notes"
 
+    @property
+    def assets_dir(self) -> Path:
+        return self.data_dir / "assets"
+
     def ensure_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.notes_dir.mkdir(parents=True, exist_ok=True)
+        (self.assets_dir / "images").mkdir(parents=True, exist_ok=True)
+        (self.assets_dir / "docs").mkdir(parents=True, exist_ok=True)
+        (self.assets_dir / "music").mkdir(parents=True, exist_ok=True)
 
 
 _settings: Settings | None = None

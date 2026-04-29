@@ -13,13 +13,23 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 
 from gaaia.memory.models import (
+    AuditLog,
     AuthBase,
     DataBase,
+    EmailOTPCode,
     Fact,
+    FileChunk,
     Folder,
     Message,
     OAuthIdentity,
+    OrgInvitation,
+    OrgMembership,
+    Organization,
+    Plan,
+    ScheduledTask,
     Session,
+    Subscription,
+    UploadedFile,
     User,
     WatchedTopic,
 )
@@ -691,3 +701,605 @@ class MemoryStore:
                 "CREATE INDEX IF NOT EXISTS ix_oauth_user_id "
                 "ON oauth_identities(user_id)"
             ))
+
+    # ── 2FA — Email OTP ───────────────────────────────────────────────
+
+    def create_email_otp(self, user_id: str, code_hash: str, expires_at: datetime, purpose: str = "2fa_login") -> None:
+        with self._auth_sess() as db:
+            db.add(EmailOTPCode(
+                user_id=user_id, code_hash=code_hash,
+                purpose=purpose, expires_at=expires_at,
+            ))
+            db.commit()
+
+    def get_valid_email_otp(self, user_id: str, purpose: str = "2fa_login") -> EmailOTPCode | None:
+        now = datetime.now(timezone.utc)
+        with self._auth_sess() as db:
+            return db.scalar(
+                select(EmailOTPCode)
+                .where(
+                    EmailOTPCode.user_id == user_id,
+                    EmailOTPCode.purpose == purpose,
+                    EmailOTPCode.used.is_(False),
+                    EmailOTPCode.expires_at > now,
+                )
+                .order_by(EmailOTPCode.created_at.desc())
+            )
+
+    def consume_email_otp(self, otp_id: int) -> None:
+        with self._auth_sess() as db:
+            row = db.get(EmailOTPCode, otp_id)
+            if row:
+                row.used = True
+                db.commit()
+
+    def update_user_totp(
+        self, user_id: str, secret: str | None, enabled: bool, backup_codes: str | None = None
+    ) -> None:
+        with self._auth_sess() as db:
+            user = db.get(User, user_id)
+            if user:
+                user.totp_secret = secret
+                user.totp_enabled = enabled
+                if backup_codes is not None:
+                    user.totp_backup_codes = backup_codes
+                db.commit()
+
+    def consume_backup_code(self, user_id: str, code_hash: str) -> bool:
+        """Remove one backup code. Returns True if found and consumed."""
+        import json
+        with self._auth_sess() as db:
+            user = db.get(User, user_id)
+            if not user or not user.totp_backup_codes:
+                return False
+            codes: list[str] = json.loads(user.totp_backup_codes)
+            if code_hash not in codes:
+                return False
+            codes.remove(code_hash)
+            user.totp_backup_codes = json.dumps(codes)
+            db.commit()
+            return True
+
+    # ── Audit log ─────────────────────────────────────────────────────
+
+    def log_action(
+        self,
+        action: str,
+        user_id: str | None = None,
+        resource: str | None = None,
+        resource_id: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        meta: dict | None = None,
+    ) -> None:
+        with self._auth_sess() as db:
+            db.add(AuditLog(
+                user_id=user_id,
+                action=action,
+                resource=resource,
+                resource_id=resource_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                meta=meta,
+            ))
+            db.commit()
+
+    def list_audit_logs(
+        self,
+        user_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict]:
+        with self._auth_sess() as db:
+            q = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
+            if user_id:
+                q = q.where(AuditLog.user_id == user_id)
+            rows = db.scalars(q).all()
+        return [
+            {
+                "id": r.id,
+                "user_id": r.user_id,
+                "action": r.action,
+                "resource": r.resource,
+                "resource_id": r.resource_id,
+                "ip_address": r.ip_address,
+                "meta": r.meta,
+                "created_at": r.created_at,
+            }
+            for r in rows
+        ]
+
+    # ── Billing — plans + subscriptions ──────────────────────────────
+
+    def seed_plans(self) -> None:
+        """Ensure the three built-in plans exist. Idempotent."""
+        plans = [
+            Plan(
+                id="free",
+                name="Free",
+                price_monthly_cents=0,
+                price_yearly_cents=0,
+                max_seats=1,
+                features=["5 uploads", "100 messages/day", "Basic models"],
+            ),
+            Plan(
+                id="pro",
+                name="Pro",
+                price_monthly_cents=2000,
+                price_yearly_cents=19200,
+                max_seats=1,
+                features=["Unlimited uploads", "Unlimited messages", "All models", "File RAG", "Scheduled tasks"],
+            ),
+            Plan(
+                id="teams",
+                name="Teams",
+                price_monthly_cents=9900,
+                price_yearly_cents=95040,
+                max_seats=25,
+                features=["Everything in Pro", "Team workspace", "Org management", "Audit logs", "SSO"],
+            ),
+        ]
+        with self._auth_sess() as db:
+            for p in plans:
+                if not db.get(Plan, p.id):
+                    db.add(p)
+            db.commit()
+
+    def get_plan(self, plan_id: str) -> Plan | None:
+        with self._auth_sess() as db:
+            return db.get(Plan, plan_id)
+
+    def list_plans(self) -> list[Plan]:
+        with self._auth_sess() as db:
+            return list(db.scalars(select(Plan).order_by(Plan.price_monthly_cents)).all())
+
+    def get_active_subscription(self, user_id: str) -> Subscription | None:
+        with self._auth_sess() as db:
+            return db.scalar(
+                select(Subscription)
+                .where(
+                    Subscription.user_id == user_id,
+                    Subscription.status.in_(["active", "trialing"]),
+                )
+                .order_by(Subscription.created_at.desc())
+            )
+
+    def upsert_subscription(
+        self,
+        user_id: str,
+        plan_id: str,
+        stripe_subscription_id: str | None = None,
+        status: str = "active",
+        interval: str = "month",
+        current_period_end: datetime | None = None,
+        cancel_at_period_end: bool = False,
+    ) -> Subscription:
+        with self._auth_sess() as db:
+            existing = None
+            if stripe_subscription_id:
+                existing = db.scalar(
+                    select(Subscription).where(
+                        Subscription.stripe_subscription_id == stripe_subscription_id
+                    )
+                )
+            if not existing:
+                existing = db.scalar(
+                    select(Subscription).where(Subscription.user_id == user_id)
+                    .order_by(Subscription.created_at.desc())
+                )
+            if existing:
+                existing.plan_id = plan_id
+                existing.stripe_subscription_id = stripe_subscription_id or existing.stripe_subscription_id
+                existing.status = status
+                existing.interval = interval
+                existing.current_period_end = current_period_end
+                existing.cancel_at_period_end = cancel_at_period_end
+                db.commit()
+                db.refresh(existing)
+                return existing
+            sub = Subscription(
+                id=str(_uuid_mod.uuid4()),
+                user_id=user_id,
+                plan_id=plan_id,
+                stripe_subscription_id=stripe_subscription_id,
+                status=status,
+                interval=interval,
+                current_period_end=current_period_end,
+                cancel_at_period_end=cancel_at_period_end,
+            )
+            db.add(sub)
+            db.commit()
+            db.refresh(sub)
+        # Sync tier on user record
+        self._sync_user_tier(user_id, plan_id)
+        return sub
+
+    def cancel_subscription(self, user_id: str) -> None:
+        with self._auth_sess() as db:
+            sub = db.scalar(
+                select(Subscription)
+                .where(Subscription.user_id == user_id, Subscription.status == "active")
+            )
+            if sub:
+                sub.status = "canceled"
+                sub.canceled_at = datetime.now(timezone.utc)
+                db.commit()
+        self._sync_user_tier(user_id, "free")
+
+    def _sync_user_tier(self, user_id: str, plan_id: str) -> None:
+        with self._auth_sess() as db:
+            user = db.get(User, user_id)
+            if user:
+                user.subscription_tier = plan_id
+                db.commit()
+
+    def update_stripe_customer(self, user_id: str, stripe_customer_id: str) -> None:
+        with self._auth_sess() as db:
+            user = db.get(User, user_id)
+            if user:
+                user.stripe_customer_id = stripe_customer_id
+                db.commit()
+
+    # ── Organizations ─────────────────────────────────────────────────
+
+    def create_org(self, name: str, slug: str, owner_id: str) -> Organization:
+        import re
+        slug = re.sub(r"[^a-z0-9-]", "-", slug.lower().strip())[:60]
+        org = Organization(id=str(_uuid_mod.uuid4()), name=name.strip(), slug=slug, owner_id=owner_id)
+        with self._auth_sess() as db:
+            db.add(org)
+            db.add(OrgMembership(org_id=org.id, user_id=owner_id, role="owner"))
+            db.commit()
+            db.refresh(org)
+        return org
+
+    def get_org(self, org_id: str) -> Organization | None:
+        with self._auth_sess() as db:
+            return db.get(Organization, org_id)
+
+    def get_org_by_slug(self, slug: str) -> Organization | None:
+        with self._auth_sess() as db:
+            return db.scalar(select(Organization).where(Organization.slug == slug))
+
+    def list_user_orgs(self, user_id: str) -> list[dict]:
+        with self._auth_sess() as db:
+            rows = db.scalars(
+                select(OrgMembership).where(OrgMembership.user_id == user_id)
+            ).all()
+            result = []
+            for m in rows:
+                org = db.get(Organization, m.org_id)
+                if org:
+                    result.append({"org": org, "role": m.role})
+        return result
+
+    def list_org_members(self, org_id: str) -> list[dict]:
+        with self._auth_sess() as db:
+            rows = db.scalars(
+                select(OrgMembership).where(OrgMembership.org_id == org_id)
+            ).all()
+            return [
+                {"user_id": m.user_id, "role": m.role, "joined_at": m.joined_at}
+                for m in rows
+            ]
+
+    def get_org_role(self, org_id: str, user_id: str) -> str | None:
+        with self._auth_sess() as db:
+            m = db.scalar(
+                select(OrgMembership).where(
+                    OrgMembership.org_id == org_id,
+                    OrgMembership.user_id == user_id,
+                )
+            )
+            return m.role if m else None
+
+    def create_invitation(
+        self, org_id: str, email: str, role: str, invited_by: str, token: str, expires_at: datetime
+    ) -> OrgInvitation:
+        inv = OrgInvitation(
+            id=str(_uuid_mod.uuid4()),
+            org_id=org_id, email=email.lower().strip(),
+            role=role, invited_by=invited_by,
+            token=token, expires_at=expires_at,
+        )
+        with self._auth_sess() as db:
+            db.add(inv)
+            db.commit()
+            db.refresh(inv)
+        return inv
+
+    def get_invitation_by_token(self, token: str) -> OrgInvitation | None:
+        with self._auth_sess() as db:
+            return db.scalar(
+                select(OrgInvitation).where(OrgInvitation.token == token)
+            )
+
+    def accept_invitation(self, token: str, user_id: str) -> bool:
+        now = datetime.now(timezone.utc)
+        with self._auth_sess() as db:
+            inv = db.scalar(select(OrgInvitation).where(OrgInvitation.token == token))
+            if not inv or inv.accepted_at or inv.expires_at < now:
+                return False
+            existing = db.scalar(
+                select(OrgMembership).where(
+                    OrgMembership.org_id == inv.org_id,
+                    OrgMembership.user_id == user_id,
+                )
+            )
+            if not existing:
+                db.add(OrgMembership(org_id=inv.org_id, user_id=user_id, role=inv.role))
+            inv.accepted_at = now
+            db.commit()
+        return True
+
+    def remove_org_member(self, org_id: str, user_id: str) -> bool:
+        with self._auth_sess() as db:
+            m = db.scalar(
+                select(OrgMembership).where(
+                    OrgMembership.org_id == org_id,
+                    OrgMembership.user_id == user_id,
+                )
+            )
+            if not m or m.role == "owner":
+                return False
+            db.delete(m)
+            db.commit()
+        return True
+
+    # ── Scheduled tasks ───────────────────────────────────────────────
+
+    def create_scheduled_task(
+        self, user_id: str, name: str, prompt: str, schedule: str, notify_email: bool = False
+    ) -> ScheduledTask:
+        task = ScheduledTask(
+            id=str(_uuid_mod.uuid4()),
+            user_id=user_id, name=name.strip(), prompt=prompt.strip(),
+            schedule=schedule, notify_email=notify_email,
+        )
+        with self._data_sess() as db:
+            db.add(task)
+            db.commit()
+            db.refresh(task)
+        return task
+
+    def list_scheduled_tasks(self, user_id: str) -> list[ScheduledTask]:
+        with self._data_sess() as db:
+            return list(db.scalars(
+                select(ScheduledTask)
+                .where(ScheduledTask.user_id == user_id)
+                .order_by(ScheduledTask.created_at.desc())
+            ).all())
+
+    def get_scheduled_task(self, task_id: str, user_id: str) -> ScheduledTask | None:
+        with self._data_sess() as db:
+            t = db.get(ScheduledTask, task_id)
+            return t if t and t.user_id == user_id else None
+
+    def update_scheduled_task_run(
+        self, task_id: str, output: str, status: str, next_run_at: datetime | None = None
+    ) -> None:
+        with self._data_sess() as db:
+            t = db.get(ScheduledTask, task_id)
+            if t:
+                t.last_run_at = datetime.now(timezone.utc)
+                t.last_output = output
+                t.last_status = status
+                if next_run_at:
+                    t.next_run_at = next_run_at
+                db.commit()
+
+    def toggle_scheduled_task(self, task_id: str, user_id: str, enabled: bool) -> bool:
+        with self._data_sess() as db:
+            t = db.get(ScheduledTask, task_id)
+            if not t or t.user_id != user_id:
+                return False
+            t.enabled = enabled
+            db.commit()
+        return True
+
+    def delete_scheduled_task(self, task_id: str, user_id: str) -> bool:
+        with self._data_sess() as db:
+            t = db.get(ScheduledTask, task_id)
+            if not t or t.user_id != user_id:
+                return False
+            db.delete(t)
+            db.commit()
+        return True
+
+    def list_all_enabled_scheduled_tasks(self) -> list[ScheduledTask]:
+        with self._data_sess() as db:
+            return list(db.scalars(
+                select(ScheduledTask).where(ScheduledTask.enabled.is_(True))
+            ).all())
+
+    # ── File upload + RAG ─────────────────────────────────────────────
+
+    def create_uploaded_file(
+        self, user_id: str, filename: str, content_type: str,
+        size_bytes: int, storage_path: str,
+    ) -> UploadedFile:
+        f = UploadedFile(
+            id=str(_uuid_mod.uuid4()),
+            user_id=user_id, filename=filename,
+            content_type=content_type, size_bytes=size_bytes,
+            storage_path=storage_path,
+        )
+        with self._data_sess() as db:
+            db.add(f)
+            db.commit()
+            db.refresh(f)
+        return f
+
+    def save_file_chunks(self, file_id: str, chunks: list[dict]) -> None:
+        """chunks: list of {content, embedding}"""
+        with self._data_sess() as db:
+            for i, c in enumerate(chunks):
+                db.add(FileChunk(
+                    file_id=file_id, chunk_index=i,
+                    content=c["content"], embedding=c.get("embedding"),
+                ))
+            f = db.get(UploadedFile, file_id)
+            if f:
+                f.processed = True
+                f.chunk_count = len(chunks)
+            db.commit()
+
+    def list_uploaded_files(self, user_id: str) -> list[dict]:
+        with self._data_sess() as db:
+            rows = db.scalars(
+                select(UploadedFile)
+                .where(UploadedFile.user_id == user_id)
+                .order_by(UploadedFile.created_at.desc())
+            ).all()
+        return [
+            {
+                "id": f.id, "filename": f.filename,
+                "content_type": f.content_type, "size_bytes": f.size_bytes,
+                "processed": f.processed, "chunk_count": f.chunk_count,
+                "created_at": f.created_at,
+            }
+            for f in rows
+        ]
+
+    def delete_uploaded_file(self, file_id: str, user_id: str) -> str | None:
+        """Returns storage_path so the caller can delete the file on disk."""
+        with self._data_sess() as db:
+            f = db.get(UploadedFile, file_id)
+            if not f or f.user_id != user_id:
+                return None
+            path = f.storage_path
+            db.delete(f)
+            db.commit()
+        return path
+
+    def semantic_search_chunks(
+        self, user_id: str, query_embedding: list[float], top_k: int = 5
+    ) -> list[dict]:
+        """Python-side cosine similarity search across all user's file chunks."""
+        import math
+
+        def cosine(a: list[float], b: list[float]) -> float:
+            dot = sum(x * y for x, y in zip(a, b))
+            na = math.sqrt(sum(x * x for x in a))
+            nb = math.sqrt(sum(y * y for y in b))
+            return dot / (na * nb) if na and nb else 0.0
+
+        with self._data_sess() as db:
+            file_ids = db.scalars(
+                select(UploadedFile.id).where(UploadedFile.user_id == user_id)
+            ).all()
+            if not file_ids:
+                return []
+            rows = db.scalars(
+                select(FileChunk)
+                .where(FileChunk.file_id.in_(file_ids), FileChunk.embedding.is_not(None))
+            ).all()
+
+        scored = [
+            (cosine(query_embedding, r.embedding), r)
+            for r in rows
+            if r.embedding
+        ]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [
+            {"score": score, "content": r.content, "file_id": r.file_id}
+            for score, r in scored[:top_k]
+        ]
+
+    def semantic_search_facts(
+        self, user_id: str, query_embedding: list[float], top_k: int = 5
+    ) -> list[dict]:
+        import math
+
+        def cosine(a: list[float], b: list[float]) -> float:
+            dot = sum(x * y for x, y in zip(a, b))
+            na = math.sqrt(sum(x * x for x in a))
+            nb = math.sqrt(sum(y * y for y in b))
+            return dot / (na * nb) if na and nb else 0.0
+
+        with self._data_sess() as db:
+            rows = db.scalars(
+                select(Fact)
+                .where(Fact.user_id == user_id, Fact.embedding.is_not(None))
+            ).all()
+
+        scored = [
+            (cosine(query_embedding, r.embedding), r)
+            for r in rows
+            if r.embedding
+        ]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [
+            {"score": score, "key": r.key, "value": r.value}
+            for score, r in scored[:top_k]
+        ]
+
+    # ── Admin ─────────────────────────────────────────────────────────
+
+    def list_users(self, limit: int = 100, offset: int = 0) -> list[dict]:
+        with self._auth_sess() as db:
+            rows = db.scalars(
+                select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
+            ).all()
+        return [
+            {
+                "id": u.id, "email": u.email, "display_name": u.display_name,
+                "subscription_tier": u.subscription_tier, "is_admin": u.is_admin,
+                "totp_enabled": u.totp_enabled, "created_at": u.created_at,
+            }
+            for u in rows
+        ]
+
+    def set_admin(self, user_id: str, is_admin: bool) -> None:
+        with self._auth_sess() as db:
+            user = db.get(User, user_id)
+            if user:
+                user.is_admin = is_admin
+                db.commit()
+
+    def get_stats(self) -> dict:
+        with self._auth_sess() as db:
+            total_users = db.scalar(select(func.count()).select_from(User)) or 0
+            pro_users = db.scalar(
+                select(func.count()).select_from(User)
+                .where(User.subscription_tier.in_(["pro", "teams"]))
+            ) or 0
+        with self._data_sess() as db:
+            total_sessions = db.scalar(select(func.count()).select_from(Session)) or 0
+            total_messages = db.scalar(select(func.count()).select_from(Message)) or 0
+            total_files = db.scalar(select(func.count()).select_from(UploadedFile)) or 0
+        return {
+            "total_users": total_users,
+            "pro_users": pro_users,
+            "total_sessions": total_sessions,
+            "total_messages": total_messages,
+            "total_files": total_files,
+        }
+
+    # ── Data export ───────────────────────────────────────────────────
+
+    def export_user_data(self, user_id: str) -> dict:
+        user = self.get_user_by_id(user_id)
+        if not user:
+            return {}
+        sessions = self.list_sessions(user_id=user_id)
+        facts = self.get_facts(user_id=user_id)
+        topics = self.list_watched_topics(user_id=user_id)
+        files = self.list_uploaded_files(user_id=user_id)
+        tasks = [
+            {"id": t.id, "name": t.name, "schedule": t.schedule, "created_at": str(t.created_at)}
+            for t in self.list_scheduled_tasks(user_id=user_id)
+        ]
+        return {
+            "user": {
+                "id": user.id, "email": user.email,
+                "display_name": user.display_name,
+                "created_at": str(user.created_at),
+                "subscription_tier": user.subscription_tier,
+            },
+            "sessions": sessions,
+            "facts": facts,
+            "watched_topics": topics,
+            "uploaded_files": files,
+            "scheduled_tasks": tasks,
+        }

@@ -192,6 +192,9 @@ async function fetchMusicAudio(prompt: string, duration: number = 12): Promise<s
       body: JSON.stringify({ prompt, duration }),
     })
     if (!res.ok) return null
+    const assetPath = res.headers.get("X-GAAIA-Asset-URL")
+    if (assetPath) return `/api${assetPath}`
+    // Fallback: convert blob to data URL (old backend without asset storage)
     const blob = await res.blob()
     return await blobToDataUrl(blob)
   } catch {
@@ -229,6 +232,10 @@ async function fetchImageGen(
       }),
     })
     if (!res.ok) return null
+    // Use the stable server-side asset URL if available (avoids large data: URLs in localStorage)
+    const assetPath = res.headers.get("X-GAAIA-Asset-URL")
+    if (assetPath) return `/api${assetPath}`
+    // Fallback: convert blob to data URL (no asset URL header = old backend)
     const blob = await res.blob()
     return await blobToDataUrl(blob)
   } catch {
@@ -254,9 +261,16 @@ async function fetchDocGen(
       }),
     })
     if (!res.ok) return null
-    const blob     = await res.blob()
-    const filename = res.headers.get("X-GAAIA-Filename") ?? `gaaia_document.${format}`
-    const url = await blobToDataUrl(blob)
+    const filename  = res.headers.get("X-GAAIA-Filename") ?? `gaaia_document.${format}`
+    const assetPath = res.headers.get("X-GAAIA-Asset-URL")
+    if (assetPath) {
+      // Stable server-side URL — tiny string, survives page refresh
+      const blob = await res.blob()
+      return { url: `/api${assetPath}`, filename, sizeBytes: blob.size }
+    }
+    // Fallback: data URL (old backend without asset storage)
+    const blob = await res.blob()
+    const url  = await blobToDataUrl(blob)
     return { url, filename, sizeBytes: blob.size }
   } catch {
     return null
@@ -935,47 +949,104 @@ export default function ChatPage() {
         }
 
         if (chunk.type === "image_generate") {
-          const imagePrompt   = chunk.content || ""
-          const imgIdx        = chunk.index ?? 0
-          const imgTotal      = chunk.total ?? 1
-          const imgSessionId  = chunk.session_id ?? ""
+          const imagePrompt    = chunk.content || ""
+          const imgIdx         = chunk.index ?? 0
+          const imgTotal       = chunk.total ?? 1
+          const imgSessionId   = chunk.session_id ?? ""
           const imgIsVariation = chunk.is_variation ?? false
-          const imgRefUrl     = chunk.ref_image_url ?? ""
+          const imgRefUrl      = chunk.ref_image_url ?? ""
 
           // Mark generating + reserve a slot for this image index
           setMessages(prev => prev.map(message => {
             if (message.id !== aiMsgId) return message
             const existing = message.imageUrls ?? (message.imageUrl ? [message.imageUrl] : [])
-            // Extend array to hold imgTotal entries (undefined = still generating)
             const slots: (string | undefined)[] = [...Array(Math.max(imgTotal, existing.length))]
             existing.forEach((u, i) => { slots[i] = u })
             return {
               ...message,
               imagePrompt,
               imageGenerating: true,
+              imageProgress: undefined,
               imageUrls: slots as string[],
             }
           }))
 
-          void fetchImageGen(imagePrompt, {
-            session_id:    imgSessionId,
-            is_variation:  imgIsVariation,
-            ref_image_url: imgRefUrl,
-          }).then(imageUrl => {
-            setMessages(prev => prev.map(message => {
-              if (message.id !== aiMsgId) return message
-              const slots = [...(message.imageUrls ?? [])]
-              if (imageUrl) slots[imgIdx] = imageUrl
-              const allDone = slots.filter(Boolean).length >= imgTotal
-              return {
-                ...message,
-                imageGenerating: !allDone,
-                imageUrls: slots.filter(Boolean) as string[],
-                // Keep backward-compat imageUrl pointing to first image
-                imageUrl: slots.find(Boolean),
+          // Stream generation — reads SSE progress events then the final image
+          ;(async () => {
+            try {
+              const res = await fetch("/api/image/generate/stream", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  prompt:         imagePrompt,
+                  session_id:     imgSessionId,
+                  is_variation:   imgIsVariation,
+                  ref_image_url:  imgRefUrl,
+                  width:  640,
+                  height: 640,
+                  steps:  30,
+                  guidance_scale: 8.5,
+                }),
+              })
+
+              if (!res.ok || !res.body) {
+                setMessages(prev => prev.map(msg => msg.id !== aiMsgId ? msg : { ...msg, imageGenerating: false, imageProgress: undefined }))
+                return
               }
-            }))
-          })
+
+              const reader  = res.body.getReader()
+              const decoder = new TextDecoder()
+              let buffer    = ""
+
+              while (true) {
+                const { value, done } = await reader.read()
+                if (done) break
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split("\n")
+                buffer = lines.pop() || ""
+
+                for (const line of lines) {
+                  if (!line.startsWith("data:")) continue
+                  const payload = line.slice(5).trim()
+                  if (!payload) continue
+                  try {
+                    const evt = JSON.parse(payload)
+                    if (evt.type === "progress") {
+                      setMessages(prev => prev.map(msg =>
+                        msg.id !== aiMsgId ? msg : { ...msg, imageProgress: { step: evt.step as number, total: evt.total as number } }
+                      ))
+                    } else if (evt.type === "done") {
+                      // evt.url is "/image/assets/<uuid>.png" — proxy through Next.js
+                      const imageUrl = `/api${evt.url as string}`
+                      setMessages(prev => prev.map(msg => {
+                        if (msg.id !== aiMsgId) return msg
+                        const slots = [...(msg.imageUrls ?? [])]
+                        slots[imgIdx] = imageUrl
+                        const allDone = slots.filter(Boolean).length >= imgTotal
+                        return {
+                          ...msg,
+                          imageGenerating: !allDone,
+                          imageProgress: undefined,
+                          imageUrls: slots.filter(Boolean) as string[],
+                          imageUrl: slots.find(Boolean),
+                        }
+                      }))
+                      return
+                    } else if (evt.type === "error") {
+                      setMessages(prev => prev.map(msg =>
+                        msg.id !== aiMsgId ? msg : { ...msg, imageGenerating: false, imageProgress: undefined }
+                      ))
+                      return
+                    }
+                  } catch { /* skip bad JSON */ }
+                }
+              }
+            } catch {
+              setMessages(prev => prev.map(msg =>
+                msg.id !== aiMsgId ? msg : { ...msg, imageGenerating: false, imageProgress: undefined }
+              ))
+            }
+          })()
           continue
         }
 

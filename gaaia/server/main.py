@@ -29,7 +29,11 @@ from gaaia.server.security import SecurityHeadersMiddleware
 
 from config.settings import get_settings
 from gaaia.bootstrap import build_gaaia
-from gaaia.server.routers import agents, auth, camera, chart, chat, debate, document, education, image, memory, music, oauth, podcast, screen, stats, video, voice, watcher
+from gaaia.server.routers import (
+    admin_router, agents, auth, billing, camera, chart, chat, debate,
+    document, education, export, files, image, memory, music, oauth,
+    orgs, podcast, scheduler, screen, stats, two_factor, video, voice, watcher,
+)
 from gaaia.services.knowledge_feed import KnowledgeFeedScheduler
 from gaaia.services.web_watcher import WatcherScheduler
 from gaaia.services.location import get_location, location_context
@@ -68,6 +72,9 @@ async def lifespan(app: FastAPI):
     }
 
     mem, orchestrator, approval = build_gaaia(settings)
+
+    # Seed default subscription plans (idempotent)
+    mem.seed_plans()
 
     app.state.settings    = settings
     app.state.memory      = mem
@@ -189,6 +196,13 @@ def create_app() -> FastAPI:
         allow_credentials=True,
     )
 
+    app.include_router(two_factor.router,  prefix="/auth/2fa",        tags=["2FA"])
+    app.include_router(billing.router,     prefix="/billing",         tags=["Billing"])
+    app.include_router(orgs.router,        prefix="/orgs",            tags=["Organisations"])
+    app.include_router(admin_router.router,prefix="/admin",           tags=["Admin"])
+    app.include_router(files.router,       prefix="/files",           tags=["Files"])
+    app.include_router(scheduler.router,   prefix="/scheduler",       tags=["Scheduler"])
+    app.include_router(export.router,      prefix="/account",         tags=["Account"])
     app.include_router(agents.router,      prefix="/agents",          tags=["Agents"])
     app.include_router(debate.router,      prefix="/debate",          tags=["Debate"])
     app.include_router(podcast.router,     prefix="/podcast",         tags=["Podcast"])

@@ -32,6 +32,17 @@ services:
       DATABASE_URL: postgresql+psycopg2://gaaia:${POSTGRES_PASSWORD:-changeme}@postgres:5432/gaaia
       # Ollama runs on the host machine; host.docker.internal resolves to the host IP.
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # Stripe + Resend are forwarded from .env if present.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRO_MONTHLY_PRICE_ID: ${STRIPE_PRO_MONTHLY_PRICE_ID:-}
+      STRIPE_PRO_YEARLY_PRICE_ID: ${STRIPE_PRO_YEARLY_PRICE_ID:-}
+      STRIPE_TEAMS_MONTHLY_PRICE_ID: ${STRIPE_TEAMS_MONTHLY_PRICE_ID:-}
+      STRIPE_TEAMS_YEARLY_PRICE_ID: ${STRIPE_TEAMS_YEARLY_PRICE_ID:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
     volumes:
       - gaaia_data:/app/data
     ports:

@@ -12,18 +12,18 @@ app:
 
 # ── Model ─────────────────────────────────────────────────────────────
 # Runs locally via Ollama — free, no API key, M4 Max Metal GPU accelerated.
-# 64 GB unified memory: 72B Q4 (~47 GB) fits with 17 GB headroom.
-# M4 Max 40-core GPU delivers ~25-35 tok/sec on 72B — comfortable for voice.
+# 64 GB unified memory: gemma3:27b Q4 (~17 GB) leaves ~45 GB headroom for concurrent models.
+# M4 Max 40-core GPU delivers ~40-55 tok/sec on 27B — fast and comfortable for voice.
 model:
   provider: ollama
   host: "http://localhost:11434"
 
   # ── Core routing models ──────────────────────────────────────────────────
-  name: qwen2.5:72b              # GAAIA Pro    — main/default, full tool support, deep reasoning
+  name: gemma3:27b               # GAAIA Pro    — main/default, full tool support, deep reasoning
   fast_model: llama3.2:3b        # GAAIA Spark  — ultra-fast, voice queries & quick one-liners
   swift_model: gemma3:4b         # GAAIA Air    — light conversational chat, no tools
   core_model: mistral:7b         # GAAIA Core   — balanced everyday queries, tool-capable
-  heavy_model: qwen2.5:72b       # GAAIA Pro    — same as main; alias used by auto-router for heavy tasks
+  heavy_model: gemma3:27b        # GAAIA Pro    — same as main; alias used by auto-router for heavy tasks
   code_model: qwen2.5-coder:32b  # GAAIA Code   — coding specialist, large output budget
   vision_model: llama3.2-vision:11b   # GAAIA Vision — image & scene understanding, visual chat
   mind_model: gemma3:27b         # GAAIA Mind   — deep nuanced chat (no tool calls, smart)
@@ -59,7 +59,7 @@ model:
   code_num_predict: 8192      # full programs can be 200-500 lines; never truncate mid-code
   code_temperature: 0.25      # lower = more deterministic, fewer hallucinated syntax errors
 
-  # qwen2.5:72b — deep reasoning/research and full-length essays
+  # gemma3:27b — deep reasoning/research and full-length essays
   heavy_num_ctx: 8192
   heavy_num_predict: 4096
   heavy_temperature: 0.4

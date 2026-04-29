@@ -560,6 +560,7 @@ export interface Message {
   imageUrl?: string
   imageUrls?: string[]   // populated for multi-image requests
   imageGenerating?: boolean
+  imageProgress?: { step: number; total: number }
   // Chart data (recharts-compatible spec)
   chartSpec?: ChartSpec
   chartGenerating?: boolean
@@ -1159,12 +1160,19 @@ function WordTokens({
   wordCountRef: React.MutableRefObject<number>
 }) {
   const tokens = content.split(/(\s+)/)
-  // Word index is still tracked (for potential future use) but no visual highlight applied
-  void activeWordIdx
   const spans = tokens.map((token, i) => {
     if (/^\s+$/.test(token)) return renderWs(token, i)
+    const localIdx = wordCountRef.current
     wordCountRef.current++
-    return <span key={i}>{token}</span>
+    const isActive = activeWordIdx >= 0 && (wordOffset + localIdx) === activeWordIdx
+    return (
+      <span
+        key={i}
+        className={isActive ? "bg-cyan-500/25 text-cyan-100 rounded-sm px-0.5 transition-colors duration-75" : undefined}
+      >
+        {token}
+      </span>
+    )
   })
   if (tag === "strong") return <strong>{spans}</strong>
   if (tag === "em")     return <em>{spans}</em>
@@ -1659,6 +1667,8 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
   const currentAudioElRef    = useRef<HTMLAudioElement | null>(null)
   const currentChunkIdxRef   = useRef(0)
   const sentenceWordRangesRef = useRef<Array<{start: number; end: number}>>([])
+  // Timeline entries for Web Audio path: maps scheduled time ranges to chunk indices
+  const chunkTimelinesRef = useRef<Array<{startTime: number; endTime: number; chunkIdx: number}>>([])
   // Pre-split clean words for tracking; populated when speaking starts
   const allWordsRef = useRef<string[]>([])
   // Word offset for each part: partWordOffsets[i] = index of first word in parts[i]
@@ -1739,16 +1749,51 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     allWordsRef.current = []
     partWordOffsetsRef.current = []
     sentenceWordRangesRef.current = []
+    chunkTimelinesRef.current = []
     currentChunkIdxRef.current  = 0
     currentAudioElRef.current   = null
     if (_globalStopSpeaking === stopSpeaking) _globalStopSpeaking = null
   }
 
-  // Word tracker — word highlighting is disabled; this is a no-op placeholder kept
-  // so the rest of the audio playback pipeline (chunk sequencing, stopSpeaking) is unchanged.
+  // RAF-based word tracker for <audio> fallback path — runs while each chunk plays,
+  // linearly interpolating the active word from currentTime / duration.
   const startWordTracker = (audioEl: HTMLAudioElement) => {
     currentAudioElRef.current = audioEl
-    // RAF loop removed — word-by-word highlighting is turned off.
+    if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    const tick = () => {
+      if (stopRequestedRef.current) return
+      const chunkIdx = currentChunkIdxRef.current
+      const range = sentenceWordRangesRef.current[chunkIdx]
+      if (range && audioEl.duration > 0) {
+        const progress = Math.min(audioEl.currentTime / audioEl.duration, 1)
+        const wordIdx = range.start + Math.floor(progress * (range.end - range.start))
+        setActiveWordIdx(Math.min(wordIdx, range.end - 1))
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  // RAF loop for Web Audio path — reads ctx.currentTime against the scheduled timeline
+  // to pick the active chunk, then linearly interpolates the word index within it.
+  const startHighlightRAF = (ctx: AudioContext) => {
+    if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    const tick = () => {
+      if (stopRequestedRef.current) return
+      const now = ctx.currentTime
+      const timeline = chunkTimelinesRef.current
+      const active = timeline.find(e => now >= e.startTime && now < e.endTime)
+      if (active) {
+        const range = sentenceWordRangesRef.current[active.chunkIdx]
+        if (range && active.endTime > active.startTime) {
+          const progress = (now - active.startTime) / (active.endTime - active.startTime)
+          const wordIdx = range.start + Math.floor(progress * (range.end - range.start))
+          setActiveWordIdx(Math.min(wordIdx, range.end - 1))
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
   }
 
   const finishReading = () => {
@@ -1760,6 +1805,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
       allWordsRef.current = []
       partWordOffsetsRef.current = []
       sentenceWordRangesRef.current = []
+      chunkTimelinesRef.current = []
       currentChunkIdxRef.current  = 0
     }, 500)
   }
@@ -1899,6 +1945,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
             if (next.done) break
             preBuffered.push(next.value)
           }
+          let highlightStarted = false
           for (const buf of preBuffered) {
             if (stopRequestedRef.current) break
             const t = Math.max(nextTime, ctx.currentTime)
@@ -1908,8 +1955,11 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
               src.connect(ctx.destination)
               src.start(t)
               currentAudioElRef.current = null
+              const chunkIdx = currentChunkIdxRef.current
+              chunkTimelinesRef.current.push({ startTime: t, endTime: t + buf.duration, chunkIdx })
               currentChunkIdxRef.current += 1
               nextTime = t + buf.duration
+              if (!highlightStarted) { highlightStarted = true; startHighlightRAF(ctx) }
             } catch { /* */ }
           }
 
@@ -1928,8 +1978,11 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
               source.connect(ctx.destination)
               source.start(t)
               currentAudioElRef.current = null
+              const chunkIdx = currentChunkIdxRef.current
+              chunkTimelinesRef.current.push({ startTime: t, endTime: t + buffer.duration, chunkIdx })
               currentChunkIdxRef.current += 1
               nextTime = t + buffer.duration
+              if (!highlightStarted) { highlightStarted = true; startHighlightRAF(ctx) }
             } catch {
               /* */
             }
@@ -2282,7 +2335,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
 
                   // Still loading (no real URLs yet)
                   if (message.imageGenerating && urls.length === 0) {
-                    return <ImageGenerating />
+                    return <ImageGenerating progress={message.imageProgress} />
                   }
 
                   // Multi-image grid (some may still be loading)
@@ -2296,7 +2349,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
                         </div>
                         {/* Show loading card for the remaining in-flight images */}
                         {message.imageGenerating && (
-                          <ImageGenerating />
+                          <ImageGenerating progress={message.imageProgress} />
                         )}
                       </div>
                     )

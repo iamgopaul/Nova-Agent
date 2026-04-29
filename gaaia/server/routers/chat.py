@@ -1170,43 +1170,46 @@ _IMAGE_BARE_VERB_RE = re.compile(
 )
 
 
+_LONGFORM_DOC_RE = re.compile(
+    r"(?i)\b("
+    r"write\s+an?\s+essay|write\s+.*\s+essay|essay\s+on|"
+    r"research\s+paper|research\s+article|academic\s+paper|"
+    r"write\s+a\s+paper|write\s+me\s+a\s+paper|write\s+the\s+paper|"
+    r"word\s+document|word\s+doc\b|\bdocx\b|"
+    r"create\s+.*\bword\b|create\s+.*\s+document|"
+    r"make\s+.*\s+document|"
+    r"term\s+paper|report|thesis|"
+    r"powerpoint|pptx|presentation"
+    r")\b",
+)
+
+_ESSAY_IMAGE_INTENT_RE = re.compile(
+    r"(?i)(include|with|add|embed).{0,80}?\b(images?|photos?|pictures?|illustrations?)\b|"
+    r"\b(images?|photos?|pictures?)\s+from\s+(?:online|the\s+web|google|the\s+internet|search)\b|"
+    r"same\s+images?\b|"
+    r"images?\s+in\s+the\s+(?:word|doc|document|file)\b|"
+    r"illustrat.{0,40}?\b(essay|document|word|docx|paper|file)\b|"
+    r"from\s+online\s+or\s+generated",
+)
+
+
 def _is_document_essay_with_embedded_images_request(text: str) -> bool:
     """
-    True when the user is mainly asking for an essay / Word (or similar) where
-    images are meant to *illustrate the document* (and match inside the file),
-    not a separate chat-side Stable Diffusion image.
+    True when the user asks for any long-form document (essay, research paper,
+    report, thesis, etc.).  Images are optional — the essay pipeline handles
+    both cases: with images it runs the GAIA Core placement step; without images
+    it still renders the structured ## heading sections in the UI.
 
-    Prevents _IMAGE_GEN_RE from matching: "create a word document" + "include
-    images" (the verb "create" applies to the document, not to a stand-alone image).
+    Also acts as the guard that prevents _IMAGE_GEN_RE from matching phrases
+    like "create a word document with images" as a standalone image request.
     """
     t = (text or "").lower()
-    has_longform_doc = bool(
-        re.search(
-            r"(?i)\b("
-            r"write\s+an?\s+essay|write\s+.*\s+essay|essay\s+on|"
-            r"word\s+document|word\s+doc\b|\bdocx\b|"
-            r"create\s+.*\bword\b|create\s+.*\s+document|"
-            r"make\s+.*\s+document|"
-            r"term\s+paper|report|thesis|"
-            r"powerpoint|pptx|presentation"
-            r")\b",
-            t,
-        )
-    )
-    has_embedded_illustration_intent = bool(
-        re.search(
-            r"(?i)(include|with|add|embed).{0,80}?\b(images?|photos?|pictures?|illustrations?)\b|"
-            r"\b(images?|photos?|pictures?)\s+from\s+(?:online|the\s+web|google|the\s+internet|search)\b|"
-            r"same\s+images?\b|"
-            r"images?\s+in\s+the\s+(?:word|doc|document|file)\b|"
-            r"illustrat.{0,40}?\b(essay|document|word|docx|paper|file)\b|"
-            r"from\s+online\s+or\s+generated",
-            t,
-        )
-    )
-    if has_longform_doc and has_embedded_illustration_intent:
-        return True
-    return False
+    return bool(_LONGFORM_DOC_RE.search(t))
+
+
+def _essay_has_image_intent(text: str) -> bool:
+    """True when the essay/paper request also asks for embedded images."""
+    return bool(_ESSAY_IMAGE_INTENT_RE.search((text or "").lower()))
 
 
 def _wants_web_for_doc_images(text: str) -> bool:
@@ -1250,17 +1253,36 @@ def _parse_essay_for_sections(text: str) -> list[dict]:
     parts = heading_re.split(text)
     sections: list[dict] = []
 
+    # Headings that are image description markers or section-plan stubs, not real content
+    _SKIP_HEADING_RE = re.compile(
+        r"^(description|image\s*\d*|figure\s*\d*|photo|illustration|caption)\s*[:.]",
+        re.IGNORECASE,
+    )
+    # Strip fake markdown image placeholders the LLM sometimes inserts, e.g.:
+    # ![Alt text](https://example.com/img.jpg)
+    _FAKE_IMG_RE = re.compile(r"!\[.*?\]\(.*?\)", re.DOTALL)
+
+    def _clean_section_text(raw: str) -> str:
+        return _FAKE_IMG_RE.sub("", raw).strip()
+
     if len(parts) >= 3:
         for i in range(1, len(parts) - 1, 2):
             heading = parts[i].strip()
-            body_text = parts[i + 1].strip() if i + 1 < len(parts) else ""
+            # Skip image-description artifact headings the LLM sometimes emits
+            if _SKIP_HEADING_RE.match(heading):
+                continue
+            body_text = _clean_section_text(parts[i + 1] if i + 1 < len(parts) else "")
             paras = [p.strip() for p in body_text.split("\n\n") if p.strip()]
+            body_joined = "\n\n".join(paras)
+            # Skip outline-only stubs (< 80 chars of actual prose)
+            if len(body_joined) < 80:
+                continue
             sections.append({
                 "heading": heading,
                 # Join all paragraphs so the full section text appears in the chat view
-                "text": "\n\n".join(paras)[:2000],
+                "text": body_joined[:12000],
             })
-            if len(sections) >= 6:
+            if len(sections) >= 12:
                 break
     else:
         # Try bold headings: **Heading**
@@ -1269,17 +1291,34 @@ def _parse_essay_for_sections(text: str) -> list[dict]:
         if len(parts2) >= 3:
             for i in range(1, len(parts2) - 1, 2):
                 heading = parts2[i].strip()
-                body_text = parts2[i + 1].strip() if i + 1 < len(parts2) else ""
+                if _SKIP_HEADING_RE.match(heading):
+                    continue
+                body_text = _clean_section_text(parts2[i + 1] if i + 1 < len(parts2) else "")
                 paras = [p.strip() for p in body_text.split("\n\n") if p.strip()]
+                body_joined = "\n\n".join(paras)
+                if len(body_joined) < 80:
+                    continue
                 sections.append({
                     "heading": heading,
-                    "text": "\n\n".join(paras)[:2000],
+                    "text": body_joined[:12000],
                 })
-                if len(sections) >= 6:
+                if len(sections) >= 12:
                     break
 
     if not sections:
-        sections = [{"heading": "Content", "text": text[:500].strip()}]
+        # No headings found — split by double-newline into paragraph groups
+        raw_paras = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 40]
+        if len(raw_paras) >= 2:
+            group_size = max(1, (len(raw_paras) + 4) // 5)
+            for i in range(0, len(raw_paras), group_size):
+                sections.append({
+                    "heading": f"Part {len(sections) + 1}",
+                    "text": "\n\n".join(raw_paras[i:i + group_size])[:12000],
+                })
+                if len(sections) >= 12:
+                    break
+        if not sections:
+            sections = [{"heading": "Content", "text": text.strip()[:12000]}]
     return sections
 
 
@@ -1736,7 +1775,13 @@ def _build_enhance_image_user_payload(
     intent plus *recent* names/subjects (so "her" / "the same" resolve to Nami,
     not a random name). Optional web image captions add style/series context.
     """
+    # Build a short identity anchor (first 2 comma-tokens = name + optional actor/series)
+    _anchor_tokens = [t.strip() for t in raw_extract.split(",")[:2] if t.strip()]
+    _anchor = ", ".join(_anchor_tokens) if _anchor_tokens else raw_extract[:80].strip()
+
     parts: list[str] = [
+        f"⚠ MANDATORY: Your prompt MUST start with these exact words: \"{_anchor}\"\n"
+        "Do NOT replace or omit the subject's name — not even with a synonym.\n\n",
         "User's latest message:\n",
         (current_message or "").strip() + "\n\n",
         "Extracted subject to draw (highest priority — keep this identity):\n",
@@ -2460,6 +2505,37 @@ async def chat(
         # user message so the LLM can quote real temperatures/conditions.
         # The widget SSE event is sent after the LLM regardless.
         effective_user_message = user_message
+        # Essay/paper mode: instruct the LLM to write the full content immediately.
+        if _is_essay_mode:
+            effective_user_message += (
+                "\n\n[Document writing — MANDATORY — READ EVERY RULE BEFORE WRITING]\n"
+                "Write the COMPLETE, LONG, DETAILED academic paper RIGHT NOW — no outlines, no summaries, no plans.\n"
+                "\nCRITICAL RULES:\n"
+                "1. START immediately with the first section — NO preamble, no 'Here is the paper', no 'I will now write'\n"
+                "2. Every section MUST begin with ## followed by the section title on its own line\n"
+                "   Required sections (minimum): ## Abstract, ## Introduction, ## Background / History, "
+                "## [2-3 thematic body sections specific to the topic], ## Methodology / Approaches, "
+                "## Results and Discussion, ## Future Directions, ## Conclusion, ## References\n"
+                "3. WORD COUNT — this is the most important rule:\n"
+                "   • Every body section (Introduction through Future Directions) MUST be 900–1200 words\n"
+                "   • That means 8–10 full paragraphs, each 5–7 sentences, per section\n"
+                "   • DO NOT end a section after 2–3 sentences — keep writing until you reach ~1000 words\n"
+                "   • If you feel like stopping early, write 3 more paragraphs before the next heading\n"
+                "4. CONTENT QUALITY — every section must contain:\n"
+                "   • Specific facts, dates, names, statistics, percentages, and measurements\n"
+                "   • Real-world examples, case studies, named experiments or discoveries\n"
+                "   • Mechanistic explanations (HOW and WHY, not just WHAT)\n"
+                "   • Comparisons, contrasts, and critical analysis\n"
+                "   • In-text citations like (Author, Year) for every major claim\n"
+                "5. REFERENCES — the final section ## References MUST list at least 15–20 citations:\n"
+                "   • Use APA format: Author, A. B. (Year). Title of article. Journal Name, Volume(Issue), pages.\n"
+                "   • Include peer-reviewed journals, textbooks, WHO/CDC/NIH sources\n"
+                "   • Every in-text citation (Author, Year) must have a matching reference entry\n"
+                "6. TOTAL LENGTH: minimum 10,000 words across all sections\n"
+                "7. DO NOT write 'This section will cover...' — write the actual content directly\n"
+                "8. DO NOT include markdown image tags like ![alt](url)\n"
+                "9. Write with academic precision: use domain-specific terminology, passive/active voice mix, formal register"
+            )
         # Nudge the model: image gen is automatic — users want the picture, not a how-to.
         if _raw_image_prompt:
             effective_user_message += (
@@ -2536,6 +2612,12 @@ async def chat(
                     "Still writing the essay…",
                     "Almost finished writing…",
                 ]
+                if (_is_essay_mode and _essay_has_image_intent(body.message))
+                else [
+                    "Writing your essay…",
+                    "Still writing…",
+                    "Almost finished…",
+                ]
                 if _is_essay_mode
                 else ["Composing response", "Still working on it…", "Composing response"]
             )
@@ -2555,7 +2637,16 @@ async def chat(
         _heartbeat_task = asyncio.create_task(_heartbeat())
 
         if _is_essay_mode:
-            emit_status("Writing your illustrated essay…")
+            _is_paper = bool(re.search(r"\b(research\s+paper|research\s+article|academic\s+paper|write\s+a\s+paper)\b", body.message, re.IGNORECASE))
+            emit_status(
+                "Writing your illustrated research paper… (this may take a few minutes)"
+                if _is_paper and _essay_has_image_intent(body.message)
+                else "Writing your research paper… (this may take a few minutes)"
+                if _is_paper
+                else "Writing your illustrated essay…"
+                if _essay_has_image_intent(body.message)
+                else "Writing your essay…"
+            )
 
         try:
             await orchestrator.run(
@@ -2565,6 +2656,9 @@ async def chat(
                 status_callback=emit_status,
                 mode=body.mode,
                 model_key=body.model_key,
+                # Essays/papers need far more tokens than the 768-token default.
+                # 24576 ≈ 10k words; orchestrator sets num_ctx = min(24576+4096, 32768) = 28672.
+                min_predict=24576 if _is_essay_mode else None,
             )
             stats_tracker.request_finished(_req_start, _total_chars)
             full_response = "".join(_response_parts).strip()
@@ -2720,6 +2814,21 @@ async def chat(
                         _image_prompt = await asyncio.wait_for(
                             asyncio.shield(_enhance_task), timeout=6.0
                         )
+                        # Identity anchor guard: if the LLM dropped the subject name,
+                        # prepend it so SD always receives the correct identity first.
+                        if _raw_image_prompt:
+                            _anc_parts = [
+                                t.strip()
+                                for t in _raw_image_prompt.split(",")[:2]
+                                if t.strip()
+                            ]
+                            _anc = ", ".join(_anc_parts)
+                            if _anc and _anc.lower() not in (_image_prompt or "").lower():
+                                _image_prompt = f"{_anc}, {_image_prompt}"
+                                print(
+                                    f"[Chat] Anchor re-injected: '{_anc[:60]}'",
+                                    flush=True,
+                                )
                         print(
                             f"[Chat] Enhanced prompt: '{_image_prompt[:80]}...'",
                             flush=True,
@@ -2759,7 +2868,7 @@ async def chat(
                         },
                     )
 
-            if _wants_story:
+            if _wants_story and not _is_essay_mode:
                 _story_sections = _build_story_sections(full_response, body.message)
                 if _requested_inline_image_count > 0 and len(_story_sections) > 0:
                     # Keep the full written story, but cap visual slots to what the
@@ -2796,7 +2905,18 @@ async def chat(
                             if task is not None:
                                 result = next(ep_iter)
                                 if isinstance(result, str) and len(result) > 10:
-                                    sec["image_prompt"] = result
+                                    # Anchor guard: reject if enhancer lost the section's subject.
+                                    # Small LLMs sometimes hallucinate a completely unrelated topic.
+                                    _orig_prompt = (sec.get("image_prompt") or "").strip()
+                                    _sec_anchor = _orig_prompt.split(",")[0].strip()[:80]
+                                    if _sec_anchor and _sec_anchor.lower() not in result.lower():
+                                        print(
+                                            f"[Chat] Section enhancer rejected (anchor lost): "
+                                            f"'{_sec_anchor[:40]}'",
+                                            flush=True,
+                                        )
+                                    else:
+                                        sec["image_prompt"] = result
                     except Exception as _se:
                         print(f"[Chat] Story prompt enhancement failed: {_se}", flush=True)
 
@@ -2888,6 +3008,7 @@ async def chat(
                 _essay_topic = _extract_essay_topic(body.message) or "South Beach Miami"
                 _essay_sections = _parse_essay_for_sections(full_response)
                 _use_web_imgs = _wants_web_for_doc_images(body.message)
+                _essay_wants_imgs = _essay_has_image_intent(body.message)
                 _nc_host = getattr(orchestrator, "_host", "http://localhost:11434")
                 _nc_model = getattr(orchestrator, "_core_model", "mistral:7b")
                 _sd_by_index: dict[int, str] = {}
@@ -2926,7 +3047,9 @@ async def chat(
                     _got = await asyncio.gather(*_coros, return_exceptions=True)
                     return [u if isinstance(u, str) else "" for u in _got]
 
-                if _essay_sections:
+                # Only run the image placement pipeline when images were requested.
+                # For plain essays, we skip directly to emitting the text sections.
+                if _essay_sections and _essay_wants_imgs:
                     emit_status("GAIA Core: choosing where to place images…")
                     _placements = await _llm_essay_image_placements(
                         full_response,
@@ -3011,7 +3134,11 @@ async def chat(
                     _story_for_essay.append(_item)
 
                 if _story_for_essay:
-                    emit_status("Assembling your illustrated essay…")
+                    emit_status(
+                        "Assembling your illustrated essay…"
+                        if _essay_wants_imgs
+                        else "Assembling your essay…"
+                    )
                     loop.call_soon_threadsafe(
                         queue.put_nowait,
                         {"type": "story_sections", "content": _ej.dumps(_story_for_essay)},

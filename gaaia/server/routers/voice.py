@@ -1095,7 +1095,7 @@ async def transcribe_and_respond(
     else:
         # Coding requests must use the code model with a large token budget regardless of voice mode.
         effective_mode = mode
-        effective_model_key = model_key
+        effective_model_key = model_key or "spark"
         if _is_code_request(transcript):
             effective_mode = "code"
             effective_model_key = "code"
@@ -1447,7 +1447,7 @@ async def transcribe_and_respond_stream(
 
             # ── Stream the LLM response, emitting sentences as they close
             effective_mode = mode
-            effective_model_key = model_key
+            effective_model_key = model_key or "spark"
             if _is_code_request(transcript):
                 effective_mode = "code"
                 effective_model_key = "code"

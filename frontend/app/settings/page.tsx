@@ -33,7 +33,7 @@ import { fingerSegmentDisplayLabel, mapNormBoxToDisplayPixels } from "@/lib/came
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Tab = "profile" | "account" | "voice-camera" | "web-watch" | "developer"
+type Tab = "profile" | "account" | "security" | "voice-camera" | "web-watch" | "developer"
 
 interface UserInfo {
   display_name: string
@@ -54,11 +54,12 @@ interface IdentitySummary {
 // ─── Sidebar tabs ─────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string; icon: React.ElementType; description: string }[] = [
-  { id: "profile",      label: "Profile",           icon: UserCircle, description: "Name, avatar & display preferences" },
-  { id: "account",      label: "Account",           icon: KeyRound,   description: "Linked accounts & security"         },
-  { id: "voice-camera", label: "Voice & Camera",    icon: Mic,        description: "Enrollment & recognition setup"     },
-  { id: "web-watch",    label: "Web Watch",         icon: Globe,      description: "Topics GAAIA actively monitors"      },
-  { id: "developer",    label: "Developer",         icon: Code2,      description: "API endpoints & configuration"      },
+  { id: "profile",      label: "Profile",           icon: UserCircle,  description: "Name, avatar & display preferences" },
+  { id: "account",      label: "Account",           icon: KeyRound,    description: "Linked accounts & security"         },
+  { id: "security",     label: "Security",          icon: ShieldCheck, description: "Two-factor authentication & sessions"},
+  { id: "voice-camera", label: "Voice & Camera",    icon: Mic,         description: "Enrollment & recognition setup"     },
+  { id: "web-watch",    label: "Web Watch",         icon: Globe,       description: "Topics GAAIA actively monitors"     },
+  { id: "developer",    label: "Developer",         icon: Code2,       description: "API endpoints & configuration"      },
 ]
 
 const AVATAR_COLORS = [
@@ -1133,6 +1134,328 @@ function WebWatchTab() {
   )
 }
 
+// ─── Security Tab ─────────────────────────────────────────────────────────────
+
+type SetupStep = "idle" | "scanning" | "backup_codes"
+
+function SecurityTab() {
+  const [status, setStatus] = useState<{ totp_enabled: boolean; backup_codes_remaining: number } | null>(null)
+  const [setupStep, setSetupStep] = useState<SetupStep>("idle")
+  const [qrDataUrl, setQrDataUrl] = useState("")
+  const [totpSecret, setTotpSecret] = useState("")
+  const [enableCode, setEnableCode] = useState("")
+  const [disableCode, setDisableCode] = useState("")
+  const [backupCodes, setBackupCodes] = useState<string[]>([])
+  const [copiedSecret, setCopiedSecret] = useState(false)
+  const [copiedCodes, setCopiedCodes] = useState(false)
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [showDisableForm, setShowDisableForm] = useState(false)
+
+  const fetchStatus = async () => {
+    try {
+      const r = await fetch("/api/auth/2fa/status")
+      if (r.ok) setStatus(await r.json() as typeof status)
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { void fetchStatus() }, [])
+
+  const startSetup = async () => {
+    setError(""); setLoading(true)
+    try {
+      const r = await fetch("/api/auth/2fa/totp/setup", { method: "POST" })
+      if (!r.ok) { const d = await r.json().catch(() => ({})) as { detail?: string }; setError(d.detail ?? "Setup failed."); return }
+      const d = await r.json() as { secret: string; qr_data_url: string }
+      setQrDataUrl(d.qr_data_url)
+      setTotpSecret(d.secret)
+      setEnableCode("")
+      setSetupStep("scanning")
+    } catch { setError("Network error.") }
+    finally { setLoading(false) }
+  }
+
+  const confirmEnable = async () => {
+    if (enableCode.length < 6) return
+    setError(""); setLoading(true)
+    try {
+      const r = await fetch("/api/auth/2fa/totp/enable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: totpSecret, code: enableCode }),
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})) as { detail?: string }; setError(d.detail ?? "Invalid code."); return }
+      const d = await r.json() as { backup_codes: string[] }
+      setBackupCodes(d.backup_codes)
+      setSetupStep("backup_codes")
+      void fetchStatus()
+    } catch { setError("Network error.") }
+    finally { setLoading(false) }
+  }
+
+  const disable2FA = async () => {
+    if (disableCode.length < 6) return
+    setError(""); setLoading(true)
+    try {
+      const r = await fetch("/api/auth/2fa/totp/disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: disableCode }),
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})) as { detail?: string }; setError(d.detail ?? "Invalid code."); return }
+      setDisableCode(""); setShowDisableForm(false)
+      void fetchStatus()
+    } catch { setError("Network error.") }
+    finally { setLoading(false) }
+  }
+
+  const copySecret = () => {
+    navigator.clipboard.writeText(totpSecret).then(() => { setCopiedSecret(true); setTimeout(() => setCopiedSecret(false), 2000) }).catch(() => {})
+  }
+
+  const copyBackupCodes = () => {
+    navigator.clipboard.writeText(backupCodes.join("\n")).then(() => { setCopiedCodes(true); setTimeout(() => setCopiedCodes(false), 2000) }).catch(() => {})
+  }
+
+  const finishSetup = () => { setSetupStep("idle"); setBackupCodes([]); setQrDataUrl(""); setTotpSecret(""); setEnableCode(""); setError("") }
+
+  return (
+    <div className="space-y-8 max-w-lg">
+      <div>
+        <h2 className="text-lg font-semibold">Security</h2>
+        <p className="text-sm text-muted-foreground mt-1">Protect your account with two-factor authentication.</p>
+      </div>
+
+      {/* ── 2FA Status card ─────────────────────────────────────────── */}
+      <section className="rounded-xl border border-border overflow-hidden">
+        <div className="px-5 py-4 bg-muted/10 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+              status?.totp_enabled ? "bg-emerald-500/15 border border-emerald-400/25" : "bg-muted/40 border border-border"
+            )}>
+              <ShieldCheck className={cn("w-5 h-5", status?.totp_enabled ? "text-emerald-400" : "text-muted-foreground")} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Authenticator app (TOTP)</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {status === null
+                  ? "Loading…"
+                  : status.totp_enabled
+                    ? `Enabled · ${status.backup_codes_remaining} backup code${status.backup_codes_remaining !== 1 ? "s" : ""} remaining`
+                    : "Not enabled — your account uses only a password."}
+              </p>
+            </div>
+          </div>
+          {status?.totp_enabled ? (
+            <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-400 shrink-0">
+              <CheckCircle className="w-3 h-3" /> Active
+            </span>
+          ) : (
+            <span className="text-[10px] px-2.5 py-1 rounded-full border border-amber-400/30 bg-amber-500/10 text-amber-400 shrink-0 font-medium">
+              Disabled
+            </span>
+          )}
+        </div>
+
+        {/* Setup flow */}
+        {setupStep === "idle" && !status?.totp_enabled && (
+          <div className="px-5 py-4 border-t border-border space-y-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Use an authenticator app like <strong className="text-foreground">Google Authenticator</strong>, <strong className="text-foreground">Authy</strong>, or <strong className="text-foreground">1Password</strong> to generate time-based codes. Each login will require both your password and a fresh 6-digit code.
+            </p>
+            {error && <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</p>}
+            <button
+              onClick={() => void startSetup()}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              Set up two-factor authentication
+            </button>
+          </div>
+        )}
+
+        {/* QR code scanning step */}
+        {setupStep === "scanning" && (
+          <div className="px-5 py-5 border-t border-border space-y-5">
+            <div>
+              <p className="text-sm font-medium mb-1">Step 1 — Scan this QR code</p>
+              <p className="text-xs text-muted-foreground">Open your authenticator app and scan the code below. If you can&apos;t scan, enter the secret manually.</p>
+            </div>
+
+            {/* QR code */}
+            <div className="flex justify-center">
+              {qrDataUrl ? (
+                <div className="p-3 rounded-xl bg-white shadow-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrDataUrl} alt="TOTP QR code" width={180} height={180} />
+                </div>
+              ) : (
+                <div className="w-44 h-44 rounded-xl bg-muted/30 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
+
+            {/* Manual secret */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Manual entry key</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-3 py-2 rounded-xl border border-border bg-muted/20 text-xs font-mono tracking-widest text-center select-all">
+                  {totpSecret.match(/.{1,4}/g)?.join(" ") ?? totpSecret}
+                </div>
+                <button onClick={copySecret} className="p-2 rounded-xl border border-border hover:bg-muted transition-colors shrink-0" title="Copy secret">
+                  {copiedSecret ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Verify code */}
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Step 2 — Enter the 6-digit code</p>
+              <p className="text-xs text-muted-foreground">Type the code shown in your app to confirm the link.</p>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                value={enableCode}
+                onChange={e => setEnableCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000 000"
+                autoFocus
+                maxLength={6}
+                className="w-full rounded-xl border border-border bg-input/85 px-4 py-3 text-xl font-mono tracking-[0.5em] text-center focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            </div>
+
+            {error && <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</p>}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setSetupStep("idle"); setError("") }}
+                className="px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void confirmEnable()}
+                disabled={loading || enableCode.length < 6}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                {loading ? "Verifying…" : "Enable 2FA"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Backup codes step */}
+        {setupStep === "backup_codes" && (
+          <div className="px-5 py-5 border-t border-border space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-500/5 px-4 py-3">
+              <KeyRound className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-300">Save your backup codes now</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  Each code can be used once if you lose access to your authenticator app. Store them in a safe place — you won&apos;t see them again.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {backupCodes.map(code => (
+                <div key={code} className="px-3 py-2 rounded-lg border border-border bg-muted/20 text-sm font-mono text-center tracking-widest">
+                  {code}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={copyBackupCodes}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted transition-colors"
+              >
+                {copiedCodes ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copiedCodes ? "Copied!" : "Copy all"}
+              </button>
+              <button
+                onClick={finishSetup}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:opacity-90 transition-all"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Done — I&apos;ve saved these codes
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Disable 2FA (when enabled) */}
+        {status?.totp_enabled && setupStep === "idle" && (
+          <div className="px-5 py-4 border-t border-border">
+            {!showDisableForm ? (
+              <button
+                onClick={() => { setShowDisableForm(true); setError("") }}
+                className="text-xs text-destructive hover:text-destructive/80 transition-colors"
+              >
+                Disable two-factor authentication…
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Enter your authenticator code (or a backup code) to disable 2FA.</p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={disableCode}
+                  onChange={e => setDisableCode(e.target.value.replace(/\s/g, "").slice(0, 10))}
+                  placeholder="000000"
+                  autoFocus
+                  className="w-full rounded-xl border border-border bg-input/85 px-4 py-2.5 text-lg font-mono tracking-[0.4em] text-center focus:outline-none focus:border-destructive/50 focus:ring-2 focus:ring-destructive/20 transition-all"
+                />
+                {error && <p className="text-xs text-destructive">{error}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowDisableForm(false); setDisableCode(""); setError("") }}
+                    className="px-3 py-2 rounded-xl border border-border text-xs hover:bg-muted transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void disable2FA()}
+                    disabled={loading || disableCode.length < 6}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-all"
+                  >
+                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {loading ? "Disabling…" : "Disable 2FA"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ── What is 2FA info ──────────────────────────────────────────── */}
+      {!status?.totp_enabled && setupStep === "idle" && (
+        <section className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-5 space-y-3">
+          <p className="text-sm font-semibold">Why enable 2FA?</p>
+          <ul className="space-y-2 text-xs text-muted-foreground">
+            {[
+              "Protects your AI conversations and personal data even if your password leaks.",
+              "Required for team and enterprise plans where your data matters to others.",
+              "Takes under 2 minutes to set up with any TOTP app.",
+            ].map((item, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  )
+}
+
 // ─── Developer Tab ────────────────────────────────────────────────────────────
 
 function DeveloperTab() {
@@ -1346,6 +1669,7 @@ function SettingsPageContent() {
         <main className="flex-1 overflow-y-auto px-8 py-7 bg-[#0a0a10]">
           {activeTab === "profile"      && <ProfileTab user={user} onUserChange={u => setUser(u)} />}
           {activeTab === "account"      && <AccountTab user={user} onUserChange={u => setUser(u)} />}
+          {activeTab === "security"     && <SecurityTab />}
           {activeTab === "voice-camera" && <VoiceCameraTab />}
           {activeTab === "web-watch"    && <WebWatchTab />}
           {activeTab === "developer"    && <DeveloperTab />}

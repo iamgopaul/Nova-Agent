@@ -285,7 +285,7 @@ function LiveChat({
           <p className="text-center text-xs text-white/20 mt-8">Messages will appear here as the battle begins…</p>
         )}
 
-        {messages.map((msg, i) => {
+        {messages.filter(msg => msg.done).map((msg, i) => {
           const pal = PALETTE[msg.color] ?? PALETTE.blue
           return (
             <div key={i} className="space-y-1 animate-in fade-in slide-in-from-bottom-1 duration-300">
@@ -410,9 +410,8 @@ function ReportCard({
               <Trophy className={cn("w-5 h-5", winPal.text)} />
               <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Battle Winner</span>
             </div>
-            <h2 className={cn("text-3xl font-black", winPal.text)}>{report.winner_identity}</h2>
+            <h2 className={cn("text-2xl font-black", winPal.text)}>{report.winner_identity}</h2>
             <p className="text-xs font-mono text-white/30 mt-0.5">{report.winner_model}</p>
-            <p className="mt-3 text-sm text-white/70 leading-relaxed max-w-lg">{report.reasoning}</p>
           </div>
           <div className="shrink-0 w-16 h-16 rounded-2xl border flex items-center justify-center"
             style={{ backgroundColor: `${winPal.hex}20`, borderColor: `${winPal.hex}50` }}>
@@ -530,7 +529,6 @@ export default function DebatePage() {
   const [phaseLabel, setPhaseLabel]         = useState("")
   const [scores, setScores]                 = useState<Record<string, Record<string, number>>>({})
   const [messages, setMessages]             = useState<ChatMessage[]>([])
-  const [verdictStream, setVerdictStream]   = useState("")
   const [report, setReport]                 = useState<Report | null>(null)
   const [lastElim, setLastElim]             = useState<{ identity: string; reason: string } | null>(null)
 
@@ -581,7 +579,6 @@ export default function DebatePage() {
       setPhaseLabel("")
       setScores({})
       setMessages([])
-      setVerdictStream("")
       setReport(null)
       setLastElim(null)
       setStatus("running")
@@ -657,19 +654,24 @@ export default function DebatePage() {
       case "turn_start": {
         const cid      = evt.contestant_id as string
         const identity = evt.identity as string
+        const round    = evt.round as number
         const c        = byIdRef.current[cid]
         setActiveId(cid)
         setThinkingId(null)
         setActiveText("")
-        // Prime a new message entry
-        setMessages(prev => [...prev, {
-          contestantId: cid,
-          identity,
-          color: c?.color ?? "blue",
-          round: evt.round as number,
-          text: "",
-          done: false,
-        }])
+        setMessages(prev => {
+          // Guard against duplicate entries if the event fires more than once
+          const alreadyHas = prev.some(m => m.contestantId === cid && m.round === round && !m.done)
+          if (alreadyHas) return prev
+          return [...prev, {
+            contestantId: cid,
+            identity,
+            color: c?.color ?? "blue",
+            round,
+            text: "",
+            done: false,
+          }]
+        })
         break
       }
 
@@ -691,17 +693,22 @@ export default function DebatePage() {
         break
       }
 
-      case "turn_end":
+      case "turn_end": {
+        const cid = evt.contestant_id as string
         setActiveId(null)
         setActiveText("")
         setMessages(prev => {
           const next = [...prev]
           for (let i = next.length - 1; i >= 0; i--) {
-            if (!next[i].done) { next[i] = { ...next[i], done: true }; break }
+            if (next[i].contestantId === cid && !next[i].done) {
+              next[i] = { ...next[i], done: true }
+              break
+            }
           }
           return next
         })
         break
+      }
 
       case "judging":
         setJudging(true)
@@ -724,7 +731,7 @@ export default function DebatePage() {
         break
 
       case "verdict_token":
-        setVerdictStream(p => p + (evt.text as string))
+        // Raw JSON from judge — discarded, not displayed
         break
 
       case "report":
@@ -762,7 +769,6 @@ export default function DebatePage() {
     setPhaseLabel("")
     setScores({})
     setMessages([])
-    setVerdictStream("")
     setReport(null)
     setLastElim(null)
     setStartError(null)
@@ -792,7 +798,7 @@ export default function DebatePage() {
                   { color: "blue",   label: "Spark" },
                   { color: "violet", label: "Air"   },
                   { color: "amber",  label: "Core"  },
-                  { color: "rose",   label: "Pro"   },
+                  { color: "rose",   label: "Insight" },
                 ].map((o, i) => {
                   const pal = PALETTE[o.color]
                   return (
@@ -932,20 +938,48 @@ export default function DebatePage() {
               currentRound={currentRound}
             />
 
-            {/* Judge deliberating text stream */}
-            {status === "verdict" && !report && verdictStream && (
+            {/* Judge deliberating spinner (verdict tokens are raw JSON — don't show them) */}
+            {status === "verdict" && !report && (
               <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.04] p-4">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2">
                   <Sparkles className="w-3 h-3 text-purple-400 animate-spin" />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400/60">
                     Judge deliberating…
                   </span>
                 </div>
-                <p className="text-xs text-white/45 leading-relaxed font-mono">{verdictStream}</p>
               </div>
             )}
 
-            {/* Final report */}
+            {/* Winner announcement */}
+            {report && (() => {
+              const byId2: Record<string, Contestant> = {}
+              contestants.forEach(c => { byId2[c.id] = c })
+              const w   = byId2[report.winner_id]
+              const pal = PALETTE[w?.color ?? "blue"] ?? PALETTE.blue
+              return (
+                <div
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-2xl border py-6 px-5 text-center",
+                    "animate-in fade-in slide-in-from-top-3 duration-500",
+                    pal.border, pal.bg, pal.glow,
+                  )}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35">
+                    🏆 The winner is…
+                  </span>
+                  <h2 className={cn("text-4xl font-black tracking-tight leading-none", pal.text)}>
+                    {report.winner_identity}
+                  </h2>
+                  {report.reasoning && (
+                    <p className="text-sm text-white/55 max-w-md leading-relaxed mt-1">
+                      {report.reasoning}
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Full report */}
             {report && <ReportCard report={report} contestants={contestants} />}
           </div>
 

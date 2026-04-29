@@ -12,7 +12,10 @@ import {
   Code2,
   GraduationCap,
   ArrowRight,
+  CheckCircle,
+  Crown,
   Sparkles,
+  Users,
   Zap,
   Shield,
 } from "lucide-react"
@@ -163,6 +166,102 @@ export default function LandingPage() {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      {/* ── Pricing ─────────────────────────────────────────────────── */}
+      <section className="relative z-10 max-w-5xl mx-auto px-6 pb-32">
+        <div className="text-center mb-12">
+          <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-3">Pricing</p>
+          <h2 className="text-3xl font-extrabold tracking-tight">Simple, transparent pricing</h2>
+          <p className="text-muted-foreground text-sm mt-3 max-w-lg mx-auto">
+            Start free. Upgrade when you need more. All plans include the full GAAIA experience on your local machine.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Free */}
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/[0.07] border border-white/[0.1] flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white/50" />
+              </div>
+              <div>
+                <p className="font-semibold">Free</p>
+                <p className="text-xs text-muted-foreground">1 user</p>
+              </div>
+            </div>
+            <div><span className="text-3xl font-bold">$0</span></div>
+            <ul className="space-y-2 flex-1">
+              {["Local Ollama models", "Chat, voice & all 7 experiences", "10 MB file uploads", "3 Web Watch topics", "Community support"].map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{f}
+                </li>
+              ))}
+            </ul>
+            <Link href="/signup" className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/[0.06] text-white/50 border border-white/[0.08] hover:bg-white/[0.10] transition-colors">
+              Get started free
+            </Link>
+          </div>
+
+          {/* Pro */}
+          <div className="relative rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-6 flex flex-col gap-5 ring-1 ring-indigo-500/20">
+            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+              <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-indigo-600 text-white border border-indigo-400/30">
+                MOST POPULAR
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/25 flex items-center justify-center">
+                <Crown className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div>
+                <p className="font-semibold">Pro</p>
+                <p className="text-xs text-muted-foreground">1 user</p>
+              </div>
+            </div>
+            <div>
+              <span className="text-3xl font-bold">$12</span>
+              <span className="text-sm text-muted-foreground ml-1">/month</span>
+            </div>
+            <ul className="space-y-2 flex-1">
+              {["Everything in Free", "Unlimited file uploads & RAG", "Unlimited Web Watch topics", "Scheduled automations", "Priority email support", "Early access to new features"].map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{f}
+                </li>
+              ))}
+            </ul>
+            <Link href="/signup" className="w-full py-2.5 rounded-xl text-center text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+              Start Pro trial
+            </Link>
+          </div>
+
+          {/* Teams */}
+          <div className="rounded-2xl border border-violet-500/30 bg-violet-500/5 p-6 flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-400/25 flex items-center justify-center">
+                <Users className="w-5 h-5 text-violet-400" />
+              </div>
+              <div>
+                <p className="font-semibold">Teams</p>
+                <p className="text-xs text-muted-foreground">Up to 10 seats</p>
+              </div>
+            </div>
+            <div>
+              <span className="text-3xl font-bold">$35</span>
+              <span className="text-sm text-muted-foreground ml-1">/month</span>
+            </div>
+            <ul className="space-y-2 flex-1">
+              {["Everything in Pro", "Up to 10 team members", "Shared knowledge base", "Admin dashboard & audit logs", "Organisation management", "SSO (coming soon)"].map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />{f}
+                </li>
+              ))}
+            </ul>
+            <Link href="/signup" className="w-full py-2.5 rounded-xl text-center text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors">
+              Start Teams trial
+            </Link>
+          </div>
         </div>
       </section>
 

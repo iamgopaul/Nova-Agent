@@ -6,6 +6,7 @@ from gaaia.memory.store import MemoryStore
 from gaaia.server.auth_utils import (
     COOKIE_NAME,
     TOKEN_EXPIRE_DAYS,
+    create_challenge_token,
     create_token,
     hash_password,
     verify_password,
@@ -139,10 +140,21 @@ def login(
             detail += f" ({remaining} attempt{'s' if remaining != 1 else ''} before temporary lockout)"
         raise HTTPException(status_code=401, detail=detail)
 
-    # Successful login — clear failure counter and issue fresh token
+    # Successful password check — clear failure counter
     login_throttler.record_success(email_key)
     login_rate.reset(ip)
+
+    # If 2FA is enabled, return a challenge token instead of the auth cookie
+    if user.totp_enabled:
+        method = "totp"
+        challenge = create_challenge_token(user.id, method)
+        memory.log_action("login_2fa_challenge", user_id=user.id,
+                          ip_address=ip, resource="auth")
+        response.status_code = 202
+        return {"requires_2fa": True, "challenge_token": challenge, "method": method}
+
     _set_auth_cookie(response, user)
+    memory.log_action("login", user_id=user.id, ip_address=ip, resource="auth")
     return _user_response(user)
 
 

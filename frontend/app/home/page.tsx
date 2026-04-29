@@ -196,11 +196,13 @@ export default function HomePage() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then(async r => {
-        if (!r.ok) {
+        // Only redirect to login on explicit 401 (token invalid/expired)
+        if (r.status === 401) {
           await fetch("/api/auth/logout", { method: "POST" }).catch(() => {})
           router.replace("/login")
           return null
         }
+        if (!r.ok) return null  // server error — stay on page, don't log out
         return r.json()
       })
       .then(data => {
@@ -208,10 +210,7 @@ export default function HomePage() {
           setUser({ display_name: data.display_name, avatar_color: data.avatar_color || "#0ea5e9" })
         }
       })
-      .catch(async () => {
-        await fetch("/api/auth/logout", { method: "POST" }).catch(() => {})
-        router.replace("/login")
-      })
+      .catch(() => {})  // network error — stay on page silently
   }, [router])
 
   useEffect(() => {

@@ -17,7 +17,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
+import uuid as _uuid_mod
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +31,46 @@ from gaaia.agent.orchestrator import Orchestrator
 from gaaia.server.dependencies import get_orchestrator
 
 router = APIRouter()
+
+
+def _doc_assets_dir() -> Path:
+    base = Path(os.path.expanduser("~/GAAIA/assets/docs"))
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _save_doc_asset(file_bytes: bytes, fmt: str) -> str:
+    filename = f"{_uuid_mod.uuid4()}.{fmt}"
+    (_doc_assets_dir() / filename).write_bytes(file_bytes)
+    return f"/document/assets/{filename}"
+
+
+@router.get("/assets/{filename}")
+async def serve_doc_asset(filename: str) -> Response:
+    """Serve a previously generated document from the local asset store."""
+    if "/" in filename or "\\" in filename or filename.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    filepath = _doc_assets_dir() / filename
+    if not filepath.exists() or not filepath.is_file():
+        raise HTTPException(status_code=404, detail="Document not found.")
+    suffix = filepath.suffix.lower().lstrip(".")
+    mime_map = {
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "pdf":  "application/pdf",
+        "txt":  "text/plain",
+        "csv":  "text/csv",
+    }
+    mime = mime_map.get(suffix, "application/octet-stream")
+    return Response(
+        content=filepath.read_bytes(),
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
 
 _SUPPORTED_FORMATS = {"docx", "xlsx", "pdf", "pptx", "txt", "csv"}
 
@@ -997,11 +1040,14 @@ async def generate_document_endpoint(
             status_code=500, detail=f"Document formatting failed: {exc}"
         ) from exc
 
+    asset_url = _save_doc_asset(file_bytes, fmt)
+
     return Response(
         content=file_bytes,
         media_type=mime,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "X-GAAIA-Filename": filename,
+            "X-GAAIA-Asset-URL": asset_url,
         },
     )

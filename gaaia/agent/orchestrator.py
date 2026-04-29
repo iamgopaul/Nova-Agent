@@ -1086,6 +1086,7 @@ Your job:
         mode: str = "default",  # "default" | "fast" | "code"
         model_key: str | None = None,
         display_message: str | None = None,
+        min_predict: int | None = None,  # force a minimum num_predict (e.g. for longform essays)
     ) -> str:
         # display_message: clean human-readable text stored in memory & facts.
         # user_message: full context (may include system tags) sent only to the LLM.
@@ -1422,6 +1423,7 @@ Your job:
                     selected_model,
                     _search_task is not None,   # skip_live_route
                     _llm_cache_ok,
+                    min_predict,
                 )
         except Exception as exc:
             response_text = self._handle_ollama_error(exc)
@@ -1455,6 +1457,7 @@ Your job:
         model: str,
         skip_live_route: bool = False,
         llm_cache_ok: bool = False,
+        min_predict: int | None = None,
     ) -> str:
         # Downgrade model if RAM is under pressure before building options
         import gaaia.services.resource_advisor as _ra
@@ -1463,6 +1466,16 @@ Your job:
 
         client = ollama.Client(host=self._host)
         options = self._build_options(model)
+        # Apply caller-specified minimum (e.g. longform essay needs >>768 tokens).
+        # For longform content, the RAM-pressure ceiling MUST be bypassed — the user
+        # explicitly asked for a long document and slowness is expected.
+        # pressure_ctx (max 4096 on "ok" RAM) is far too small for 8000-word output;
+        # the model would stop after ~500 tokens with num_ctx=4096 and a rich system prompt.
+        # Cap at 32768 (safe for all 7B+ Ollama models with reasonable free RAM).
+        if min_predict is not None and int(min_predict) > int(options.get("num_predict", 0)):
+            options["num_predict"] = int(min_predict)
+            _min_ctx_needed = int(min_predict) + 4096   # buffer for system prompt + input
+            options["num_ctx"] = min(_min_ctx_needed, 32768)
         latest_user_message = self._latest_user_message(messages)
 
         direct_memory_result = self._execute_memory_request_route(latest_user_message, status_callback)

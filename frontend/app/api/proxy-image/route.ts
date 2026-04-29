@@ -14,29 +14,44 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Use realistic browser headers — Wikipedia, Wikimedia, and most CDNs
+    // check User-Agent + Referer and block bare API-looking requests.
     const upstream = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; GAAIAAgent/1.0)",
-        "Accept": "image/*,*/*;q=0.8",
-        // No Referer — bypasses most hotlink protection
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.google.com/",
+        "Sec-Fetch-Dest": "image",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "cross-site",
       },
       redirect: "follow",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(12000),
     })
 
     const contentType = upstream.headers.get("content-type") ?? ""
     const mime = contentType.split(";")[0].trim()
 
-    if (!upstream.ok || !ALLOWED_MIME.has(mime)) {
+    // Some hosts return text/html on redirect failures — treat as unavailable
+    if (!upstream.ok || (!ALLOWED_MIME.has(mime) && mime !== "application/octet-stream")) {
       return new NextResponse("Image unavailable", { status: 502 })
     }
+
+    // Normalise octet-stream to the likely type based on URL extension
+    const resolvedMime = mime === "application/octet-stream"
+      ? (url.match(/\.(png)$/i) ? "image/png"
+        : url.match(/\.(gif)$/i) ? "image/gif"
+        : url.match(/\.(webp)$/i) ? "image/webp"
+        : "image/jpeg")
+      : mime
 
     const body = await upstream.arrayBuffer()
 
     return new NextResponse(body, {
       status: 200,
       headers: {
-        "Content-Type": mime,
+        "Content-Type": resolvedMime,
         "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
         "Access-Control-Allow-Origin": "*",
       },
