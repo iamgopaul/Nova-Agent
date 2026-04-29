@@ -228,6 +228,61 @@ def _ram_for_model(model: str) -> float:
     return 8.0  # unknown — assume 8 GB
 
 
+# ── Shared VRAM-safe model picker ─────────────────────────────────────────────
+# Cached set of installed Ollama models. Refreshed every _INSTALLED_TTL seconds
+# so the picker doesn't re-query Ollama on every request, but newly pulled
+# models become visible within a minute.
+
+_installed_cache: set[str] | None = None
+_installed_cache_t: float = 0.0
+_INSTALLED_TTL = 60.0
+
+
+def _installed_now(host: str) -> set[str]:
+    global _installed_cache, _installed_cache_t
+    import time
+    now = time.time()
+    if _installed_cache is None or (now - _installed_cache_t) > _INSTALLED_TTL:
+        _installed_cache = get_installed_models(host)
+        _installed_cache_t = now
+    return _installed_cache
+
+
+def vram_safe_model(
+    requested: str,
+    fallback_chain: list[str],
+    *,
+    headroom_factor: float = 1.0,
+    host: str = "http://localhost:11434",
+) -> str:
+    """Return *requested* if it fits in VRAM; else walk *fallback_chain* and
+    return the first installed model that does fit.
+
+    Apple Silicon (unified memory) and CPU-only setups skip the downsize.
+    *headroom_factor* multiplies model size before the fit check — pass ~1.3
+    for long-context flows (essays, big system prompts) where the KV cache
+    is several GB on its own.
+    """
+    from gaaia.services.hardware import is_apple_silicon, total_vram_gb
+
+    if is_apple_silicon():
+        return requested
+    vram_gb = total_vram_gb()
+    if vram_gb <= 0:
+        return requested
+    if _ram_for_model(requested) * headroom_factor <= vram_gb:
+        return requested
+
+    installed = _installed_now(host)
+    for candidate in fallback_chain:
+        # Require exact tag match; the base alias added by get_installed_models
+        # is too permissive — having qwen2.5-coder:32b installed should not
+        # report qwen2.5-coder:7b as installed.
+        if candidate in installed and _ram_for_model(candidate) * headroom_factor <= vram_gb:
+            return candidate
+    return requested
+
+
 def get_installed_models(host: str = "http://localhost:11434") -> set[str]:
     """Query Ollama for locally installed models. Returns a set of 'name:tag' strings."""
     try:

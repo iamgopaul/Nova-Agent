@@ -164,6 +164,13 @@ async def generate_quiz(
     settings = request.app.state.settings
     host = str(settings.model.get("host") or "http://localhost:11434")
     model = str(settings.model.get("core_model") or settings.model.get("name") or "qwen2.5:7b")
+    # Downsize if the configured model overflows VRAM on this host.
+    from gaaia.services.model_router import vram_safe_model
+    model = vram_safe_model(
+        model,
+        ["mistral:7b", "qwen2.5:7b", "llama3.1:8b", "gemma3:4b", "llama3.2:3b"],
+        host=host,
+    )
 
     n = body.num_questions
     # For higher degree levels, skew toward short-answer (harder to guess)
@@ -344,6 +351,12 @@ async def grade_submission(
     settings = request.app.state.settings
     host = str(settings.model.get("host") or "http://localhost:11434")
     model = str(settings.model.get("core_model") or settings.model.get("name") or "mistral:7b")
+    from gaaia.services.model_router import vram_safe_model
+    model = vram_safe_model(
+        model,
+        ["mistral:7b", "qwen2.5:7b", "llama3.1:8b", "gemma3:4b", "llama3.2:3b"],
+        host=host,
+    )
 
     grading = body.quiz.get("grading") if isinstance(body.quiz, dict) else None
     if not isinstance(grading, dict):

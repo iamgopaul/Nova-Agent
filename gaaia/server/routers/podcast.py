@@ -59,13 +59,21 @@ SCRIPT: list[tuple[str, str, str]] = [
 # ── Model selection ────────────────────────────────────────────────────────────
 
 def _pick_hosts(settings) -> tuple[dict, dict]:
+    from gaaia.services.model_router import vram_safe_model
     m = settings.model
+    host = str(m.get("host") or "http://localhost:11434")
     host_a_model = (
         m.get("fast_model") or m.get("swift_model") or m.get("core_model") or "llama3.2:3b"
     )
     host_b_model = (
         m.get("core_model") or m.get("mind_model") or m.get("name") or "mistral:7b"
     )
+    # Podcast hosts hold long multi-turn conversations — keep both small enough
+    # to fit in VRAM so cohost replies don't take a minute each.
+    _chain_a = ["llama3.2:3b", "gemma3:4b", "phi:2.7b", "mistral:7b"]
+    _chain_b = ["mistral:7b", "qwen2.5:7b", "llama3.1:8b", "gemma3:4b", "llama3.2:3b"]
+    host_a_model = vram_safe_model(host_a_model, _chain_a, host=host)
+    host_b_model = vram_safe_model(host_b_model, _chain_b, host=host)
     host_a = {"model": host_a_model, "identity": "GAAIA Cast",  "color": "violet"}
     host_b = {"model": host_b_model, "identity": "GAAIA Deep",  "color": "purple"}
     return host_a, host_b

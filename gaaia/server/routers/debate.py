@@ -52,7 +52,9 @@ ROUND_LABELS = {1: "Opening Statements", 2: "Rebuttals", 3: "Final Showdown"}
 
 def _pick_contestants(settings) -> tuple[list[dict], dict]:
     """Return 4 contestants across light→heavy tiers + a judge model."""
+    from gaaia.services.model_router import vram_safe_model
     m = settings.model
+    host = str(m.get("host") or "http://localhost:11434")
 
     # Models that should never appear in a debate (domain-specific, not general reasoners)
     _DEBATE_EXCLUDE = {"coder", "math", "stral"}
@@ -67,18 +69,27 @@ def _pick_contestants(settings) -> tuple[list[dict], dict]:
         ("gamma", ["core_model",  "swift_model", "fast_model"],                      "GAIA Core",    "amber"),
         ("delta", ["insight_model", "sage_model", "core_model", "swift_model"],      "GAIA Insight", "rose"),
     ]
+    # 4 debaters speak in turn — they all need to fit reasonably on the host's
+    # GPU. Wrap every contestant pick with vram_safe_model so a roomy config
+    # like sage_model=nous-hermes:13b on an 8 GB card auto-downsizes.
+    _vram_chain = [
+        "mistral:7b", "qwen2.5:7b", "llama3.1:8b",
+        "gemma3:4b", "llama3.2:3b", "phi:2.7b",
+    ]
     contestants: list[dict] = []
     for cid, fallbacks, identity, color in slots:
         model = next(
             (m.get(k) for k in fallbacks if m.get(k) and _is_debate_model(m.get(k))),
             None,
         ) or "mistral:7b"
+        model = vram_safe_model(model, _vram_chain, host=host)
         contestants.append({"id": cid, "model": model, "identity": identity, "color": color})
 
     judge_model = (
         m.get("core_model") or m.get("insight_model") or m.get("swift_model")
         or m.get("fast_model") or "mistral:7b"
     )
+    judge_model = vram_safe_model(judge_model, _vram_chain, host=host)
     judge = {"model": judge_model, "identity": "GAIA Judge"}
     return contestants, judge
 
