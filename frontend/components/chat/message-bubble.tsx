@@ -1717,6 +1717,11 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const ttsAudioContextRef = useRef<AudioContext | null>(null)
   const rafRef = useRef<number | null>(null)
+  // Word-highlight ticker for the AudioContext path. setInterval beats rAF on
+  // iOS Safari, where rAF can stall during audio playback (the browser
+  // throttles paint while the page is "off-screen" or the screen dims),
+  // leaving the highlight stuck on the same word the entire time.
+  const highlightIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Sentence-chunk word tracking — chunk N = sentence N = known word range
   const currentAudioElRef    = useRef<HTMLAudioElement | null>(null)
   const currentChunkIdxRef   = useRef(0)
@@ -1796,6 +1801,10 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
   const stopSpeaking = () => {
     stopRequestedRef.current = true
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (highlightIntervalRef.current !== null) {
+      clearInterval(highlightIntervalRef.current)
+      highlightIntervalRef.current = null
+    }
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; audioRef.current = null }
     if (ttsAudioContextRef.current) {
       try { void ttsAudioContextRef.current.close() } catch { /* */ }
@@ -1831,10 +1840,16 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     rafRef.current = requestAnimationFrame(tick)
   }
 
-  // RAF loop for Web Audio path — reads ctx.currentTime against the scheduled timeline
-  // to pick the active chunk, then linearly interpolates the word index within it.
+  // Word-highlight ticker for Web Audio path. Reads ctx.currentTime against
+  // the scheduled timeline to pick the active chunk, then linearly
+  // interpolates the word index within it. Uses setInterval (50 ms) instead
+  // of rAF — on iOS Safari rAF gets throttled during audio playback,
+  // freezing the highlight; setInterval keeps ticking.
   const startHighlightRAF = (ctx: AudioContext) => {
-    if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (highlightIntervalRef.current !== null) {
+      clearInterval(highlightIntervalRef.current)
+      highlightIntervalRef.current = null
+    }
     const tick = () => {
       if (stopRequestedRef.current) return
       const now = ctx.currentTime
@@ -1848,13 +1863,18 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
           setActiveWordIdx(Math.min(wordIdx, range.end - 1))
         }
       }
-      rafRef.current = requestAnimationFrame(tick)
     }
-    rafRef.current = requestAnimationFrame(tick)
+    // Tick every 50 ms — visually smooth, doesn't tax the CPU, survives iOS
+    // rAF throttling. Web Audio scheduling continues regardless.
+    highlightIntervalRef.current = setInterval(tick, 50)
   }
 
   const finishReading = () => {
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (highlightIntervalRef.current !== null) {
+      clearInterval(highlightIntervalRef.current)
+      highlightIntervalRef.current = null
+    }
     setActiveWordIdx(allWordsRef.current.length - 1)
     setTimeout(() => {
       setIsSpeaking(false)
@@ -1974,11 +1994,11 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     setActiveWordIdx(0)
     stopRequestedRef.current = false
 
-    // CRITICAL for iOS Safari: create + resume the AudioContext synchronously
-    // here, INSIDE the user-gesture click handler, BEFORE any await. If we
-    // wait until after `fetch()` resolves, iOS treats the context as
-    // gesture-less and pins it to "suspended" forever (silent playback). The
-    // playQueue below reuses this preWarmedCtx so we don't construct another.
+    // CRITICAL for iOS Safari: the AudioContext must be created AND played
+    // through synchronously inside this user-gesture handler, BEFORE any
+    // await. iOS only unlocks scheduled playback once it sees an actual
+    // start(0) inside the gesture — `resume()` alone is not enough on iPhone.
+    // The "silent buffer" trick below is the canonical workaround.
     let preWarmedCtx: AudioContext | null = null
     const AC = typeof window !== "undefined"
       ? window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -1991,11 +2011,19 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
         }
         preWarmedCtx = new AC()
         ttsAudioContextRef.current = preWarmedCtx
-        // resume() returns a Promise but we don't await it — we just kick it
-        // off inside the gesture so iOS unlocks the context.
         if (preWarmedCtx.state === "suspended") {
           void preWarmedCtx.resume()
         }
+        // iOS unlock: schedule a 1-sample silent buffer immediately. Without
+        // this, iPhone Safari keeps later-scheduled BufferSources silent even
+        // when the context reports state === "running".
+        try {
+          const silent = preWarmedCtx.createBuffer(1, 1, 22050)
+          const src = preWarmedCtx.createBufferSource()
+          src.buffer = silent
+          src.connect(preWarmedCtx.destination)
+          src.start(0)
+        } catch { /* older browsers without createBuffer-1-sample support */ }
       } catch {
         preWarmedCtx = null
       }
