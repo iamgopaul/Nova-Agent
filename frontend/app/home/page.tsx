@@ -265,7 +265,7 @@ export default function HomePage() {
       </div>
 
       {/* ── Top bar ─────────────────────────────────────────────────── */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
+      <header className="relative z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 max-w-7xl mx-auto">
         <div className="flex items-center gap-2.5">
           <GaaiaIcon size={28} />
           <span className="font-bold text-base tracking-tight">GAAIA</span>
@@ -341,11 +341,11 @@ export default function HomePage() {
       </header>
 
       {/* ── Hero ────────────────────────────────────────────────────── */}
-      <section className="relative z-10 text-center px-6 pt-8 pb-12 max-w-3xl mx-auto">
+      <section className="relative z-10 text-center px-4 sm:px-6 pt-6 sm:pt-8 pb-8 sm:pb-12 max-w-3xl mx-auto">
         <p className="text-sm text-muted-foreground mb-2">
           {greeting()}{user ? `, ${user.display_name}` : ""}
         </p>
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4 leading-tight">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-tight">
           What would you like to{" "}
           <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
             create today?
@@ -357,7 +357,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Feature grid ────────────────────────────────────────────── */}
-      <main className="relative z-10 max-w-6xl mx-auto px-6 pb-24 space-y-10">
+      <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pb-24 space-y-8 sm:space-y-10">
 
         {/* Live apps section */}
         <div>

@@ -64,11 +64,19 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
   }
 
   return (
-    <div className="w-full px-4 pb-4 pt-2 border-t border-blue-500/15" style={{ background: "linear-gradient(to bottom, var(--surface-1), oklch(0.11 0.01 240 / 0.95))" }}>
+    <div
+      className="w-full px-3 sm:px-4 pt-2 border-t border-blue-500/15"
+      style={{
+        background: "linear-gradient(to bottom, var(--surface-1), oklch(0.11 0.01 240 / 0.95))",
+        // pb adds the safe-area-inset on phones with a home indicator (iPhone
+        // X+). max() picks whichever is larger so desktops keep the 16px gap.
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+      }}
+    >
       <div className="max-w-3xl mx-auto">
         <div
           className={cn(
-            "relative flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3 transition-all duration-200",
+            "relative flex items-end gap-1.5 sm:gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-2.5 sm:p-3 transition-all duration-200",
             "focus-within:border-blue-500/40 focus-within:ring-2 focus-within:ring-blue-500/15",
           )}
         >
@@ -84,13 +92,14 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
             type="button"
             onClick={handlePickFiles}
             disabled={disabled || isStreaming}
-            className="shrink-0 mb-0.5 p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="shrink-0 mb-0.5 p-2 sm:p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="Attach files or images"
           >
-            <Paperclip className="w-4 h-4" />
+            <Paperclip className="w-5 h-5 sm:w-4 sm:h-4" />
           </button>
 
-          {/* Textarea */}
+          {/* Textarea — 16px on mobile prevents Safari's auto-zoom-on-focus
+              quirk; the design's 14px font is restored from sm: up. */}
           <textarea
             ref={textareaRef}
             value={value}
@@ -100,7 +109,7 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
             rows={1}
             disabled={disabled}
             className={cn(
-              "flex-1 resize-none bg-transparent text-sm text-white/80 placeholder:text-white/20",
+              "flex-1 resize-none bg-transparent text-base sm:text-sm text-white/80 placeholder:text-white/20",
               "focus:outline-none leading-relaxed py-0.5 max-h-[200px] scrollbar-thin"
             )}
           />
@@ -111,10 +120,10 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
               <button
                 type="button"
                 onClick={() => router.push("/voice")}
-                className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors"
+                className="p-2 sm:p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.07] transition-colors"
                 title="GAAIA Voice"
               >
-                <Mic className="w-4 h-4" />
+                <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
               </button>
             )}
 
@@ -122,10 +131,10 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
               <button
                 type="button"
                 onClick={onStop}
-                className="flex items-center justify-center w-8 h-8 rounded-xl bg-red-500/80 hover:bg-red-500 transition-colors active:scale-95"
+                className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-xl bg-red-500/80 hover:bg-red-500 transition-colors active:scale-95"
                 title="Stop generating"
               >
-                <Square className="w-3.5 h-3.5 fill-white text-white" />
+                <Square className="w-4 h-4 sm:w-3.5 sm:h-3.5 fill-white text-white" />
               </button>
             ) : (
               <button
@@ -133,14 +142,14 @@ export function ChatInput({ onSend, isStreaming, onStop, disabled }: ChatInputPr
                 onClick={handleSend}
                 disabled={(!value.trim() && attachments.length === 0) || disabled}
                 className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-150 active:scale-95",
+                  "flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-xl transition-all duration-150 active:scale-95",
                   (value.trim() || attachments.length > 0) && !disabled
                     ? "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/40"
                     : "bg-white/[0.05] text-white/20 cursor-not-allowed"
                 )}
                 title="Send message (Enter)"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
             )}
           </div>

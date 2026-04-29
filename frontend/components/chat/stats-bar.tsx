@@ -86,7 +86,13 @@ interface StatsBarProps {
 
 export function StatsBar({ isStreaming }: StatsBarProps) {
   const [data, setData] = useState<StatsPayload | null>(null)
-  const [open, setOpen] = useState(true)
+  // Default to collapsed on small screens to save vertical space — phone
+  // viewports are tight enough without a 70-px panel of chips taking up
+  // the area above every chat. Users can tap the strip to expand.
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true
+    return window.matchMedia("(min-width: 640px)").matches
+  })
   const [lastUpdated, setLastUpdated] = useState<number | null>(null)
   const [secAgo, setSecAgo] = useState<number>(0)
   const intervalRef   = useRef<ReturnType<typeof setInterval>  | null>(null)
@@ -158,7 +164,7 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
       {/* ── Collapsed toggle strip ──────────────────────────────────────── */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-4 h-7 hover:bg-white/[0.03] transition-colors"
+        className="w-full flex items-center gap-2 px-3 sm:px-4 h-7 hover:bg-white/[0.03] transition-colors"
       >
         {/* Live dot */}
         <span className={cn(
@@ -172,9 +178,10 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
           System
         </span>
 
-        {/* Inline summary when collapsed */}
+        {/* Inline summary when collapsed. On narrow screens we drop the
+            request-side chips (model + tok/s) to keep the strip on one line. */}
         {!open && sys && (
-          <div className="flex items-center gap-3 ml-1">
+          <div className="flex items-center gap-2 sm:gap-3 ml-1 min-w-0 truncate">
             <Chip label="CPU" value={pct(sys.cpu_percent)} color={colorFor(sys.cpu_percent)} />
             <Chip
               label="RAM"
@@ -184,12 +191,21 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
             {hasRequest && (
               <>
                 <Sep />
-                <Chip label="Model" value={req!.model} color="text-blue-400" />
-                <Chip
-                  label=""
-                  value={`~${req!.tokens_per_second} t/s`}
-                  color={req!.tokens_per_second >= 10 ? "text-emerald-400" : "text-yellow-400"}
-                />
+                <span className="hidden sm:flex items-center gap-3">
+                  <Chip label="Model" value={req!.model} color="text-blue-400" />
+                  <Chip
+                    label=""
+                    value={`~${req!.tokens_per_second} t/s`}
+                    color={req!.tokens_per_second >= 10 ? "text-emerald-400" : "text-yellow-400"}
+                  />
+                </span>
+                <span className="sm:hidden">
+                  <Chip
+                    label=""
+                    value={`~${req!.tokens_per_second} t/s`}
+                    color={req!.tokens_per_second >= 10 ? "text-emerald-400" : "text-yellow-400"}
+                  />
+                </span>
               </>
             )}
           </div>
@@ -209,7 +225,7 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
 
       {/* ── Expanded panel ──────────────────────────────────────────────── */}
       {open && (
-        <div className="px-4 pb-2.5 pt-1 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+        <div className="px-3 sm:px-4 pb-2.5 pt-1 flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-1.5">
 
           {/* Hardware group */}
           <Pill label="CPU" value={pct(sys?.cpu_percent ?? null)} color={colorFor(sys?.cpu_percent ?? null)}>

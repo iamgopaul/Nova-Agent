@@ -135,8 +135,25 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Don't allow Safari to auto-scale text on orientation change. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground font-sans;
+    /* Prevent the rubber-band scroll on iOS that exposes a white background
+       under fixed layouts; pages handle their own scrolling. */
+    overscroll-behavior-y: none;
+    /* Tap-highlight is the gray flash on touch — disable for a cleaner look. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Inputs default to 16px on mobile so iOS Safari doesn't zoom in on focus.
+     Per-component sm:text-sm overrides restore the 14px design on tablets up. */
+  @media (max-width: 639px) {
+    input, textarea, select {
+      font-size: 16px;
+    }
   }
 }
 
