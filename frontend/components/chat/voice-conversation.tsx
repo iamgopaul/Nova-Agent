@@ -59,7 +59,13 @@ async function* streamVoiceTurn(
   camFrame: Blob | null,
 ): AsyncGenerator<VoiceStreamEvent> {
   const form = new FormData()
-  form.append("audio", audioBlob, "turn.wav")
+  // Use a filename that matches the blob's actual MIME type. Whisper/ffmpeg
+  // sniffs content rather than extension, but a sane hint helps the upload
+  // route log usefully and keeps multipart parsers happy on edge cases.
+  const audioExt = (audioBlob.type || "").includes("webm") ? "webm"
+    : (audioBlob.type || "").includes("mp4") || (audioBlob.type || "").includes("aac") ? "m4a"
+    : "wav"
+  form.append("audio", audioBlob, `turn.${audioExt}`)
   form.append("session_id", sessionId)
   form.append("mode", "fast")
   // Voice UX: pin a small tier when the UI is on Auto — Air (swift) balances
@@ -489,6 +495,8 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
   const processorRef = useRef<ScriptProcessorNode | null>(null)
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const sinkNodeRef = useRef<GainNode | null>(null)
+  // Used on mobile in place of the deprecated ScriptProcessorNode capture path.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const activeAudioRef = useRef<HTMLAudioElement | null>(null)
   const activeAudioUrlRef = useRef<string | null>(null)
   /** TTS read-back from GAAIA (separate from capture `audioCtxRef`) */
@@ -793,6 +801,15 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
       processorRef.current.disconnect()
       processorRef.current.onaudioprocess = null
       processorRef.current = null
+    }
+
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop()
+        }
+      } catch { /* ignore */ }
+      mediaRecorderRef.current = null
     }
 
     if (sourceNodeRef.current) {
@@ -1149,6 +1166,161 @@ export function VoiceConversation({ onClose, onOpenProfile, sessionId, modelKey,
     return blob
   }, [cleanupCapture])
 
+  // ── MediaRecorder capture path (mobile devices) ──────────────────────────
+  // ScriptProcessorNode is deprecated and broken on iOS Safari — its callback
+  // either never fires or fires with empty buffers, so the desktop PCM path
+  // produces no audio on phones. MediaRecorder is well supported on iOS 14.5+
+  // and modern Android, gives us encoded audio (webm/opus or mp4/aac) that
+  // Whisper happily transcribes server-side via ffmpeg.
+  //
+  // We still use AnalyserNode for VAD — that part of Web Audio works fine on
+  // iOS. So push-to-talk auto-stop on silence still works the same way.
+  const recordVoiceTurnMobile = useCallback(async (): Promise<Blob> => {
+    setDiagnosticStage("Requesting microphone")
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          noiseSuppression: false,
+          echoCancellation: false,
+          autoGainControl: false,
+        },
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Microphone access failed"
+      throw new Error(`I can't access the microphone. ${message}`)
+    }
+    mediaStreamRef.current = stream
+    setDiagnosticStage("Capturing audio")
+
+    // Pick the best supported MIME type. iOS Safari only supports mp4/aac;
+    // Chrome/Android prefers webm/opus. Whisper handles either via ffmpeg.
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4;codecs=mp4a.40.2",
+      "audio/mp4",
+      "audio/aac",
+      "audio/wav",
+    ]
+    let mimeType = ""
+    for (const c of candidates) {
+      // Some browsers don't expose isTypeSupported; fall through to the empty
+      // string which tells MediaRecorder to pick its own default.
+      if (typeof MediaRecorder !== "undefined" &&
+          typeof MediaRecorder.isTypeSupported === "function" &&
+          MediaRecorder.isTypeSupported(c)) {
+        mimeType = c
+        break
+      }
+    }
+
+    const recorderOpts: MediaRecorderOptions = mimeType
+      ? { mimeType, audioBitsPerSecond: 64000 }
+      : { audioBitsPerSecond: 64000 }
+    let recorder: MediaRecorder
+    try {
+      recorder = new MediaRecorder(stream, recorderOpts)
+    } catch {
+      // Last-ditch: let the browser pick everything.
+      recorder = new MediaRecorder(stream)
+    }
+    mediaRecorderRef.current = recorder
+
+    const chunks: Blob[] = []
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data)
+    }
+
+    // Set up an AnalyserNode purely for silence detection — no audio capture
+    // happens here, the recorder is already grabbing the encoded stream.
+    const audioCtx = new AudioContext()
+    audioCtxRef.current = audioCtx
+    if (audioCtx.state === "suspended") {
+      await audioCtx.resume()
+    }
+    const source = audioCtx.createMediaStreamSource(stream)
+    sourceNodeRef.current = source
+    const analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 2048
+    source.connect(analyser)
+
+    const data = new Float32Array(analyser.fftSize)
+    let analyserSawEnergy = false
+    let sawSpeech = false
+    const startedAt = performance.now()
+    let lastSpeechAt = startedAt
+    let firstSpeechAt: number | null = null
+
+    recorder.start()
+    const startedRecAt = performance.now()
+
+    // Poll the analyser to detect silence, just like the desktop path.
+    await new Promise<void>((resolve) => {
+      const poll = () => {
+        const now = performance.now()
+        const elapsed = now - startedAt
+
+        analyser.getFloatTimeDomainData(data)
+        let sum = 0
+        for (let i = 0; i < data.length; i += 1) sum += data[i] * data[i]
+        const rms = Math.sqrt(sum / data.length)
+        if (rms >= SPEECH_RMS_THRESHOLD) {
+          if (!sawSpeech) firstSpeechAt = now
+          sawSpeech = true
+          lastSpeechAt = now
+          analyserSawEnergy = true
+        }
+
+        const reachedMax = elapsed >= TURN_MAX_MS
+        const noVoiceTimeout = !sawSpeech && elapsed >= PRE_SPEECH_TIMEOUT_MS
+        const afterVoiceSilence = sawSpeech && elapsed >= MIN_VOICE_TURN_MS && (now - lastSpeechAt) >= SILENCE_TIMEOUT_MS
+        const reachedPostSpeechMax = sawSpeech && firstSpeechAt !== null && (now - firstSpeechAt) >= MAX_POST_SPEECH_MS
+
+        if (
+          stopRequestedRef.current ||
+          forceFinalizeRef.current ||
+          !activeRef.current ||
+          reachedMax ||
+          noVoiceTimeout ||
+          afterVoiceSilence ||
+          reachedPostSpeechMax
+        ) {
+          resolve()
+          return
+        }
+        setTimeout(poll, 30)
+      }
+      poll()
+    })
+
+    // Stop the recorder and wait for the final data chunk.
+    if (recorder.state !== "inactive") {
+      const stopped = new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve()
+      })
+      recorder.stop()
+      await stopped
+    }
+
+    source.disconnect()
+    cleanupCapture()
+
+    void analyserSawEnergy  // referenced for parity with desktop path
+    void startedRecAt
+
+    if (chunks.length === 0) {
+      throw new Error("I couldn't hear anything. Try speaking a bit louder.")
+    }
+    const blobMime = mimeType || (chunks[0]?.type ?? "audio/webm")
+    const blob = new Blob(chunks, { type: blobMime })
+    if (!blob.size) {
+      throw new Error("I couldn't hear anything. Try speaking a bit louder.")
+    }
+    return blob
+  }, [cleanupCapture])
+
 function mergePcmChunks(chunks: Float32Array[]): Float32Array {
   const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
   const merged = new Float32Array(length)
@@ -1238,7 +1410,16 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
 
     try {
       setState("listening")
-      const audioBlob = await recordVoiceTurn()
+      // Mobile devices route through MediaRecorder because their Web Audio
+      // ScriptProcessor implementation is broken / deprecated. Detection
+      // covers iOS Safari, iPadOS Safari, Android Chrome, and Mobile Firefox.
+      const isMobile = typeof window !== "undefined" && (
+        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+        ("maxTouchPoints" in navigator && navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.userAgent))
+      )
+      const audioBlob = isMobile
+        ? await recordVoiceTurnMobile()
+        : await recordVoiceTurn()
       if (!activeRef.current || stopRequestedRef.current) {
         return
       }
@@ -1408,6 +1589,7 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
   }, [
     onConversationTurn,
     recordVoiceTurn,
+    recordVoiceTurnMobile,
     enrollFromCamera,
     captureFrameJpegScaled,
     sessionId,
