@@ -34,7 +34,7 @@ import threading
 import uuid
 from typing import Any, AsyncGenerator
 
-import ollama
+from gaaia.services.model_client import get_model_client
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -91,14 +91,12 @@ async def _stream(host: str, model: str, messages: list[dict], options: dict) ->
     q: asyncio.Queue[str | None] = asyncio.Queue()
 
     def _run() -> None:
-        client = ollama.Client(host=host, timeout=180)
+        client = get_model_client(host=host, timeout=180.0)
         try:
-            for chunk in client.chat(model=model, messages=messages, stream=True, options=options):
-                tok = (chunk.get("message") or {}).get("content") or ""
-                if tok:
-                    loop.call_soon_threadsafe(q.put_nowait, tok)
+            for tok in client.chat_stream(model=model, messages=messages, options=options):
+                loop.call_soon_threadsafe(q.put_nowait, tok)
         except Exception as exc:
-            print(f"[Debate] Ollama error ({model}): {exc}", flush=True)
+            print(f"[Debate] Backend error ({model}): {exc}", flush=True)
         finally:
             loop.call_soon_threadsafe(q.put_nowait, None)
 

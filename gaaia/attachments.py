@@ -13,12 +13,12 @@ from PIL import ImageOps, ImageFilter
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import time
 
-import ollama
 from PIL import Image
 from pypdf import PdfReader
 
 from config.settings import Settings
 from gaaia.server.schemas import AttachmentInput
+from gaaia.services.model_client import get_model_client
 
 _TEXT_EXTENSIONS = {".txt", ".md", ".markdown", ".csv", ".json", ".yaml", ".yml", ".log", ".py", ".js", ".ts", ".html", ".xml"}
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
@@ -311,7 +311,7 @@ def _describe_image(
         return f"{_IMAGE_ANALYSIS_UNAVAILABLE_MARKER} Image attached, but image analysis is not enabled right now."
 
     try:
-        client = ollama.Client(host=settings.ollama_host)
+        client = get_model_client(host=settings.ollama_host)
         image_b64 = base64.b64encode(raw).decode("ascii")
         _progress(show_progress, "vision summary pass", callback=progress_callback)
         scene_summary = _vision_scene_summary(client, vision_model, image_b64)
@@ -370,7 +370,7 @@ def _progress(enabled: bool, message: str, callback: Callable[[str], None] | Non
             pass
 
 
-def _vision_scene_summary(client: ollama.Client, model: str, image_b64: str) -> str:
+def _vision_scene_summary(client, model: str, image_b64: str) -> str:
     prompt = (
         "Describe this image in 2-4 short sentences. "
         "State the main subject, objects, and actions. "
@@ -379,7 +379,7 @@ def _vision_scene_summary(client: ollama.Client, model: str, image_b64: str) -> 
     return _vision_chat_with_timeout(client, model, image_b64, prompt)
 
 
-def _vision_text_extract(client: ollama.Client, model: str, image_b64: str) -> str:
+def _vision_text_extract(client, model: str, image_b64: str) -> str:
     prompt = (
         "Extract all visible text from this image exactly as written. "
         "Preserve line breaks. If no readable text, respond with NONE."
@@ -394,14 +394,14 @@ def _vision_text_extract(client: ollama.Client, model: str, image_b64: str) -> s
 
 
 def _vision_chat_with_timeout(
-    client: ollama.Client,
+    client,
     model: str,
     image_b64: str,
     prompt: str,
     timeout_seconds: int = _VISION_TIMEOUT_SECONDS,
 ) -> str:
     def _run() -> str:
-        response = client.chat(
+        return client.chat(
             model=model,
             messages=[
                 {
@@ -410,8 +410,7 @@ def _vision_chat_with_timeout(
                     "images": [image_b64],
                 }
             ],
-        )
-        return (getattr(getattr(response, "message", None), "content", "") or "").strip()
+        ).strip()
 
     pool = ThreadPoolExecutor(max_workers=1)
     future = pool.submit(_run)

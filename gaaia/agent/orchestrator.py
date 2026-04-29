@@ -5,9 +5,8 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-import ollama
-
 from config.settings import Settings
+from gaaia.services.model_client import get_model_client
 from gaaia.agent.personality import build_system_prompt
 from gaaia.approval.manager import ApprovalDecision, ApprovalManager, ApprovalRequest
 from gaaia.memory.context_builder import ContextBuilder
@@ -819,9 +818,13 @@ class Orchestrator:
         if scores["chart"] >= 4:
             return self._insight_model, "chart"
 
-        # Code always routes to the specialist, regardless of ties.
+        # Code always routes to the specialist, regardless of ties — but the
+        # specialist may be downsized if it doesn't fit in VRAM (e.g. the
+        # default qwen2.5-coder:32b on an 8 GB card would otherwise time out).
         if scores["code"] >= 2:
-            return self._code_model, "code"
+            _code_pick = self._code_safe_model(self._code_model)
+            label = "code" if _code_pick == self._code_model else f"code (downsized → {_code_pick})"
+            return _code_pick, label
 
         # Quantitative math → GAIA Quant (dedicated math model, near-zero temperature)
         # Threshold ≥ 5 prevents false triggers from single weak math terms.
@@ -918,12 +921,23 @@ Respond ONLY with valid JSON, no prose:
             {"role": "system", "content": self._ROUTER_PROMPT},
             {"role": "user", "content": user_message[:600]},
         ]
+        # Use the smallest reliable model for routing so it stays warm alongside
+        # the answer model even on tight-VRAM hardware. fast_model (3 B class)
+        # finishes a 60-token JSON classification in <1 s on GPU. Falls back to
+        # core_model if fast isn't installed — both produce reliable JSON for
+        # the simple schema we ask for.
+        installed = self._get_installed_models_cached()
+        _router_model = (
+            self._fast_model
+            if self._fast_model in installed
+            else self._core_model
+        )
         try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.post(
                     f"{self._host}/api/chat",
                     json={
-                        "model": self._core_model,  # GAIA Core (mistral:7b) — best JSON reliability & intent accuracy for routing
+                        "model": _router_model,
                         "messages": messages,
                         "stream": False,
                         "options": {"num_predict": 60, "temperature": 0.1},
@@ -1066,8 +1080,7 @@ Your job:
             },
         ]
         try:
-            import ollama as _ollama
-            client = _ollama.Client(host=self._host)
+            client = get_model_client(host=self._host)
             opts = self._build_options(tool_model)
             return self._stream_text(client, integration_messages, stream_callback, status_callback, tool_model, opts)
         except Exception:
@@ -1157,6 +1170,9 @@ Your job:
         # blocking routing latency per turn is critical for a real-time feel.
         # The voice response text already constrains format, so picking the
         # "wrong" tier occasionally matters far less than end-to-end latency.
+        # The LLM router uses fast_model (3 B class, < 1 s on GPU) so it's
+        # cheap enough to keep on for all hardware. The "fast" voice mode
+        # still skips it to shave the last few hundred ms.
         _skip_llm_router = mode == "fast"
         if _use_auto and not _skip_llm_router:
             _route_task = asyncio.create_task(self._llm_route(_clean_msg))
@@ -1276,10 +1292,13 @@ Your job:
         # ── Model selection ───────────────────────────────────────────────────────
         # _is_code / _use_auto already computed above alongside the parallel tasks.
         if _is_code:
-            selected_model = self._code_model
-            signal_category = "code"
+            selected_model = self._code_safe_model(self._code_model)
+            signal_category = (
+                "code" if selected_model == self._code_model
+                else f"code (downsized → {selected_model})"
+            )
             model_name = self._get_model_name(selected_model)
-            self._emit_status(status_callback, f"Using {model_name} (code)")
+            self._emit_status(status_callback, f"Using {model_name} ({signal_category})")
         elif _use_auto:
             self._emit_status(status_callback, "Routing to best model…")
             # Use routing result collected in parallel; fall back to keyword scoring
@@ -1328,7 +1347,15 @@ Your job:
                 _spec = _essay_spec
                 if _spec is not None:
                     if _spec[0] == "essay":
-                        selected_model, signal_category = self._heavy_model, "staged_essay"
+                        _essay_pick = self._essay_safe_model(self._heavy_model)
+                        if _essay_pick == self._heavy_model:
+                            selected_model, signal_category = self._heavy_model, "staged_essay"
+                        else:
+                            selected_model = _essay_pick
+                            signal_category = (
+                                f"staged_essay (downsized {self._heavy_model.split(':')[0]} "
+                                f"→ {_essay_pick} for VRAM)"
+                            )
                     else:
                         selected_model, signal_category = self._creative_model, "staged_creative"
             if (selected_model, signal_category) != _prev_m:
@@ -1464,7 +1491,27 @@ Your job:
         _tier = _ra.get_model_tier()
         model = self._safe_model_for_pressure(model)
 
-        client = ollama.Client(host=self._host)
+        # Generic VRAM safety net — catches *every* request where the picked
+        # model doesn't fit on the GPU (e.g. heavy auto-router landing on
+        # gemma3:27b for an 8 GB card). Without this, casual queries that
+        # score "heavy" would crawl at 2-5 tok/s while 70 % of the model lives
+        # in RAM. Headroom 1.0 is fine for chat-sized contexts (≤8 K).
+        # Essay / code paths have already picked their own safe model with
+        # specialised chains; calling _vram_safe_model again is idempotent.
+        _generic_chain = [
+            "gemma3:12b", "llama3.1:8b", "qwen2.5:7b", "mistral:7b",
+            "gemma3:4b", "llama3.2:3b",
+        ]
+        _vram_pick = self._vram_safe_model(model, _generic_chain)
+        if _vram_pick != model:
+            print(
+                f"[Orchestrator] VRAM safety: {model} → {_vram_pick} "
+                f"(weights don't fit on this GPU)",
+                flush=True,
+            )
+            model = _vram_pick
+
+        client = get_model_client(host=self._host)
         options = self._build_options(model)
         # Apply caller-specified minimum (e.g. longform essay needs >>768 tokens).
         # For longform content, the RAM-pressure ceiling MUST be bypassed — the user
@@ -1473,9 +1520,28 @@ Your job:
         # the model would stop after ~500 tokens with num_ctx=4096 and a rich system prompt.
         # Cap at 32768 (safe for all 7B+ Ollama models with reasonable free RAM).
         if min_predict is not None and int(min_predict) > int(options.get("num_predict", 0)):
-            options["num_predict"] = int(min_predict)
-            _min_ctx_needed = int(min_predict) + 4096   # buffer for system prompt + input
+            # Scale the requested minimum down for smaller models so the LLM can
+            # actually finish within the stream timeout. A 7B model on 8 GB VRAM
+            # can't reasonably deliver 24k tokens; asking for it just causes the
+            # essay to time out half-written.
+            from gaaia.services.model_router import _ram_for_model
+            _model_ram = _ram_for_model(model)
+            _scaled_min = int(min_predict)
+            if _model_ram < 5:        # ≤4 B params: ~5k words ceiling
+                _scaled_min = min(_scaled_min, 8000)
+            elif _model_ram < 8:      # 7-8 B params: ~7-8k words ceiling
+                _scaled_min = min(_scaled_min, 12000)
+            elif _model_ram < 15:     # 12-13 B params: ~10k words ceiling
+                _scaled_min = min(_scaled_min, 16000)
+            options["num_predict"] = _scaled_min
+            _min_ctx_needed = _scaled_min + 4096   # buffer for system prompt + input
             options["num_ctx"] = min(_min_ctx_needed, 32768)
+            if _scaled_min < int(min_predict):
+                print(
+                    f"[Orchestrator] Essay min_predict scaled "
+                    f"{min_predict} → {_scaled_min} for model {model} ({_model_ram:.0f} GB)",
+                    flush=True,
+                )
         latest_user_message = self._latest_user_message(messages)
 
         direct_memory_result = self._execute_memory_request_route(latest_user_message, status_callback)
@@ -1522,54 +1588,64 @@ Your job:
         keep_alive = resource_advisor.get_keep_alive()
         for _ in range(_MAX_TOOL_ROUNDS):
             self._emit_status(status_callback, "Planning the next step")
-            response = client.chat(
+            text, tool_calls = client.chat_with_tools(
                 model=model,
                 messages=messages,
                 tools=tools,
                 options=options,
                 keep_alive=keep_alive,
             )
-            msg = response.message
-            tool_calls = msg.tool_calls or []
 
             if not tool_calls:
                 # Final text response — stream it via callback then return
-                text = msg.content or ""
                 self._emit_status(status_callback, "Composing final response")
                 if stream_callback and text:
                     stream_callback(text)
                 return text
 
-            # Tool round — convert ToolCall objects → dicts for round-trip
+            # Tool round — preserve `id` so OpenAI-compat backends (exo) can match
+            # tool results back to the originating call.
             tc_dicts = [
-                {"function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                {
+                    "id": tc["id"],
+                    "function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]},
+                }
                 for tc in tool_calls
             ]
             messages.append({
                 "role": "assistant",
-                "content": msg.content or "",
+                "content": text,
                 "tool_calls": tc_dicts,
             })
 
             for tc in tool_calls:
-                if not self._tool_allowed_for_prompt(tc.function.name, latest_user_message):
-                    self._emit_status(status_callback, f"Skipping unrelated tool: {tc.function.name}")
+                name = tc["function"]["name"]
+                args = tc["function"]["arguments"]
+                tc_id = tc["id"]
+                if not self._tool_allowed_for_prompt(name, latest_user_message):
+                    self._emit_status(status_callback, f"Skipping unrelated tool: {name}")
                     messages.append(
                         {
                             "role": "tool",
                             "content": (
-                                f"Tool '{tc.function.name}' skipped because it does not match the current user request. "
+                                f"Tool '{name}' skipped because it does not match the current user request. "
                                 "Choose a tool that directly answers the query."
                             ),
-                            "name": tc.function.name,
+                            "name": name,
+                            "tool_call_id": tc_id,
                         }
                     )
                     continue
 
-                self._emit_status(status_callback, self._status_label_for_tool(tc.function.name))
-                content = self._dispatch(tc.function.name, tc.function.arguments, approval_callback)
-                self._emit_status(status_callback, f"Tool finished: {tc.function.name}")
-                messages.append({"role": "tool", "content": content, "name": tc.function.name})
+                self._emit_status(status_callback, self._status_label_for_tool(name))
+                tool_content = self._dispatch(name, args, approval_callback)
+                self._emit_status(status_callback, f"Tool finished: {name}")
+                messages.append({
+                    "role": "tool",
+                    "content": tool_content,
+                    "name": name,
+                    "tool_call_id": tc_id,
+                })
 
         return "[GAAIA: reached maximum tool iterations]"
 
@@ -1597,7 +1673,7 @@ Your job:
 
     def _stream_text(
         self,
-        client: ollama.Client,
+        client,
         messages: list[dict],
         stream_callback: Callable[[str], None] | None,
         status_callback: Callable[[str], None] | None,
@@ -1651,7 +1727,7 @@ Your job:
 
     def _stream_text_inner(
         self,
-        client: ollama.Client,
+        client,
         messages: list[dict],
         stream_callback: Callable[[str], None] | None,
         status_callback: Callable[[str], None] | None,
@@ -1667,22 +1743,18 @@ Your job:
                 return hit
         collected: list[str] = []
         first_token_received = False
-        stream = client.chat(
+        for delta in client.chat_stream(
             model=model,
             messages=messages,
-            stream=True,
             options=options,
             keep_alive=keep_alive,
-        )
-        for chunk in stream:
-            delta = chunk.message.content
-            if delta:
-                if not first_token_received:
-                    self._emit_status(status_callback, "Generating response")
-                    first_token_received = True
-                collected.append(delta)
-                if stream_callback:
-                    stream_callback(delta)
+        ):
+            if not first_token_received:
+                self._emit_status(status_callback, "Generating response")
+                first_token_received = True
+            collected.append(delta)
+            if stream_callback:
+                stream_callback(delta)
         out = "".join(collected)
         if use_cache and self._llm_cache is not None and out:
             self._llm_cache.set(model, messages, out)
@@ -2253,7 +2325,7 @@ Your job:
         status_callback: Callable[[str], None] | None,
     ) -> str:
         """Ask the LLM to answer the user's question from raw tool data, briefly."""
-        client = ollama.Client(host=self._host)
+        client = get_model_client(host=self._host)
         live_knowledge = self._memory.get_fact_value("live_knowledge_feed", "")
         system = build_system_prompt(
             self._settings, location_ctx=self._location_ctx, live_knowledge=live_knowledge
@@ -2275,13 +2347,12 @@ Your job:
             )},
         ]
         try:
-            response = client.chat(
+            return client.chat(
                 model=self._model,
                 messages=messages,
                 options={"num_predict": 80, "temperature": 0.3},
                 keep_alive=self._keep_alive,
-            )
-            return (response.message.content or "").strip()
+            ).strip()
         except Exception:
             return tool_content
 
@@ -2293,6 +2364,84 @@ Your job:
             media_markers = ["music", "song", "spotify", "apple music", "now playing", "play", "pause", "track"]
             return any(marker in lowered for marker in media_markers)
         return True
+
+    def _get_installed_models_cached(self) -> set[str]:
+        """Lazily-cached set of locally installed Ollama model names."""
+        if not hasattr(self, "_installed_models_cache"):
+            from gaaia.services.model_router import get_installed_models
+            self._installed_models_cache = get_installed_models(self._host)
+        return self._installed_models_cache
+
+    def _vram_safe_model(
+        self,
+        requested: str,
+        fallback_chain: list[str],
+        headroom_factor: float = 1.0,
+    ) -> str:
+        """
+        If *requested* doesn't fit in VRAM, walk *fallback_chain* (largest →
+        smallest) and return the first installed model that does fit.
+
+        *headroom_factor* multiplies the model size before comparing to VRAM.
+        Use 1.0 for normal-context flows (code, chat) where Ollama can spill the
+        small KV cache to RAM cheaply. Use ~1.3 for large-context flows like
+        essay mode (28K ctx) where the KV cache is several GB on its own — at
+        1.0 the picker would land on a model that fits the weights but spills
+        the KV cache, slowing generation by 2-3×.
+
+        Apple Silicon (unified memory) and CPU-only setups skip the downsize.
+        """
+        from gaaia.services.hardware import is_apple_silicon, total_vram_gb
+        from gaaia.services.model_router import _ram_for_model
+
+        if is_apple_silicon():
+            return requested
+        vram_gb = total_vram_gb()
+        if vram_gb <= 0:
+            return requested
+
+        if _ram_for_model(requested) * headroom_factor <= vram_gb:
+            return requested
+
+        installed = self._get_installed_models_cached()
+        for candidate in fallback_chain:
+            # Fallback entries are tagged (e.g. "qwen2.5-coder:7b") — require an
+            # exact match. The base alias added by get_installed_models is too
+            # permissive here: having qwen2.5-coder:32b would falsely report
+            # qwen2.5-coder:7b as installed.
+            if candidate in installed and _ram_for_model(candidate) * headroom_factor <= vram_gb:
+                return candidate
+
+        if _ram_for_model(self._core_model) * headroom_factor <= vram_gb:
+            return self._core_model
+        return requested
+
+    def _essay_safe_model(self, requested: str) -> str:
+        """VRAM-aware model picker for long-form essays.
+
+        Essay mode bumps num_ctx to 28k and num_predict to 24k. The 28K-context
+        KV cache is itself several GB, so we apply a 1.3× headroom so the
+        picker only lands on a model whose weights AND KV cache fit in VRAM —
+        otherwise the cache spills to RAM and generation slows 2-3×.
+        """
+        return self._vram_safe_model(
+            requested,
+            ["gemma3:12b", "llama3.1:8b", "qwen2.5:7b", "mistral:7b",
+             "gemma3:4b", "llama3.2:3b"],
+            headroom_factor=1.3,
+        )
+
+    def _code_safe_model(self, requested: str) -> str:
+        """VRAM-aware model picker for code generation.
+
+        qwen2.5-coder:32b is the configured code specialist but needs ~22 GB. On
+        a smaller card the Ollama HTTP call times out before the model even
+        starts emitting tokens. Fall back to the next-best installed coder.
+        """
+        return self._vram_safe_model(requested, [
+            "qwen2.5-coder:7b", "llama3.1:8b", "qwen2.5:7b",
+            "mistral:7b", "gemma3:4b", "llama3.2:3b",
+        ])
 
     def _safe_model_for_pressure(self, requested: str) -> str:
         """

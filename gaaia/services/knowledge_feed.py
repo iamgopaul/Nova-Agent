@@ -124,7 +124,10 @@ async def run_knowledge_fetch(memory: MemoryStore, feeds: list[str] | None = Non
     Called by the scheduler on startup and every N minutes.
     """
     feeds = feeds or _DEFAULT_FEEDS
-    fetched_at = datetime.now().strftime("%A %B %-d %Y, %-I:%M %p")
+    # Cross-platform: %-d / %-I are POSIX-only and fail on Windows.
+    _now = datetime.now()
+    _hour12 = (_now.hour % 12) or 12
+    fetched_at = f"{_now:%A %B} {_now.day} {_now.year}, {_hour12}:{_now:%M %p}"
     start = time.time()
 
     print(f"\n┌{_DIVIDER}┐", flush=True)

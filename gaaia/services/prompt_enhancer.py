@@ -79,41 +79,23 @@ async def enhance_image_prompt(
     Falls back to the mini model if the fast model times out, and ultimately
     returns the raw request unchanged if both calls fail.
     """
-    import httpx
+    from gaaia.services.model_client import get_model_client
 
-    models_to_try = [fast_model, mini_model]
-    payload_base = {
-        "stream": False,
-        "options": {
-            "temperature": 0.4,
-            "top_p": 0.9,
-            "num_predict": 200,
-        },
-    }
+    client = get_model_client(host=ollama_host, timeout=timeout)
+    options = {"temperature": 0.4, "top_p": 0.9, "num_predict": 200}
+    messages = [
+        {"role": "system", "content": _ENHANCER_SYSTEM},
+        {"role": "user", "content": _ENHANCER_USER_TEMPLATE.format(request=raw_request)},
+    ]
 
-    for model in models_to_try:
-        payload = {
-            **payload_base,
-            "model": model,
-            "system": _ENHANCER_SYSTEM,
-            "prompt": _ENHANCER_USER_TEMPLATE.format(request=raw_request),
-        }
+    for model in [fast_model, mini_model]:
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(
-                    f"{ollama_host}/api/generate",
-                    json=payload,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    enhanced = (data.get("response") or "").strip()
-                    if enhanced and len(enhanced) > 20:
-                        logger.info(
-                            "[PromptEnhancer] %s → '%s...'",
-                            model,
-                            enhanced[:60],
-                        )
-                        return _clean_enhanced_prompt(enhanced)
+            enhanced = (await asyncio.to_thread(
+                client.chat, model, messages, options
+            )).strip()
+            if enhanced and len(enhanced) > 20:
+                logger.info("[PromptEnhancer] %s -> '%s...'", model, enhanced[:60])
+                return _clean_enhanced_prompt(enhanced)
         except Exception as exc:  # noqa: BLE001
             logger.warning("[PromptEnhancer] %s failed: %s", model, exc)
 

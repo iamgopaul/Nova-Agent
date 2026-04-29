@@ -28,13 +28,13 @@ def describe_scene_frame(
     """Call the vision model on a raw camera JPEG and return a short scene description."""
     tlim = CAMERA_VISION_TIMEOUT if timeout_sec is None else timeout_sec
     try:
-        import ollama
+        from gaaia.services.model_client import get_model_client
 
         vision_model = settings.model.get("vision_model", "llama3.2-vision:11b")
         if not vision_model:
             return ""
         image_b64 = base64.b64encode(image_bytes).decode("ascii")
-        client = ollama.Client(host=settings.ollama_host)
+        client = get_model_client(host=settings.ollama_host)
         from concurrent.futures import ThreadPoolExecutor as _Pool
 
         pool = _Pool(max_workers=1)
@@ -44,8 +44,7 @@ def describe_scene_frame(
                 messages=[{"role": "user", "content": CAMERA_VISION_PROMPT, "images": [image_b64]}],
             )
         )
-        result = future.result(timeout=tlim)
-        return (getattr(getattr(result, "message", None), "content", "") or "").strip()
+        return (future.result(timeout=tlim) or "").strip()
     except Exception as exc:
         print(f"[GAIA] Camera vision error: {exc}")
         return ""

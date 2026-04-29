@@ -12,7 +12,7 @@ import re
 import uuid
 from typing import Any, Literal
 
-import ollama
+from gaaia.services.model_client import get_model_client
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
@@ -42,17 +42,15 @@ def _extract_json_object(raw: str) -> dict[str, Any]:
 
 
 def _ollama_chat_sync(host: str, model: str, system: str, user: str, num_predict: int = 4096) -> str:
-    client = ollama.Client(host=host, timeout=120)
-    resp = client.chat(
+    client = get_model_client(host=host, timeout=120.0)
+    return client.chat(
         model=model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
         options={"temperature": 0.35, "num_predict": num_predict},
-    )
-    msg = resp.get("message") or {}
-    return str(msg.get("content") or "").strip()
+    ).strip()
 
 
 class GenerateQuizBody(BaseModel):

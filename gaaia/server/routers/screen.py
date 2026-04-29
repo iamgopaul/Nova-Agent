@@ -14,7 +14,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-import ollama
+from gaaia.services.model_client import get_model_client
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -63,15 +63,12 @@ async def _stream_vision(host: str, model: str, question: str, image_b64: str):
 
     def _run():
         try:
-            client = ollama.Client(host=host, timeout=120)
-            for chunk in client.chat(
+            client = get_model_client(host=host, timeout=120.0)
+            for token in client.chat_stream(
                 model=model,
                 messages=[{"role": "user", "content": prompt, "images": [image_b64]}],
-                stream=True,
             ):
-                token = chunk.get("message", {}).get("content", "")
-                if token:
-                    loop.call_soon_threadsafe(queue.put_nowait, token)
+                loop.call_soon_threadsafe(queue.put_nowait, token)
         except Exception as exc:
             loop.call_soon_threadsafe(queue.put_nowait, f"\n\n*Error: {exc}*")
         finally:
@@ -92,18 +89,15 @@ async def _stream_text(host: str, model: str, system: str, user_msg: str):
 
     def _run():
         try:
-            client = ollama.Client(host=host, timeout=120)
-            for chunk in client.chat(
+            client = get_model_client(host=host, timeout=120.0)
+            for token in client.chat_stream(
                 model=model,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_msg},
                 ],
-                stream=True,
             ):
-                token = chunk.get("message", {}).get("content", "")
-                if token:
-                    loop.call_soon_threadsafe(queue.put_nowait, token)
+                loop.call_soon_threadsafe(queue.put_nowait, token)
         except Exception as exc:
             loop.call_soon_threadsafe(queue.put_nowait, f"\n\n*Error: {exc}*")
         finally:

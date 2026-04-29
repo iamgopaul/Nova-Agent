@@ -120,6 +120,66 @@ def _apple_silicon_info() -> dict | None:
     }
 
 
+def _committed_memory() -> dict | None:
+    """Return system commit charge — RAM + pagefile reservation.
+
+    Windows: uses GlobalMemoryStatusEx, which returns ullTotalPageFile (commit
+    limit, system-wide for 64-bit processes) and ullAvailPageFile (the
+    remaining commit headroom). Used = limit − available, matching the
+    "Committed X/Y GB" line in Task Manager's Memory tab.
+    Linux: parses /proc/meminfo (Committed_AS / CommitLimit). Returns None on
+    macOS — Darwin doesn't expose a system-wide commit limit.
+    """
+    system = platform.system()
+    if system == "Windows":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", wintypes.DWORD),
+                    ("dwMemoryLoad", wintypes.DWORD),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(MEMORYSTATUSEX)]
+            kernel32.GlobalMemoryStatusEx.restype = wintypes.BOOL
+
+            mse = MEMORYSTATUSEX()
+            mse.dwLength = ctypes.sizeof(mse)
+            if kernel32.GlobalMemoryStatusEx(ctypes.byref(mse)):
+                limit = int(mse.ullTotalPageFile)
+                avail = int(mse.ullAvailPageFile)
+                if limit > 0 and avail <= limit:
+                    return {"used_bytes": limit - avail, "limit_bytes": limit}
+        except Exception:
+            return None
+    elif system == "Linux":
+        try:
+            mem: dict[str, int] = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    key, _, rest = line.partition(":")
+                    parts = rest.strip().split()
+                    if parts:
+                        mem[key.strip()] = int(parts[0]) * 1024  # kB → bytes
+            used = mem.get("Committed_AS")
+            limit = mem.get("CommitLimit")
+            if used is not None and limit is not None and limit > 0:
+                return {"used_bytes": used, "limit_bytes": limit}
+        except Exception:
+            return None
+    return None
+
+
 def _system_stats() -> dict:
     try:
         import psutil
@@ -130,11 +190,22 @@ def _system_stats() -> dict:
         # Try NVIDIA first, fall back to Apple Silicon info
         gpu = _nvidia_gpu() or _apple_silicon_info()
 
+        committed = _committed_memory()
+        if committed and committed["limit_bytes"] > 0:
+            committed_used_gb = round(committed["used_bytes"] / 1_073_741_824, 2)
+            committed_total_gb = round(committed["limit_bytes"] / 1_073_741_824, 2)
+            committed_percent = round(committed["used_bytes"] / committed["limit_bytes"] * 100, 1)
+        else:
+            committed_used_gb = committed_total_gb = committed_percent = None
+
         return {
             "cpu_percent": cpu,
             "ram_used_gb": round(mem.used  / 1_073_741_824, 2),
             "ram_total_gb": round(mem.total / 1_073_741_824, 2),
             "ram_percent": round(mem.percent, 1),
+            "committed_used_gb": committed_used_gb,
+            "committed_total_gb": committed_total_gb,
+            "committed_percent": committed_percent,
             "gpu": gpu,
         }
     except ImportError:
@@ -143,6 +214,9 @@ def _system_stats() -> dict:
             "ram_used_gb": None,
             "ram_total_gb": None,
             "ram_percent": None,
+            "committed_used_gb": None,
+            "committed_total_gb": None,
+            "committed_percent": None,
             "gpu": None,
         }
 
@@ -198,12 +272,15 @@ async def get_model_routing(request: Request):
             "label": _ROLE_LABELS.get(key, key),
             "configured": configured,
             "effective": eff,
-            "ram_gb": _ram_for_model(eff),
+            "memory_gb": _ram_for_model(eff),
             "downgraded": key in overrides,
         })
 
     return {
+        "memory_gb": routing.get("memory_gb", 0),
         "ram_gb": routing.get("ram_gb", 0),
+        "vram_gb": routing.get("vram_gb", 0),
+        "apple_silicon": routing.get("apple_silicon", False),
         "installed_count": len(routing.get("installed_models", [])),
         "installed_models": routing.get("installed_models", []),
         "roles": roles,

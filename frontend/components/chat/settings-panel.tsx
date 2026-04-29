@@ -12,12 +12,15 @@ type ModelRole = {
   label: string
   configured: string
   effective: string
-  ram_gb: number
+  memory_gb: number
   downgraded: boolean
 }
 
 type ModelRouting = {
+  memory_gb: number
   ram_gb: number
+  vram_gb: number
+  apple_silicon: boolean
   installed_count: number
   installed_models: string[]
   roles: ModelRole[]
@@ -152,11 +155,19 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
                   <Cpu className="w-4 h-4 text-primary shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">{modelRouting.ram_gb} GB RAM detected</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {modelRouting.memory_gb} GB memory budget
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {modelRouting.installed_count} model{modelRouting.installed_count !== 1 ? "s" : ""} installed in Ollama
+                      {modelRouting.apple_silicon
+                        ? `${modelRouting.ram_gb} GB unified memory (Apple Silicon)`
+                        : modelRouting.vram_gb > 0
+                          ? `${modelRouting.ram_gb} GB RAM + ${modelRouting.vram_gb} GB VRAM`
+                          : `${modelRouting.ram_gb} GB RAM (no GPU detected)`}
+                      {" · "}
+                      {modelRouting.installed_count} model{modelRouting.installed_count !== 1 ? "s" : ""} installed
                       {modelRouting.constraints_applied > 0 && (
-                        <span className="text-amber-400 ml-2">· {modelRouting.constraints_applied} downgraded to fit RAM</span>
+                        <span className="text-amber-400 ml-2">· {modelRouting.constraints_applied} downgraded to fit</span>
                       )}
                     </p>
                   </div>
@@ -166,8 +177,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.07] px-3 py-2.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-300/80 leading-relaxed">
-                      Some models were automatically downgraded because they require more RAM than your system has.
-                      To use a heavier model, run <code className="bg-black/20 px-1 rounded">ollama pull &lt;model&gt;</code> after upgrading RAM.
+                      Some models were automatically downgraded because they need more memory than your system's RAM + VRAM budget.
+                      To use a heavier model, run <code className="bg-black/20 px-1 rounded">ollama pull &lt;model&gt;</code> after upgrading.
                     </p>
                   </div>
                 )}
@@ -177,7 +188,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   <div className="grid grid-cols-[1fr_1fr_auto] gap-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-3 py-2 border-b border-border bg-muted/20">
                     <span>Role</span>
                     <span>Active model</span>
-                    <span>RAM</span>
+                    <span>Memory</span>
                   </div>
                   <div className="divide-y divide-border/50 max-h-72 overflow-y-auto">
                     {modelRouting.roles.map(r => (
@@ -185,7 +196,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                         key={r.role}
                         className={cn(
                           "grid grid-cols-[1fr_1fr_auto] gap-2 items-center px-3 py-2.5 text-xs",
-                          r.downgraded && "bg-amber-500/[0.04]"
+                          r.downgraded && "bg-amber-500/4"
                         )}
                       >
                         <div>
@@ -201,7 +212,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                           </span>
                         </div>
                         <span className="text-muted-foreground/50 text-[10px] shrink-0 tabular-nums">
-                          ~{r.ram_gb}GB
+                          ~{r.memory_gb}GB
                         </span>
                       </div>
                     ))}

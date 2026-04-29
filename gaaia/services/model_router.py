@@ -1,6 +1,7 @@
 """
 GAAIA Model Router — selects the best available model for each role based on
-system RAM and which models are actually installed in Ollama.
+the system's unified memory budget (RAM + VRAM) and which models are actually
+installed in Ollama.
 
 Called once at startup; results are stored in settings._effective_model_overrides
 so every router transparently gets the right model without any changes.
@@ -10,6 +11,12 @@ from __future__ import annotations
 
 import re
 from typing import Any
+
+from gaaia.services.hardware import (
+    MemoryBudget,
+    get_memory_budget,
+    safety_margin_gb,
+)
 
 # ── RAM requirements per model (GB, approximate for Ollama default quant) ─────
 # Covers the full Q4/Q8 range. Unrecognised models default to 8 GB (safe-ish).
@@ -31,7 +38,7 @@ _MODEL_RAM_GB: dict[str, float] = {
     "llama3.1:8b": 6.0,     "llama3:8b": 6.0,        "llama3.1": 6.0,
     "llama3.2:8b": 6.0,
     "qwen2.5:7b": 5.0,      "qwen2.5-coder:7b": 5.0,
-    "gemma3:9b": 7.0,       "gemma2:9b": 7.0,        "gemma3:latest": 7.0,
+    "gemma3:12b": 8.0,       "gemma2:9b": 7.0,        "gemma3:latest": 7.0,
     "neural-chat:7b": 5.0,  "zephyr:7b": 5.0,        "openchat:7b": 5.0,
     "orca-mini:7b": 5.0,    "starling-lm:7b": 5.0,   "mathstral:7b": 5.0,
     "deepseek-r1:7b": 5.0,  "deepseek-r1:8b": 6.0,
@@ -65,7 +72,7 @@ _ROLE_FALLBACKS: dict[str, list[str]] = {
     "name": [
         "qwen2.5:72b", "llama3.3:70b", "llama3.1:70b",
         "qwen2.5:32b", "gemma3:27b", "deepseek-r1:32b",
-        "qwen2.5:7b", "mistral:7b", "llama3.1:8b", "gemma3:9b",
+        "qwen2.5:7b", "mistral:7b", "llama3.1:8b", "gemma3:12b",
         "gemma3:4b", "llama3.2:3b",
     ],
     # Heavy — same as main, aliased for heavy tasks
@@ -76,7 +83,7 @@ _ROLE_FALLBACKS: dict[str, list[str]] = {
     ],
     # Core — everyday balanced queries, tool-capable
     "core_model": [
-        "mistral:7b", "qwen2.5:7b", "llama3.1:8b", "gemma3:9b",
+        "mistral:7b", "qwen2.5:7b", "llama3.1:8b", "gemma3:12b",
         "gemma3:4b", "llama3.2:3b", "phi:2.7b",
     ],
     # Fast / Spark — ultra-fast voice & one-liners
@@ -93,7 +100,7 @@ _ROLE_FALLBACKS: dict[str, list[str]] = {
     "code_model": [
         "qwen2.5-coder:32b", "deepseek-r1:32b", "qwen2.5:32b",
         "qwen2.5-coder:7b", "qwen2.5:7b", "mistral:7b",
-        "llama3.1:8b", "gemma3:9b",
+        "llama3.1:8b", "gemma3:12b",
     ],
     # Vision — image & scene understanding
     "vision_model": [
@@ -103,22 +110,22 @@ _ROLE_FALLBACKS: dict[str, list[str]] = {
     # Mind — deep nuanced chat, no tool calls
     "mind_model": [
         "gemma3:27b", "qwen2.5:32b", "deepseek-r1:32b",
-        "gemma3:9b", "qwen2.5:7b", "mistral:7b",
+        "gemma3:12b", "qwen2.5:7b", "mistral:7b",
     ],
     # Creative — writing, brainstorming
     "creative_model": [
         "dolphin-mixtral:8x7b", "qwen2.5:32b", "gemma3:27b",
-        "mistral:7b", "qwen2.5:7b", "gemma3:9b",
+        "mistral:7b", "qwen2.5:7b", "gemma3:12b",
     ],
     # Insight — focused analysis & reasoning
     "insight_model": [
         "zephyr:7b", "mistral:7b", "qwen2.5:7b",
-        "llama3.1:8b", "gemma3:9b",
+        "llama3.1:8b", "gemma3:12b",
     ],
     # Sage — instruction following
     "sage_model": [
         "nous-hermes:13b", "mistral:7b", "qwen2.5:7b",
-        "llama3.1:8b", "gemma3:9b",
+        "llama3.1:8b", "gemma3:12b",
     ],
     # Chat — friendly conversational
     "chat_model": [
@@ -180,13 +187,15 @@ _ROLE_LABELS: dict[str, str] = {
 }
 
 
-def get_total_ram_gb() -> float:
-    """Return total system RAM in GB (not available, total — Ollama loads into unified memory)."""
+def get_total_memory_gb() -> float:
+    """Return the unified memory budget in GB (RAM + VRAM, or just RAM on Apple Silicon).
+
+    See gaaia.services.hardware.get_memory_budget() for the full breakdown.
+    """
     try:
-        import psutil  # type: ignore
-        return psutil.virtual_memory().total / (1024 ** 3)
+        return get_memory_budget().total_gb
     except Exception:
-        return 16.0  # conservative fallback — assume 16 GB if psutil missing
+        return 16.0  # conservative fallback — assume 16 GB if probing fails
 
 
 def _base_name(model: str) -> str:
@@ -239,6 +248,33 @@ def get_installed_models(host: str = "http://localhost:11434") -> set[str]:
         return set()
 
 
+def get_exo_served_models() -> set[str]:
+    """
+    Query exo (if enabled in settings) for the model catalogue it can serve.
+    Returns an empty set when exo is disabled or unreachable, so callers can
+    treat the result as "additional installed models from the cluster".
+    """
+    try:
+        from config.settings import get_settings
+        s = get_settings()
+        if not getattr(s, "exo_enabled", False):
+            return set()
+        from gaaia.services.model_client import ExoBackend
+        return ExoBackend(host=s.exo_host, timeout=10.0).list_models()
+    except Exception as exc:
+        print(f"[ModelRouter] Could not query exo models: {exc}", flush=True)
+        return set()
+
+
+def _normalize_model_name(name: str) -> str:
+    """Reduce a model name to a canonical form for fuzzy matching across backends.
+
+    Ollama uses 'qwen2.5:72b'; exo uses 'qwen-2.5-72b' (or similar).  Strip all
+    non-alphanumerics and lowercase so both shapes collapse to 'qwen2572b'.
+    """
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
 def _is_installed(model: str, installed: set[str]) -> bool:
     key = model.strip().lower()
     if key in installed:
@@ -248,67 +284,93 @@ def _is_installed(model: str, installed: set[str]) -> bool:
     return False
 
 
-def _fits_in_ram(model: str, available_gb: float, safety_margin_gb: float = 2.0) -> bool:
-    """True if the model's RAM requirement fits within available RAM minus a safety margin."""
-    return _ram_for_model(model) <= (available_gb - safety_margin_gb)
+def _is_exo_served(model: str, exo_served: set[str]) -> bool:
+    """True if some name in exo's catalogue normalizes to the same thing as `model`."""
+    if not exo_served:
+        return False
+    norm = _normalize_model_name(model)
+    if not norm:
+        return False
+    return any(_normalize_model_name(s) == norm for s in exo_served)
+
+
+def _fits_in_memory(model: str, available_gb: float, margin_gb: float | None = None) -> bool:
+    """True if the model fits within the unified memory budget minus a safety margin.
+
+    The margin scales with budget size — see hardware.safety_margin_gb.
+    """
+    if margin_gb is None:
+        margin_gb = safety_margin_gb(available_gb)
+    return _ram_for_model(model) <= (available_gb - margin_gb)
 
 
 def select_model_for_role(
     role: str,
     configured_model: str,
-    available_ram_gb: float,
+    available_memory_gb: float,
     installed: set[str],
+    exo_served: set[str] | None = None,
 ) -> tuple[str, str | None]:
     """
     Return (effective_model, reason_if_changed).
 
+    A model is "reachable" if it is installed in Ollama AND fits in the local
+    memory budget (RAM + VRAM), OR if exo's cluster claims to serve it (in
+    which case the cluster owns the memory math — we don't need to
+    second-guess locally).
+
     Priority:
-    1. If the configured model fits in RAM AND is installed → use it.
-    2. Walk the fallback chain for the role:
-       - Pick the first model that fits in RAM AND is installed.
-    3. If nothing in the fallback chain is installed, pick the first that fits in RAM
-       (user will need to pull it — log a hint).
-    4. If literally nothing fits (< 2 GB headroom), return the smallest known model.
+    1. If the configured model is reachable → use it.
+    2. Walk the fallback chain; pick the first reachable candidate.
+    3. If none of the fallbacks is installed but some fit in memory, return
+       the first that fits with an `ollama pull` hint.
+    4. Last resort: smallest known model.
     """
-    fits = _fits_in_ram(configured_model, available_ram_gb)
+    exo_served = exo_served or set()
+
+    def _reachable(m: str) -> bool:
+        if _is_exo_served(m, exo_served):
+            return True
+        return _is_installed(m, installed) and _fits_in_memory(m, available_memory_gb)
+
+    if _reachable(configured_model):
+        return configured_model, None
+
+    fits = _fits_in_memory(configured_model, available_memory_gb)
     installed_ok = _is_installed(configured_model, installed)
-
-    if fits and installed_ok:
-        return configured_model, None  # perfect — no change
-
     reasons: list[str] = []
     if not fits:
         need = _ram_for_model(configured_model)
         reasons.append(
-            f"{configured_model} needs ~{need:.0f} GB but system has {available_ram_gb:.0f} GB RAM"
+            f"{configured_model} needs ~{need:.0f} GB but system memory budget is "
+            f"{available_memory_gb:.0f} GB"
         )
     if not installed_ok:
         reasons.append(f"{configured_model} is not installed in Ollama")
 
-    # Try fallback chain
     fallbacks = _ROLE_FALLBACKS.get(role, [])
-    # Prefer installed models first, then any that fit
     for candidate in fallbacks:
-        if _fits_in_ram(candidate, available_ram_gb) and _is_installed(candidate, installed):
-            return candidate, f"Replaced {configured_model} ({'; '.join(reasons)}) → {candidate}"
+        if _reachable(candidate):
+            via_exo = _is_exo_served(candidate, exo_served) and not _is_installed(candidate, installed)
+            tag = " via exo" if via_exo else ""
+            return candidate, f"Replaced {configured_model} ({'; '.join(reasons)}) → {candidate}{tag}"
 
-    # Nothing installed fits — return first that fits (with install hint)
     for candidate in fallbacks:
-        if _fits_in_ram(candidate, available_ram_gb):
+        if _fits_in_memory(candidate, available_memory_gb):
             return candidate, (
                 f"Replaced {configured_model} ({'; '.join(reasons)}) → {candidate} "
                 f"(run: ollama pull {candidate})"
             )
 
-    # Absolute last resort
     fallback = "llama3.2:3b"
     return fallback, f"No suitable model found for role '{role}'; defaulting to {fallback}"
 
 
 def build_effective_model_config(
     model_cfg: dict[str, Any],
-    available_ram_gb: float,
+    available_memory_gb: float,
     installed: set[str],
+    exo_served: set[str] | None = None,
 ) -> tuple[dict[str, str], list[str]]:
     """
     Given the YAML model config, return:
@@ -342,8 +404,9 @@ def build_effective_model_config(
         effective, reason = select_model_for_role(
             role=key,
             configured_model=value,
-            available_ram_gb=available_ram_gb,
+            available_memory_gb=available_memory_gb,
             installed=installed,
+            exo_served=exo_served,
         )
 
         if reason:
@@ -358,12 +421,19 @@ def build_effective_model_config(
 def run_model_routing(
     model_cfg: dict[str, Any],
     host: str = "http://localhost:11434",
-) -> tuple[dict[str, str], float, set[str], list[str]]:
+) -> tuple[dict[str, str], MemoryBudget, set[str], list[str]]:
     """
     Entry point called at server startup.
-    Returns (overrides, ram_gb, installed_set, log_lines).
+    Returns (overrides, memory_budget, installed_set, log_lines).
+    When exo is enabled, exo's catalogue is merged into the reachable set so
+    big models become eligible even when local memory can't hold them.
     """
-    ram_gb = get_total_ram_gb()
+    budget = get_memory_budget()
     installed = get_installed_models(host)
-    overrides, log_lines = build_effective_model_config(model_cfg, ram_gb, installed)
-    return overrides, ram_gb, installed, log_lines
+    exo_served = get_exo_served_models()
+    overrides, log_lines = build_effective_model_config(
+        model_cfg, budget.total_gb, installed, exo_served,
+    )
+    if exo_served:
+        log_lines.insert(0, f"  [exo] cluster catalogue: {len(exo_served)} models reachable")
+    return overrides, budget, installed, log_lines

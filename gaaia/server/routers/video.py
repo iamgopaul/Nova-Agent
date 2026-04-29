@@ -17,7 +17,7 @@ import tempfile
 import threading
 from typing import AsyncGenerator
 
-import ollama
+from gaaia.services.model_client import get_model_client
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -137,15 +137,12 @@ async def _stream_analysis(
 
     def _run():
         try:
-            client = ollama.Client(host=host, timeout=180)
-            for chunk in client.chat(
+            client = get_model_client(host=host, timeout=180.0)
+            for token in client.chat_stream(
                 model=model,
                 messages=[{"role": "user", "content": prompt, "images": frames}],
-                stream=True,
             ):
-                token = chunk.get("message", {}).get("content", "")
-                if token:
-                    loop.call_soon_threadsafe(queue.put_nowait, token)
+                loop.call_soon_threadsafe(queue.put_nowait, token)
         except Exception as exc:
             loop.call_soon_threadsafe(queue.put_nowait, f"\n\n*Vision analysis error: {exc}*")
         finally:

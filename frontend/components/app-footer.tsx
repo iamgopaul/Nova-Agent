@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ChevronUp, Cog, CreditCard, LogOut, ShieldCheck, UserCircle } from "lucide-react"
@@ -20,6 +21,31 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
   const router = useRouter()
   const [user, setUser] = useState<UserInfo | null>(null)
   const [showMenu, setShowMenu] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const [menuPos, setMenuPos] = useState<{ left: number; bottom: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  // Recompute the dropdown anchor whenever it opens or the window resizes.
+  // Using `position: fixed` + portal to document.body means the dropdown
+  // escapes any ancestor `overflow: hidden` / stacking-context clipping
+  // (the AppShell wraps everything in `overflow-hidden`, which was hiding
+  // the menu when AppFooter is rendered with `fixed={false}`).
+  useLayoutEffect(() => {
+    if (!showMenu) return
+    const update = () => {
+      const r = buttonRef.current?.getBoundingClientRect()
+      if (r) setMenuPos({ left: r.left, bottom: window.innerHeight - r.top + 8 })
+    }
+    update()
+    window.addEventListener("resize", update)
+    window.addEventListener("scroll", update, true)
+    return () => {
+      window.removeEventListener("resize", update)
+      window.removeEventListener("scroll", update, true)
+    }
+  }, [showMenu])
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -51,6 +77,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
         {/* ── Profile ─────────────────────────────────────────────── */}
         <div className="relative">
           <button
+            ref={buttonRef}
             onClick={() => setShowMenu(prev => !prev)}
             className="flex items-center gap-2.5 px-2 py-1 rounded-lg hover:bg-white/[0.06] transition-colors group"
           >
@@ -80,13 +107,20 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
             )}
           </button>
 
-          {/* Dropdown */}
-          {showMenu && user && (
+          {/* Dropdown — rendered via portal to document.body with fixed
+              positioning so the AppShell's `overflow-hidden` wrapper doesn't
+              clip it when the footer is rendered with fixed={false}. */}
+          {mounted && showMenu && user && createPortal(
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+              <div className="fixed inset-0 z-[60]" onClick={() => setShowMenu(false)} />
               <div
-                className="absolute bottom-full left-0 mb-2 w-52 rounded-2xl border border-white/[0.09] shadow-2xl overflow-hidden z-20"
-                style={{ backgroundColor: "var(--surface-3)" }}
+                className="fixed w-52 rounded-2xl border border-white/[0.09] shadow-2xl overflow-hidden z-[70]"
+                style={{
+                  left: menuPos?.left ?? 0,
+                  bottom: menuPos?.bottom ?? 56,
+                  backgroundColor: "var(--surface-3)",
+                  visibility: menuPos ? "visible" : "hidden",
+                }}
               >
                 {/* User card */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.07] bg-white/[0.02]">
@@ -145,7 +179,8 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   </button>
                 </div>
               </div>
-            </>
+            </>,
+            document.body,
           )}
         </div>
 

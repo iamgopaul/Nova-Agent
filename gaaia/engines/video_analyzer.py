@@ -260,7 +260,7 @@ class AnalyzeVideoTool(BaseTool):
         self, frames: list[str], focus: str
     ) -> str:
         """Analyze frames with the local Ollama vision model (llama3.2-vision)."""
-        import ollama as _ollama
+        from gaaia.services.model_client import get_model_client
 
         prompts = {
             "general": "Describe what you see in these video frames. Summarise the scenes, actions, and overall context.",
@@ -277,11 +277,11 @@ class AnalyzeVideoTool(BaseTool):
         prompt = prompts.get(focus, prompts["all"])
 
         try:
-            client = _ollama.Client(host="http://localhost:11434", timeout=180)
-            resp = client.chat(
+            client = get_model_client(host="http://localhost:11434", timeout=180.0)
+            content = client.chat(
                 model="llama3.2-vision:11b",
                 messages=[{"role": "user", "content": prompt, "images": frames}],
             )
-            return resp.get("message", {}).get("content", "No response from vision model.")
+            return content or "No response from vision model."
         except Exception as exc:
             return f"Vision analysis failed: {exc}\n\nMake sure `llama3.2-vision:11b` is pulled in Ollama."

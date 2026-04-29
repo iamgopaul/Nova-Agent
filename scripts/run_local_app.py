@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import socket
 import subprocess
@@ -18,7 +19,10 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = ROOT / "frontend"
 BACKEND_CMD = [sys.executable, "scripts/run_server_only.py"]
-FRONTEND_CMD = ["pnpm", "run", "dev"]
+# On Windows, pnpm is pnpm.cmd — subprocess.Popen will not find it without
+# either shell=True or the absolute path. shutil.which resolves the .cmd shim.
+_PNPM = shutil.which("pnpm") or "pnpm"
+FRONTEND_CMD = [_PNPM, "run", "dev"]
 
 
 def _wait_for_port(host: str, port: int, timeout_s: float = 8.0) -> bool:

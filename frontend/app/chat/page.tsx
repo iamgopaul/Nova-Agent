@@ -1092,6 +1092,17 @@ export default function ChatPage() {
         if (chunk.type === "story_sections") {
           try {
             const rawSections: StorySectionItem[] = JSON.parse(chunk.content || "[]")
+            // Essay/story mode buffers text on the backend and ships it as
+            // story_sections instead of streaming `text` chunks. Mark text as
+            // received and populate assembledText with the joined section
+            // prose so the post-stream suggestion fetch has real content to
+            // ground its 3 follow-up chips on (otherwise no chips appear).
+            receivedText = true
+            const joinedProse = rawSections
+              .map(s => `${s.heading ? `## ${s.heading}\n` : ""}${(s.text || "").trim()}`)
+              .filter(Boolean)
+              .join("\n\n")
+            if (joinedProse) assembledText += joinedProse
             // Show sections immediately. If a section already has imageUrl (web image from backend),
             // preserve it. Otherwise mark imageGenerating=true so the frontend fetches an SD image.
             const sectionsWithState: StorySectionItem[] = rawSections.map(s => ({

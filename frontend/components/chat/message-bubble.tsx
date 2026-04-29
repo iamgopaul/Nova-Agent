@@ -446,7 +446,18 @@ function StoryVisual({ section }: { section: StorySectionItem }) {
   )
 }
 
-function StoryView({ sections }: { sections: StorySectionItem[] }) {
+function StoryView({
+  sections,
+  activeWordIdx = -1,
+  sectionWordOffsets,
+  isSpeaking = false,
+}: {
+  sections: StorySectionItem[]
+  activeWordIdx?: number
+  sectionWordOffsets?: number[]
+  isSpeaking?: boolean
+}) {
+  const showHighlight = isSpeaking && activeWordIdx >= 0
   return (
     <div className="flex flex-col gap-8 py-1">
       {sections.map((sec, i) => {
@@ -455,25 +466,68 @@ function StoryView({ sections }: { sections: StorySectionItem[] }) {
           ? sec.text.split(/\n\n+/).map(p => p.trim()).filter(Boolean)
           : []
         const hasVisual = !!(sec.image_prompt || sec.imageUrl)
+        // Word offset for this section in the global allWordsRef. The bodyText
+        // we send to TTS for each section is `## <heading>\n\n<text>` — same
+        // format used in handleReadAloud below for offset computation.
+        const sectionStart = sectionWordOffsets?.[i] ?? 0
+        const headingWordCount = sec.heading
+          ? stripForWordCount(sec.heading).split(/\s+/).filter(Boolean).length
+          : 0
+        let paragraphRunning = sectionStart + headingWordCount
+        // Mark a section as past once activeWordIdx has moved beyond its last word.
+        const sectionEnd = (sectionWordOffsets?.[i + 1]) ?? Number.POSITIVE_INFINITY
+        const sectionIsActive = showHighlight && activeWordIdx >= sectionStart && activeWordIdx < sectionEnd
+        const sectionIsPast = showHighlight && activeWordIdx >= sectionEnd
 
         return (
-          <div key={i} className="flex flex-col gap-3">
+          <div
+            key={i}
+            className={cn(
+              "flex flex-col gap-3 transition-all duration-300 rounded",
+              sectionIsActive && "bg-cyan-500/5 -mx-1.5 px-1.5 border-l-2 border-cyan-400/50",
+              sectionIsPast && "opacity-50"
+            )}
+          >
             {/* Section heading */}
             {sec.heading && (
               <h3 className="font-semibold text-foreground text-sm border-b border-border/20 pb-1.5 flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-blue-600/20 text-blue-400 text-[10px] flex items-center justify-center flex-shrink-0 font-bold">
                   {i + 1}
                 </span>
-                {sec.heading}
+                {showHighlight ? (
+                  <WordTokens
+                    content={stripInlineMarkers(sec.heading)}
+                    tag="span"
+                    activeWordIdx={activeWordIdx}
+                    wordOffset={sectionStart}
+                    wordCountRef={{ current: 0 }}
+                  />
+                ) : (
+                  sec.heading
+                )}
               </h3>
             )}
 
             {/* Paragraph text — render each paragraph separately */}
             {paragraphs.length > 0 && (
               <div className="flex flex-col gap-2">
-                {paragraphs.map((para, pi) => (
-                  <p key={pi} className="text-foreground/85 leading-relaxed text-sm">{para}</p>
-                ))}
+                {paragraphs.map((para, pi) => {
+                  const paraOffset = paragraphRunning
+                  paragraphRunning += stripForWordCount(para).split(/\s+/).filter(Boolean).length
+                  return (
+                    <p key={pi} className="text-foreground/85 leading-relaxed text-sm">
+                      {showHighlight ? (
+                        <ReadAlongFormattedText
+                          text={para}
+                          activeWordIdx={activeWordIdx}
+                          wordOffset={paraOffset}
+                        />
+                      ) : (
+                        para
+                      )}
+                    </p>
+                  )
+                })}
               </div>
             )}
 
@@ -1673,6 +1727,9 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
   const allWordsRef = useRef<string[]>([])
   // Word offset for each part: partWordOffsets[i] = index of first word in parts[i]
   const partWordOffsetsRef = useRef<number[]>([])
+  // Word offset for each story section (essay mode): sectionWordOffsets[i] =
+  // index of first word in section i within allWordsRef.
+  const sectionWordOffsetsRef = useRef<number[]>([])
 
   const isUser = message.role === "user"
   // Prefer server-split sections; fall back to heuristic. Normalize so chord / score
@@ -1804,6 +1861,7 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
       setActiveWordIdx(-1)
       allWordsRef.current = []
       partWordOffsetsRef.current = []
+      sectionWordOffsetsRef.current = []
       sentenceWordRangesRef.current = []
       chunkTimelinesRef.current = []
       currentChunkIdxRef.current  = 0
@@ -1820,8 +1878,18 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     // Register this instance as the active speaker
     _globalStopSpeaking = stopSpeaking
 
-    // Always read the full message content so intro and outro are not silently dropped.
-    const bodyText = message.content
+    // Essay-mode messages buffer their text into storySections; message.content
+    // is empty in that case. Reconstruct bodyText from sections in the same
+    // format we'll feed the TTS endpoint, so word offsets line up with audio.
+    const sectionsForReading = message.storySections && message.storySections.length > 0
+      ? message.storySections
+      : null
+    const bodyText = sectionsForReading
+      ? sectionsForReading
+          .map(s => `${s.heading ? `## ${s.heading}\n` : ""}${(s.text || "").trim()}`)
+          .filter(Boolean)
+          .join("\n\n")
+      : message.content
     const clean = stripMarkdownForTTS(bodyText)
     if (!clean) return
 
@@ -1840,11 +1908,55 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
     }
     partWordOffsetsRef.current = offsets
 
-    // Build sentence → word-range map using the SAME split the backend uses.
-    // Backend _CHUNK_RE: r'(?<=[.!?])\s+|(?<=[,;:])\s+|\n+'
-    // Splitting at clause boundaries keeps chunks to ~2-6 words, which makes
-    // linear-interpolation far more accurate.
-    const sentences = clean.split(/(?<=[.!?,;:])\s+|\n+/).map(s => s.trim()).filter(Boolean)
+    // Per-section word offsets (essay mode). Each section contributes its
+    // heading words + body words, in the same `## heading\n\n<text>` shape
+    // that we joined into bodyText above, so the offsets align with allWordsRef.
+    const secOffsets: number[] = []
+    if (sectionsForReading) {
+      let secOffset = 0
+      for (const sec of sectionsForReading) {
+        secOffsets.push(secOffset)
+        const headingPart = sec.heading ? sec.heading : ""
+        const headingWords = headingPart
+          ? stripForWordCount(headingPart).split(/\s+/).filter(Boolean).length
+          : 0
+        const bodyWords = stripForWordCount((sec.text || "").trim()).split(/\s+/).filter(Boolean).length
+        secOffset += headingWords + bodyWords
+      }
+    }
+    sectionWordOffsetsRef.current = secOffsets
+
+    // Build sentence → word-range map using the EXACT same split the backend uses.
+    // Backend _CHUNK_RE (gaaia/server/routers/voice.py): r'(?<=[.!?])\s+|\n+'
+    // (sentence-ends + newlines only — NOT commas/semicolons/colons). Then
+    // long clauses (> 300 chars) are further split at word boundaries via
+    // _split_long_clause. Mismatching this produces more frontend ranges than
+    // backend audio chunks, so chunkIdx N looks up the wrong range and the
+    // highlight jumps to the wrong words.
+    const MAX_TTS_CHUNK_CHARS = 300
+    const splitLongClause = (clause: string): string[] => {
+      if (clause.length <= MAX_TTS_CHUNK_CHARS) return [clause]
+      const words = clause.split(/\s+/).filter(Boolean)
+      const results: string[] = []
+      let current: string[] = []
+      let currentLen = 0
+      for (const word of words) {
+        const projected = currentLen + (current.length > 0 ? 1 : 0) + word.length
+        if (projected > MAX_TTS_CHUNK_CHARS && current.length >= 2) {
+          results.push(current.join(" "))
+          current = [word]
+          currentLen = word.length
+        } else {
+          current.push(word)
+          currentLen = projected
+        }
+      }
+      if (current.length > 0) results.push(current.join(" "))
+      return results.length > 0 ? results : [clause]
+    }
+    const rawClauses = clean.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(Boolean)
+    const sentences: string[] = []
+    for (const c of rawClauses) sentences.push(...splitLongClause(c))
     const ranges: Array<{start: number; end: number}> = []
     let wOffset = 0
     for (const sent of sentences) {
@@ -2246,7 +2358,12 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
             <div className="px-4 py-3 text-foreground leading-relaxed font-[ui-sans-serif]">
               {/* Story Mode — interleaved paragraphs + visuals */}
               {message.storySections && message.storySections.length > 0 ? (
-                <StoryView sections={message.storySections} />
+                <StoryView
+                  sections={message.storySections}
+                  activeWordIdx={activeWordIdx}
+                  sectionWordOffsets={sectionWordOffsetsRef.current}
+                  isSpeaking={isSpeaking}
+                />
               ) : (
                 parts.map((part, i) => {
                   if (!isSpeaking || activeWordIdx < 0) {

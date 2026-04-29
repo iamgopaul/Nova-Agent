@@ -249,6 +249,7 @@ async def generate_image_stream(body: ImageRequest) -> StreamingResponse:
                     body.strength,
                     body.steps,
                     body.guidance_scale,
+                    step_cb,
                 )
             elif body.ref_image_url.strip():
                 ref_bytes = await _fetch_ref_image(body.ref_image_url.strip())
@@ -262,6 +263,7 @@ async def generate_image_stream(body: ImageRequest) -> StreamingResponse:
                         0.35,
                         body.steps,
                         body.guidance_scale,
+                        step_cb,
                     )
                 else:
                     png_bytes = await asyncio.to_thread(

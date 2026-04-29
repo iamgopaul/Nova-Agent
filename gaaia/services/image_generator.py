@@ -550,12 +550,19 @@ def generate_image(
 
 
 def _make_step_cb(step_callback, total_steps: int):
-    """Return a diffusers callback_on_step_end-compatible callable, or None."""
+    """Return a diffusers callback_on_step_end-compatible callable, or None.
+
+    Uses a closure counter rather than the pipeline-supplied ``i`` because
+    img2img pipelines start ``i`` at ``int(num_inference_steps * (1 - strength))``,
+    which would otherwise jump the progress bar to ~70 % on the first event.
+    """
     if step_callback is None:
         return None
+    counter = {"n": 0}
     def _cb(pipeline, i, t, cb_kwargs):
+        counter["n"] += 1
         try:
-            step_callback(i + 1, total_steps)
+            step_callback(min(counter["n"], total_steps), total_steps)
         except Exception:
             pass
         return {}   # no tensor inputs requested, must return empty dict
@@ -729,6 +736,7 @@ def generate_image_variation(
     strength: float = 0.75,
     steps: int = 25,
     guidance_scale: float = 7.5,
+    step_callback=None,
 ) -> bytes:
     """
     Generate a variation of *init_image_bytes* guided by *prompt*.
@@ -772,6 +780,10 @@ def generate_image_variation(
             # SDXL img2img: resize to 1024, minimal steps since Lightning schedule is fixed
             init_image = init_image.resize((1024, 1024), PILImage.LANCZOS)
             effective_steps = max(4, int(20 * strength))
+            # Diffusers img2img runs ~strength × num_inference_steps actual UNet calls
+            actual_steps = max(1, int(effective_steps * strength))
+            _cb = _make_step_cb(step_callback, actual_steps)
+            _cb_kwargs = {"callback_on_step_end": _cb, "callback_on_step_end_tensor_inputs": []} if _cb else {}
             with _inference_lock:
                 result = img2img_pipe(
                     prompt=enriched,
@@ -779,6 +791,7 @@ def generate_image_variation(
                     strength=strength,
                     num_inference_steps=effective_steps,
                     guidance_scale=max(guidance_scale, 3.0),
+                    **_cb_kwargs,
                 )
         else:
             # SD 1.5 / Dreamlike img2img
@@ -796,6 +809,9 @@ def generate_image_variation(
                 except Exception:
                     pass
 
+            actual_steps = max(1, int(steps * strength))
+            _cb = _make_step_cb(step_callback, actual_steps)
+            _cb_kwargs = {"callback_on_step_end": _cb, "callback_on_step_end_tensor_inputs": []} if _cb else {}
             with _inference_lock:
                 result = img2img_pipe(
                     prompt=enriched,
@@ -805,6 +821,7 @@ def generate_image_variation(
                     num_inference_steps=steps,
                     guidance_scale=guidance_scale,
                     generator=generator,
+                    **_cb_kwargs,
                 )
 
         image = result.images[0]

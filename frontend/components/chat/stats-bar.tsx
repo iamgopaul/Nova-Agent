@@ -9,6 +9,9 @@ interface SystemStats {
   ram_used_gb: number | null
   ram_total_gb: number | null
   ram_percent: number | null
+  committed_used_gb: number | null
+  committed_total_gb: number | null
+  committed_percent: number | null
   gpu: {
     type?: "nvidia" | "apple_silicon"
     chip?: string
@@ -223,6 +226,19 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
           >
             <MiniBar percent={sys?.ram_percent ?? null} />
           </Pill>
+
+          {/* Commit charge — RAM + pagefile reservation. On Windows this is the
+              "Committed" value Task Manager shows; nearing the limit means the
+              system is about to refuse new allocations. */}
+          {sys?.committed_used_gb != null && sys?.committed_total_gb != null && (
+            <Pill
+              label="Total RAM"
+              value={`${sys.committed_used_gb.toFixed(1)} / ${sys.committed_total_gb.toFixed(0)} GB`}
+              color={colorFor(sys.committed_percent)}
+            >
+              <MiniBar percent={sys.committed_percent} />
+            </Pill>
+          )}
 
           {/* Only show a separate VRAM pill for discrete GPUs (NVIDIA), which have
               their own memory pool distinct from system RAM. */}

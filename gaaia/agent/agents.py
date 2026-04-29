@@ -42,24 +42,21 @@ class BaseAgent:
         token_callback: Callable | None = None,
         options: dict | None = None,
     ) -> str:
-        import ollama
+        from gaaia.services.model_client import get_model_client
 
         loop = asyncio.get_event_loop()
         q: asyncio.Queue[str | None] = asyncio.Queue()
         _opts = {"temperature": 0.7, "num_predict": 2048, **(options or {})}
 
         def _run() -> None:
-            client = ollama.Client(host=self._host, timeout=120)
+            client = get_model_client(host=self._host, timeout=120.0)
             try:
-                for chunk in client.chat(
+                for tok in client.chat_stream(
                     model=self._model,
                     messages=messages,
-                    stream=True,
                     options=_opts,
                 ):
-                    tok = (chunk.get("message") or {}).get("content") or ""
-                    if tok:
-                        loop.call_soon_threadsafe(q.put_nowait, tok)
+                    loop.call_soon_threadsafe(q.put_nowait, tok)
             except Exception as exc:
                 print(f"[{self.name}] LLM error: {exc}", flush=True)
             finally:

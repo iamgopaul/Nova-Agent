@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # ── Optional env overrides ────────────────────────────────────────
     # Ollama runs locally — no API key needed.
     ollama_host: str = "http://localhost:11434"
+    # exo (https://github.com/exo-explore/exo) — distributed inference cluster
+    # exposing an OpenAI-compatible endpoint. When enabled, models whose RAM
+    # cost exceeds exo_threshold_gb route to exo (which can pool peer RAM);
+    # smaller models stay on Ollama for lower latency. If exo is unreachable
+    # at startup the router silently falls back to Ollama-only.
+    exo_enabled: bool = False
+    exo_host: str = "http://localhost:52415"
+    exo_threshold_gb: float = 20.0
     # TMDB: free with email registration at themoviedb.org (no credit card).
     # Leave blank to use DuckDuckGo-based movie search as fallback.
     tmdb_api_key: str = ""

@@ -47,16 +47,16 @@ async def lifespan(app: FastAPI):
 
     settings = get_settings()
 
-    # ── Model routing — pick best models that fit in system RAM ──────────────
+    # ── Model routing — pick best models that fit in unified memory budget ───
     from gaaia.services.model_router import run_model_routing
     _ollama_host = str(settings._yaml.get("model", {}).get("host") or "http://localhost:11434")
-    _mr_overrides, _mr_ram_gb, _mr_installed, _mr_logs = run_model_routing(
+    _mr_overrides, _mr_budget, _mr_installed, _mr_logs = run_model_routing(
         settings._yaml.get("model", {}),
         host=_ollama_host,
     )
     settings.apply_model_routing(_mr_overrides)
     print(
-        f"[ModelRouter] System RAM: {_mr_ram_gb:.1f} GB | "
+        f"[ModelRouter] Memory: {_mr_budget.describe()} | "
         f"Installed models: {len(_mr_installed)} | "
         f"Role overrides: {len(_mr_overrides)}",
         flush=True,
@@ -65,7 +65,10 @@ async def lifespan(app: FastAPI):
         print(f"[ModelRouter]{line}", flush=True)
     # Store routing info for the /stats/models endpoint
     app.state.model_routing = {
-        "ram_gb": round(_mr_ram_gb, 1),
+        "memory_gb": round(_mr_budget.total_gb, 1),
+        "ram_gb": round(_mr_budget.ram_gb, 1),
+        "vram_gb": round(_mr_budget.vram_gb, 1),
+        "apple_silicon": _mr_budget.apple_silicon,
         "installed_models": sorted(_mr_installed),
         "overrides": _mr_overrides,
         "log": _mr_logs,
@@ -131,6 +134,33 @@ async def lifespan(app: FastAPI):
             await asyncio.to_thread(warmup_kokoro_inference, settings)
 
         asyncio.create_task(_warm_kokoro())
+
+    # Pre-warm the LLM router model so the first user message doesn't wait
+    # 3-5 s for it to cold-load from disk. Router uses fast_model (llama3.2:3b
+    # by default) — a tiny ping with num_predict=1 is enough to load weights
+    # into memory. Runs in the background so server startup isn't blocked.
+    import asyncio as _asyncio
+    async def _warm_router_model() -> None:
+        try:
+            import httpx
+            router_model = settings.model.get("fast_model", "llama3.2:3b")
+            print(f"[GAIA] Pre-warming router model ({router_model})…", flush=True)
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                await client.post(
+                    f"{settings.ollama_host}/api/chat",
+                    json={
+                        "model": router_model,
+                        "messages": [{"role": "user", "content": "ok"}],
+                        "stream": False,
+                        "options": {"num_predict": 1, "temperature": 0.0},
+                        "keep_alive": "30m",
+                    },
+                )
+            print(f"[GAIA] Router model {router_model} warm — first turn will route in <1 s.", flush=True)
+        except Exception as _exc:
+            print(f"[GAIA] Router pre-warm skipped ({_exc})", flush=True)
+
+    _asyncio.create_task(_warm_router_model())
 
     yield
 

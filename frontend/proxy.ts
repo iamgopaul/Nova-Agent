@@ -20,7 +20,7 @@ const AUTH_PAGES = ["/login", "/signup"]
 
 const COOKIE = "gaaia_token"
 
-export default function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get(COOKIE)?.value
 

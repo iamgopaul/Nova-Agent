@@ -309,8 +309,10 @@ def build_system_prompt(
     max_spoken_sentence_length = response_style.get("max_spoken_sentence_length", 25)
 
     now = datetime.now()
-    date_str = now.strftime("%A, %B %-d, %Y")  # e.g. "Tuesday, April 21, 2026"
-    time_str = now.strftime("%-I:%M %p")        # e.g. "3:42 PM"
+    # Build cross-platform: %-d / %-I are POSIX-only and fail on Windows.
+    hour12 = (now.hour % 12) or 12
+    date_str = f"{now:%A, %B} {now.day}, {now.year}"  # e.g. "Tuesday, April 21, 2026"
+    time_str = f"{hour12}:{now:%M %p}"                 # e.g. "3:42 PM"
 
     text = f"# GAIA — AI Chief of Staff\n\n{_IDENTITY}"
     text += (

@@ -21,13 +21,14 @@ Key Ollama options we tune:
 from __future__ import annotations
 
 import os
-import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Literal
 
 import psutil
+
+from gaaia.services.hardware import is_apple_silicon, nvidia_vram_gb
 
 
 RamPressure = Literal["ok", "moderate", "critical"]
@@ -53,26 +54,6 @@ _lock = threading.Lock()
 _REFRESH_INTERVAL = 30   # seconds — refresh more often to react to RAM changes
 
 
-# ── Hardware detection ────────────────────────────────────────────────────────
-
-def _nvidia_vram_gb() -> float:
-    try:
-        out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
-            timeout=3, stderr=subprocess.DEVNULL,
-        ).decode().strip()
-        return sum(float(x) for x in out.splitlines() if x.strip()) / 1024
-    except Exception:
-        return 0.0
-
-
-def _is_apple_silicon() -> bool:
-    try:
-        return subprocess.check_output(["uname", "-m"], timeout=2).decode().strip() == "arm64"
-    except Exception:
-        return False
-
-
 # ── Profile computation ───────────────────────────────────────────────────────
 
 def _compute_profile() -> PerfProfile:
@@ -81,8 +62,8 @@ def _compute_profile() -> PerfProfile:
     total_ram_gb    = vm.total    / (1024 ** 3)
     avail_ram_gb    = vm.available / (1024 ** 3)
     ram_used_pct    = vm.percent
-    vram_gb         = _nvidia_vram_gb()
-    apple           = _is_apple_silicon()
+    vram_gb         = nvidia_vram_gb()
+    apple           = is_apple_silicon()
 
     # ── RAM pressure ─────────────────────────────────────────────────────────
     # Apple Silicon unified memory: the OS always reports high usage because
@@ -217,8 +198,8 @@ def initialize() -> None:
     _profile = _compute_profile()
 
     ram_gb   = psutil.virtual_memory().total / (1024 ** 3)
-    vram_gb  = _nvidia_vram_gb()
-    apple    = _is_apple_silicon()
+    vram_gb  = nvidia_vram_gb()
+    apple    = is_apple_silicon()
     gpu_info = "Apple Silicon (Metal)" if apple else (
         f"{vram_gb:.1f} GB VRAM" if vram_gb else "no GPU"
     )

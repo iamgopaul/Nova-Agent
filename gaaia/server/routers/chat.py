@@ -245,6 +245,32 @@ def _is_visual_show_request(text: str) -> bool:
     return bool(_VISUAL_SHOW_RE.search(text or ""))
 
 
+# Self-referential queries — the user is asking about the assistant itself
+# ("tell me about your capabilities", "who are you", "what can you do").
+# These look like research queries to _VISUAL_SHOW_RE but should never trigger
+# a web search, because no external source can answer them.
+_SELF_REF_RE = re.compile(
+    r"(?ix)"
+    r"(?:^|\b)(?:"
+    r"   tell \s+ me \s+ about \s+ (?: you(?:rself)? | your \s+ \w)"
+    r" | about \s+ (?: you(?:rself)? | your \s+ \w)"
+    r" | who \s+ are \s+ you"
+    r" | what \s+ (?: are | is) \s+ you\b"
+    r" | what \s+ can \s+ you \s+ (?: do | help)"
+    r" | what \s+ (?: are | is) \s+ your \s+ \w"
+    r" | (?: explain | describe | introduce) \s+ yourself"
+    r" | your \s+ (?: capabilities | abilities | features | skills | name | model"
+    r"            | version | purpose | design | background | history"
+    r"            | architecture | training | powers | strengths | limitations"
+    r"            | weaknesses | tools | functions | personality | identity)"
+    r")\b",
+)
+
+
+def _is_self_referential_query(text: str) -> bool:
+    return bool(_SELF_REF_RE.search(text or ""))
+
+
 # Follow-up clicks send: Regarding your previous response:\n"…"\n\n<actual question>
 _CONTEXTUAL_REPLY_PREFIX_RE = re.compile(
     r"(?is)^Regarding\s+your\s+previous\s+response:\s*\"[^\"]*\"\s*\n\s*\n",
@@ -732,6 +758,12 @@ Example (fashion / style topic):
 
 Example (AI just generated a character or scene image):
 ["Download this image as PNG", "Regenerate with a darker mood", "Add a second character to the scene"]
+
+Example (assistant wrote code, e.g. a snake game):
+["Add a high-score system", "Make it run faster as score grows", "Port this to Python"]
+
+Example (assistant wrote a long essay):
+["Add a section on causes", "Cite more recent sources", "Shorten this for a 5-minute read"]
 """
 
 
@@ -790,13 +822,19 @@ async def generate_suggestions(
         # Extract JSON array from the response
         m = re.search(r'\[.*?\]', content, re.DOTALL)
         if not m:
+            print(
+                f"[Chat/suggestions] No JSON array in {fast_model} reply "
+                f"(first 200 chars): {content[:200]!r}",
+                flush=True,
+            )
             return {"suggestions": []}
 
         raw = json.loads(m.group())
         suggestions = [str(s).strip() for s in raw if str(s).strip()][:3]
         return {"suggestions": suggestions}
 
-    except Exception:
+    except Exception as exc:
+        print(f"[Chat/suggestions] Failed via {fast_model}: {exc}", flush=True)
         return {"suggestions": []}
 
 
@@ -1238,7 +1276,7 @@ def _extract_essay_topic(user_message: str) -> str:
     ):
         m = re.search(pat, t, re.IGNORECASE)
         if m:
-            topic = m.group(m.lastindex or 1).strip().rstrip(".,;")
+            topic = m.group(m.lastindex or 1).strip().rstrip(".,;?!")
             if topic:
                 return " ".join(topic.split()[:10])
     return ""
@@ -1392,21 +1430,17 @@ Return ONLY a valid JSON array (no markdown fences, no extra keys), for example:
 """
 
     try:
-        async with httpx.AsyncClient(timeout=55.0) as client:
-            resp = await client.post(
-                f"{ollama_host.rstrip('/')}/api/chat",
-                json={
-                    "model": core_model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user_payload},
-                    ],
-                    "stream": False,
-                    "options": {"num_predict": 1200, "temperature": 0.3},
-                },
-            )
-            resp.raise_for_status()
-            raw = resp.json()["message"]["content"].strip()
+        from gaaia.services.model_client import get_model_client
+        client = get_model_client(host=ollama_host, timeout=55.0)
+        raw = (await asyncio.to_thread(
+            client.chat,
+            core_model,
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_payload},
+            ],
+            {"num_predict": 1200, "temperature": 0.3},
+        )).strip()
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         if not m:
             return []
@@ -2317,6 +2351,7 @@ async def chat(
     # (images appear inline via story_sections instead).
     _wants_web_results:  bool = (
         not bool(_raw_image_prompt)
+        and not _is_self_referential_query(_web_intent_msg)
         and (
             _is_visual_show_request(_web_intent_msg)
             or _is_web_image_browse_request(_web_intent_msg)
@@ -2508,33 +2543,17 @@ async def chat(
         # Essay/paper mode: instruct the LLM to write the full content immediately.
         if _is_essay_mode:
             effective_user_message += (
-                "\n\n[Document writing — MANDATORY — READ EVERY RULE BEFORE WRITING]\n"
-                "Write the COMPLETE, LONG, DETAILED academic paper RIGHT NOW — no outlines, no summaries, no plans.\n"
-                "\nCRITICAL RULES:\n"
-                "1. START immediately with the first section — NO preamble, no 'Here is the paper', no 'I will now write'\n"
-                "2. Every section MUST begin with ## followed by the section title on its own line\n"
-                "   Required sections (minimum): ## Abstract, ## Introduction, ## Background / History, "
-                "## [2-3 thematic body sections specific to the topic], ## Methodology / Approaches, "
-                "## Results and Discussion, ## Future Directions, ## Conclusion, ## References\n"
-                "3. WORD COUNT — this is the most important rule:\n"
-                "   • Every body section (Introduction through Future Directions) MUST be 900–1200 words\n"
-                "   • That means 8–10 full paragraphs, each 5–7 sentences, per section\n"
-                "   • DO NOT end a section after 2–3 sentences — keep writing until you reach ~1000 words\n"
-                "   • If you feel like stopping early, write 3 more paragraphs before the next heading\n"
-                "4. CONTENT QUALITY — every section must contain:\n"
-                "   • Specific facts, dates, names, statistics, percentages, and measurements\n"
-                "   • Real-world examples, case studies, named experiments or discoveries\n"
-                "   • Mechanistic explanations (HOW and WHY, not just WHAT)\n"
-                "   • Comparisons, contrasts, and critical analysis\n"
-                "   • In-text citations like (Author, Year) for every major claim\n"
-                "5. REFERENCES — the final section ## References MUST list at least 15–20 citations:\n"
-                "   • Use APA format: Author, A. B. (Year). Title of article. Journal Name, Volume(Issue), pages.\n"
-                "   • Include peer-reviewed journals, textbooks, WHO/CDC/NIH sources\n"
-                "   • Every in-text citation (Author, Year) must have a matching reference entry\n"
-                "6. TOTAL LENGTH: minimum 10,000 words across all sections\n"
-                "7. DO NOT write 'This section will cover...' — write the actual content directly\n"
-                "8. DO NOT include markdown image tags like ![alt](url)\n"
-                "9. Write with academic precision: use domain-specific terminology, passive/active voice mix, formal register"
+                "\n\nWRITE THE ESSAY NOW. Your VERY FIRST characters must be `## Abstract`. "
+                "Do not acknowledge these instructions. Do not say 'I will write', 'Here is', "
+                "'I have written', or describe the essay — output the essay itself.\n\n"
+                "Sections (in this order, each starting with `## `):\n"
+                "Abstract, Introduction, Background, [2-3 topic-specific body sections], "
+                "Discussion, Conclusion, References.\n\n"
+                "Each section: 4-6 paragraphs of dense academic prose, with specific dates, "
+                "names, places, and figures. Use in-text citations like (Author, Year). "
+                "References section: 10-15 entries in APA format.\n\n"
+                "No meta-commentary. No `[End of Essay]` marker. No image tags. "
+                "Begin output with `## Abstract`."
             )
         # Nudge the model: image gen is automatic — users want the picture, not a how-to.
         if _raw_image_prompt:
@@ -3014,6 +3033,67 @@ async def chat(
                 _sd_by_index: dict[int, str] = {}
                 _doc_essay_web_images = [""] * len(_essay_sections)
 
+                # ── Empty / meta-narration essay guard ───────────────────────
+                # Failure shapes we surface as errors:
+                #   1. LLM produced almost nothing (timeout, OOM, or "1.")
+                #   2. LLM acknowledged the prompt instead of writing the essay
+                #      ("I have written...", "I will write...", "Here is..."),
+                #      which the parser splits into "Part 1/2/3" stubs.
+                _essay_prose_len = sum(len((s.get("text") or "").strip()) for s in _essay_sections)
+                _meta_narration_re = re.compile(
+                    r"^\s*(?:i\s+(?:have\s+(?:written|created|completed|prepared)|will\s+(?:write|create|prepare))"
+                    r"|here\s+is\s+(?:the|a|your)|please\s+(?:note|review|let\s+me\s+know)"
+                    r"|i\s+followed\s+(?:all\s+)?the\s+rules"
+                    r"|the\s+essay\s+(?:includes|contains|has|covers))",
+                    re.IGNORECASE,
+                )
+                _is_meta_narration = (
+                    _essay_sections
+                    and all((s.get("heading") or "").strip().lower().startswith("part ") for s in _essay_sections)
+                    and any(_meta_narration_re.match((s.get("text") or "").strip()) for s in _essay_sections)
+                )
+                _essay_failed = (
+                    not _essay_sections
+                    or (
+                        len(_essay_sections) == 1
+                        and (_essay_sections[0].get("heading") or "").strip().lower() == "content"
+                        and _essay_prose_len < 200
+                    )
+                    or _essay_prose_len < 400
+                    or _is_meta_narration
+                )
+                if _essay_failed:
+                    _reason = (
+                        "meta-narration (model described essay instead of writing it)"
+                        if _is_meta_narration
+                        else f"too short ({_essay_prose_len} chars, {len(_essay_sections)} section(s))"
+                    )
+                    print(
+                        f"[Chat] ⚠ Essay output {_reason} — surfacing failure to user",
+                        flush=True,
+                    )
+                    _essay_topic_label = _essay_topic.strip() or body.message.strip()
+                    if _is_meta_narration:
+                        _err_msg = (
+                            f"The model described an essay on **{_essay_topic_label}** instead of writing it. "
+                            "This sometimes happens with smaller models on long instruction prompts. "
+                            "Try rephrasing as 'Write the full essay on world war 2 starting with `## Abstract`' "
+                            "or pick a larger model in Settings."
+                        )
+                    else:
+                        _err_msg = (
+                            f"I wasn't able to generate the essay on **{_essay_topic_label}**. "
+                            "The local model may have timed out, hit a memory limit, or stopped early. "
+                            "Try again, narrow the topic, or switch to a smaller model in Settings."
+                        )
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait,
+                        {"type": "replace", "content": _err_msg},
+                    )
+                    full_response = _err_msg
+                    _stream_has_content.set()
+                    _essay_sections = []   # skip the rest of the essay pipeline
+
                 async def _fetch_one_web(q: str) -> str:
                     q = (q or "").strip()[:120]
                     if len(q) < 3:
@@ -3284,7 +3364,11 @@ async def chat(
         # Essay+web-image pipelines can run several minutes; keepalive is via
         # heartbeat (pre-stream) + status events; this is a last-resort ceiling.
         _IDLE_TIMEOUT = 180.0
-        _TOTAL_TIMEOUT = 600.0
+        # Essays on downsized hardware (gemma3:12b at 28k ctx with KV-cache
+        # spilling to RAM) need ~15-25 min to finish. Casual chat is bounded by
+        # the much shorter idle timeout, so this only kicks in for genuinely
+        # long-running flows.
+        _TOTAL_TIMEOUT = 1800.0 if _is_essay_mode else 600.0
         import time as _time
         _stream_start = _time.monotonic()
         while True:
