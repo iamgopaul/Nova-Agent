@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -191,7 +192,29 @@ export default function HomePage() {
   const router = useRouter()
   const [user, setUser] = useState<UserInfo | null>(null)
   const [showMenu, setShowMenu] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [menuPos, setMenuPos] = useState<{ right: number; top: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  // Anchor the popover to the avatar button's bounding rect. Using portal +
+  // fixed positioning means the menu renders above the rest of the page
+  // (which sits at z-10 with no clear hierarchy below the header), so it
+  // doesn't get covered by the hero / feature grid that begins right below.
+  useLayoutEffect(() => {
+    if (!showMenu) return
+    const update = () => {
+      const r = buttonRef.current?.getBoundingClientRect()
+      if (r) setMenuPos({ right: window.innerWidth - r.right, top: r.bottom + 8 })
+    }
+    update()
+    window.addEventListener("resize", update)
+    window.addEventListener("scroll", update, true)
+    return () => {
+      window.removeEventListener("resize", update)
+      window.removeEventListener("scroll", update, true)
+    }
+  }, [showMenu])
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -213,15 +236,9 @@ export default function HomePage() {
       .catch(() => {})  // network error — stay on page silently
   }, [router])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false)
-      }
-    }
-    if (showMenu) document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [showMenu])
+  // Outside-click is handled by the portal's full-screen backdrop now —
+  // the previous mousedown listener was firing BEFORE menu-item click events
+  // and dismissing the menu before navigation could happen.
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -256,8 +273,9 @@ export default function HomePage() {
 
         <div className="flex items-center gap-3">
           {user && (
-            <div className="relative" ref={menuRef}>
+            <div className="relative">
               <button
+                ref={buttonRef}
                 onClick={() => setShowMenu(prev => !prev)}
                 className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold",
@@ -270,38 +288,52 @@ export default function HomePage() {
                 {user.display_name[0].toUpperCase()}
               </button>
 
-              {showMenu && (
-                <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl border border-border bg-popover shadow-2xl overflow-hidden z-50">
-                  <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: user.avatar_color }}
-                    >
-                      {user.display_name[0].toUpperCase()}
+              {/* Popover rendered via portal with fixed positioning so it
+                  isn't clipped by the page's z-10 hero/feature grid that
+                  starts directly below the header. */}
+              {mounted && showMenu && createPortal(
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowMenu(false)} />
+                  <div
+                    className="fixed w-52 rounded-2xl border border-border bg-popover shadow-2xl overflow-hidden z-[70]"
+                    style={{
+                      right: menuPos?.right ?? 16,
+                      top: menuPos?.top ?? 60,
+                      visibility: menuPos ? "visible" : "hidden",
+                    }}
+                  >
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: user.avatar_color }}
+                      >
+                        {user.display_name[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{user.display_name}</p>
+                        <p className="text-xs text-muted-foreground">GAAIA account</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{user.display_name}</p>
-                      <p className="text-xs text-muted-foreground">GAAIA account</p>
+                    <div className="p-1.5 space-y-0.5">
+                      <Link
+                        href="/settings"
+                        onClick={() => setShowMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm hover:bg-muted transition-colors"
+                      >
+                        <Cog className="w-4 h-4 text-muted-foreground" />
+                        Settings
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign out
+                      </button>
                     </div>
                   </div>
-                  <div className="p-1.5 space-y-0.5">
-                    <Link
-                      href="/settings"
-                      onClick={() => setShowMenu(false)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm hover:bg-muted transition-colors"
-                    >
-                      <Cog className="w-4 h-4 text-muted-foreground" />
-                      Settings
-                    </Link>
-                    <button
-                      onClick={handleSignOut}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Sign out
-                    </button>
-                  </div>
-                </div>
+                </>,
+                document.body,
               )}
             </div>
           )}
