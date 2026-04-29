@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from gaaia.memory.store import MemoryStore
@@ -36,6 +39,14 @@ _COOKIE_MAX_AGE = TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
 _OAUTH_SENTINELS = {"", "oauth_account"}
 
+# When the frontend is hosted on a different domain than the backend
+# (e.g. Vercel + Cloudflare Tunnel), the auth cookie must be SameSite=None +
+# Secure or browsers refuse to send it cross-origin. Toggle via env var so the
+# default local-only setup keeps working without HTTPS.
+_CROSS_DOMAIN_COOKIES = (os.environ.get("GAAIA_CROSS_DOMAIN_COOKIES") or "").strip().lower() in ("1", "true", "yes")
+_COOKIE_SAMESITE: Literal["lax", "none"] = "none" if _CROSS_DOMAIN_COOKIES else "lax"
+_COOKIE_SECURE = _CROSS_DOMAIN_COOKIES
+
 
 def _has_password(user: User) -> bool:
     return bool(user.hashed_password) and user.hashed_password not in _OAUTH_SENTINELS
@@ -59,10 +70,12 @@ def _set_auth_cookie(response: Response, user: User) -> None:
         key=COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="lax",   # "lax" allows OAuth redirect flows; "strict" breaks them
+        # "lax" for same-site dev; "none" + secure required when frontend is
+        # on a different domain (Vercel) and backend is on a tunnel.
+        samesite=_COOKIE_SAMESITE,
         path="/",
         max_age=_COOKIE_MAX_AGE,
-        secure=False,     # local app — set True behind HTTPS in production
+        secure=_COOKIE_SECURE,
     )
 
 
@@ -160,7 +173,7 @@ def login(
 
 @router.post("/logout", status_code=204)
 def logout(response: Response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="lax")
+    response.delete_cookie(key=COOKIE_NAME, path="/", samesite=_COOKIE_SAMESITE)
 
 
 @router.get("/me", response_model=UserResponse)

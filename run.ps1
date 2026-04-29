@@ -1,7 +1,14 @@
-# GAAIA — Windows PowerShell launcher
+﻿# GAAIA — Windows PowerShell launcher
 # Auto-installs Python 3.12+, pnpm, and project dependencies on first run.
 # Usage:  ./run.ps1
-$ErrorActionPreference = "Stop"
+#
+# Why "Continue" and not "Stop": Windows PowerShell 5.1 wraps every line a
+# native command writes to stderr in a NativeCommandError record, even on
+# exit code 0. Combined with `Stop`, that halts the script on harmless
+# informational output (e.g. python's `# total=23 models` summary). The
+# script already checks `$LASTEXITCODE` after each native call, so explicit
+# failure handling is unaffected.
+$ErrorActionPreference = "Continue"
 
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $RootDir
@@ -181,9 +188,13 @@ if ($needsFrontend) {
 # ── Unified memory tier (RAM + VRAM) for Ollama tuning ───────────────────────
 # Probe RAM via psutil and VRAM via gaaia.services.hardware so the launcher's
 # tier picker matches what the in-process model router will compute.
+# NOTE: keep all string literals inside this script SINGLE-QUOTED. Windows
+# PowerShell's native-command parser strips double quotes when forwarding a
+# multi-line `-c` argument to python.exe, which would turn `"."` into `.` and
+# crash with `SyntaxError: invalid syntax`.
 $probeScript = @'
 import psutil, sys
-sys.path.insert(0, ".")
+sys.path.insert(0, '.')
 from gaaia.services.hardware import is_apple_silicon, nvidia_vram_gb, amd_vram_gb
 m = psutil.virtual_memory()
 apple = is_apple_silicon()

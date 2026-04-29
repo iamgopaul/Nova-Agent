@@ -23,6 +23,18 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # Silence HuggingFace Hub auth warning entirely
 os.environ.setdefault("HF_HUB_VERBOSITY", "error")
 
+# Populate os.environ from .env BEFORE any other module is imported. The
+# Settings class also reads .env (via pydantic-settings) but it stores values
+# on the Settings instance, not in os.environ — and several module-level
+# constants (e.g. _CROSS_DOMAIN_COOKIES in auth.py, GAAIA_FRONTEND_ORIGINS
+# below) read os.environ directly at import time. Without this call, values
+# in .env are invisible to those reads.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from gaaia.server.security import SecurityHeadersMiddleware
@@ -216,15 +228,25 @@ def create_app() -> FastAPI:
     # Security headers on every response (XSS, clickjacking, CSP, etc.)
     app.add_middleware(SecurityHeadersMiddleware)
 
-    # Allow the desktop UI (same machine); credentials=True required for cookie auth
+    # Allow the desktop UI (same machine); credentials=True required for cookie auth.
+    # Extra origins (e.g. https://your-app.vercel.app) can be added via the
+    # GAAIA_FRONTEND_ORIGINS env var as a comma-separated list — useful when
+    # the frontend is hosted on Vercel and the backend is exposed via a tunnel.
+    _default_origins = [
+        "http://localhost:3000", "http://127.0.0.1:3000",
+        "http://localhost:8765", "http://127.0.0.1:8765",
+    ]
+    _extra_origins_raw = (os.environ.get("GAAIA_FRONTEND_ORIGINS") or "").strip()
+    _extra_origins = [o.strip().rstrip("/") for o in _extra_origins_raw.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000",
-                       "http://localhost:8765", "http://127.0.0.1:8765"],
+        allow_origins=_default_origins + _extra_origins,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
         allow_credentials=True,
     )
+    if _extra_origins:
+        print(f"[GAAIA] CORS: extra origins allowed → {_extra_origins}", flush=True)
 
     app.include_router(two_factor.router,  prefix="/auth/2fa",        tags=["2FA"])
     app.include_router(billing.router,     prefix="/billing",         tags=["Billing"])
