@@ -228,7 +228,7 @@ export function ImageGenerating({
 
   return (
     <div className={cn(
-      "flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-blue-500/30 bg-gradient-to-r from-blue-950/50 to-cyan-950/30 backdrop-blur-sm",
+      "flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-blue-500/30 bg-linear-to-r from-blue-950/50 to-cyan-950/30 backdrop-blur-sm",
       hasProgress ? "w-56" : "inline-flex items-center",
       className,
     )}>
@@ -268,7 +268,7 @@ export function ImageGenerating({
       {hasProgress && (
         <div className="w-full h-1 rounded-full bg-blue-900/60 overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 transition-all duration-300 ease-out"
+            className="h-full rounded-full bg-linear-to-r from-blue-400 to-cyan-400 transition-all duration-300 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>

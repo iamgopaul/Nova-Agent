@@ -48,10 +48,10 @@ const AGENT_META: Record<string, { name: string; Icon: React.FC<{ className?: st
 }
 
 const COLOR: Record<string, { border: string; activeBorder: string; bg: string; iconBg: string; iconText: string; cursor: string }> = {
-  sky:     { border: "border-sky-500/20",     activeBorder: "border-sky-500/50",     bg: "bg-sky-500/[0.05]",     iconBg: "bg-sky-500/20 border-sky-500/30",     iconText: "text-sky-400",    cursor: "text-sky-400" },
-  violet:  { border: "border-violet-500/20",  activeBorder: "border-violet-500/50",  bg: "bg-violet-500/[0.05]",  iconBg: "bg-violet-500/20 border-violet-500/30", iconText: "text-violet-400", cursor: "text-violet-400" },
-  amber:   { border: "border-amber-500/20",   activeBorder: "border-amber-500/50",   bg: "bg-amber-500/[0.05]",   iconBg: "bg-amber-500/20 border-amber-500/30",   iconText: "text-amber-400",  cursor: "text-amber-400" },
-  emerald: { border: "border-emerald-500/20", activeBorder: "border-emerald-500/50", bg: "bg-emerald-500/[0.05]", iconBg: "bg-emerald-500/20 border-emerald-500/30",iconText: "text-emerald-400",cursor: "text-emerald-400" },
+  sky:     { border: "border-sky-500/20",     activeBorder: "border-sky-500/50",     bg: "bg-sky-500/5",     iconBg: "bg-sky-500/20 border-sky-500/30",     iconText: "text-sky-400",    cursor: "text-sky-400" },
+  violet:  { border: "border-violet-500/20",  activeBorder: "border-violet-500/50",  bg: "bg-violet-500/5",  iconBg: "bg-violet-500/20 border-violet-500/30", iconText: "text-violet-400", cursor: "text-violet-400" },
+  amber:   { border: "border-amber-500/20",   activeBorder: "border-amber-500/50",   bg: "bg-amber-500/5",   iconBg: "bg-amber-500/20 border-amber-500/30",   iconText: "text-amber-400",  cursor: "text-amber-400" },
+  emerald: { border: "border-emerald-500/20", activeBorder: "border-emerald-500/50", bg: "bg-emerald-500/5", iconBg: "bg-emerald-500/20 border-emerald-500/30",iconText: "text-emerald-400",cursor: "text-emerald-400" },
 }
 
 // ── Agent Card ────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ function AgentCard({
     state.status === "running" ? c.activeBorder
     : state.status === "done"  ? c.border
     : state.status === "error" ? "border-red-500/30"
-    : "border-white/[0.07]"
+    : "border-white/7"
 
   return (
     <div
@@ -89,7 +89,7 @@ function AgentCard({
       <button
         onClick={onToggle}
         className={cn(
-          "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]",
+          "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/3",
           state.status !== "idle" ? c.bg : "bg-transparent",
         )}
       >
@@ -117,7 +117,7 @@ function AgentCard({
       </button>
 
       {expanded && state.output && (
-        <div className="px-4 py-3 border-t border-white/[0.05] text-sm text-white/60 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+        <div className="px-4 py-3 border-t border-white/5 text-sm text-white/60 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
           {state.output}
           {state.status === "running" && (
             <span className={cn("animate-pulse", c.cursor)}>▋</span>
@@ -286,8 +286,8 @@ export default function AgentsPage() {
         {/* Background */}
         <div className="pointer-events-none absolute inset-0 page-gradient-agents" />
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 right-0 w-96 h-96 rounded-full bg-emerald-500/[0.07] blur-3xl" />
-          <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-green-500/[0.05] blur-3xl" />
+          <div className="absolute top-1/4 right-0 w-96 h-96 rounded-full bg-emerald-500/7 blur-3xl" />
+          <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-green-500/5 blur-3xl" />
         </div>
 
         <div className="relative z-10 max-w-3xl w-full mx-auto flex flex-col gap-4">
@@ -314,7 +314,7 @@ export default function AgentsPage() {
               onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleRun() }}
               placeholder="What should the agents work on? e.g. 'Research the latest AI trends and write a market report'"
               rows={3}
-              className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/80 placeholder:text-white/20 resize-none outline-none focus:border-emerald-500/40 focus:bg-white/[0.06] transition-all"
+              className="flex-1 bg-white/4 border border-white/10 rounded-xl px-4 py-3 text-sm text-white/80 placeholder:text-white/20 resize-none outline-none focus:border-emerald-500/40 focus:bg-white/6 transition-all"
               disabled={running}
             />
             <div className="flex flex-col gap-2 shrink-0">
@@ -332,7 +332,7 @@ export default function AgentsPage() {
               {running && (
                 <button
                   onClick={handleStop}
-                  className="px-4 py-2 rounded-xl border border-white/10 bg-white/[0.04] text-white/40 hover:text-white/60 hover:border-white/20 transition-all flex items-center gap-2 text-sm"
+                  className="px-4 py-2 rounded-xl border border-white/10 bg-white/4 text-white/40 hover:text-white/60 hover:border-white/20 transition-all flex items-center gap-2 text-sm"
                 >
                   <X className="w-3.5 h-3.5" />
                   Stop
@@ -351,7 +351,7 @@ export default function AgentsPage() {
 
           {/* Planning indicator */}
           {planning && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06]">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/6">
               <Loader2 className="w-4 h-4 text-emerald-400 animate-spin shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-white/70">GAAIA Manager is planning…</p>
@@ -362,7 +362,7 @@ export default function AgentsPage() {
 
           {/* Plan banner */}
           {goal && (
-            <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06]">
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/6">
               <Brain className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-semibold text-emerald-400 mb-0.5">Manager's Plan</p>
@@ -392,7 +392,7 @@ export default function AgentsPage() {
 
           {/* Synthesis */}
           {(synthesizing || synthesis) && (
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] overflow-hidden">
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 overflow-hidden">
               <div className="flex items-center gap-2.5 px-4 py-3 border-b border-emerald-500/10">
                 <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
                   <Brain className="w-3.5 h-3.5 text-emerald-400" />
@@ -419,7 +419,7 @@ export default function AgentsPage() {
               {/* Animated node diagram */}
               <div className="relative w-36 h-36">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-2xl border border-emerald-500/35 bg-emerald-500/15 flex items-center justify-center shadow-[0_0_40px_oklch(0.80_0.14_160_/_0.15)]">
+                  <div className="w-12 h-12 rounded-2xl border border-emerald-500/35 bg-emerald-500/15 flex items-center justify-center shadow-[0_0_40px_oklch(0.80_0.14_160/0.15)]">
                     <Network className="w-6 h-6 text-emerald-400" />
                   </div>
                 </div>

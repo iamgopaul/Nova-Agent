@@ -12,16 +12,16 @@ export default function IdePage() {
         <div className="pointer-events-none absolute inset-0 page-gradient-ide" />
         {/* Ambient blobs */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full bg-indigo-500/[0.07] blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-blue-500/[0.05] blur-3xl" />
+          <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full bg-indigo-500/7 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-blue-500/5 blur-3xl" />
         </div>
 
         <div className="relative z-10 max-w-lg w-full text-center space-y-8">
 
           {/* IDE window mockup */}
-          <div className="w-full rounded-xl border border-indigo-500/25 bg-indigo-500/[0.06] overflow-hidden shadow-[0_0_48px_oklch(0.60_0.18_265_/_0.16)]">
+          <div className="w-full rounded-xl border border-indigo-500/25 bg-indigo-500/6 overflow-hidden shadow-[0_0_48px_oklch(0.60_0.18_265/0.16)]">
             {/* Title bar */}
-            <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-white/[0.07] bg-white/[0.03]">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-white/7 bg-white/3">
               <div className="w-2.5 h-2.5 rounded-full bg-red-400/50" />
               <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/50" />
               <div className="w-2.5 h-2.5 rounded-full bg-green-400/50" />
@@ -75,7 +75,7 @@ export default function IdePage() {
               { icon: GitBranch, label: "Git integration",        desc: "Commit, branch, and PR directly from the IDE" },
               { icon: Layers,    label: "GAAIA model panel",       desc: "Switch between GAAIA Code, Core, or Pro per task" },
             ].map(item => (
-              <div key={item.label} className="flex items-start gap-3 p-3.5 rounded-xl border border-indigo-500/15 bg-indigo-500/[0.05] hover:bg-indigo-500/[0.08] transition-colors">
+              <div key={item.label} className="flex items-start gap-3 p-3.5 rounded-xl border border-indigo-500/15 bg-indigo-500/5 hover:bg-indigo-500/8 transition-colors">
                 <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
                   <item.icon className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
@@ -87,7 +87,7 @@ export default function IdePage() {
             ))}
           </div>
 
-          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-indigo-500/30 bg-indigo-500/[0.08] text-indigo-300/80 text-sm font-semibold">
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-indigo-500/30 bg-indigo-500/8 text-indigo-300/80 text-sm font-semibold">
             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
             Coming soon — in development
           </div>

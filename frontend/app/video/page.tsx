@@ -119,8 +119,8 @@ export default function VideoPage() {
 
         {/* Ambient blobs */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 left-1/4 w-96 h-96 rounded-full bg-purple-500/[0.06] blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-violet-500/[0.05] blur-3xl" />
+          <div className="absolute -top-20 left-1/4 w-96 h-96 rounded-full bg-purple-500/6 blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-violet-500/5 blur-3xl" />
         </div>
 
         <div className="relative z-10 flex flex-col h-full px-4 sm:px-6 py-4 sm:py-5 gap-4">
@@ -128,7 +128,7 @@ export default function VideoPage() {
           {/* ── URL input ── */}
           <div className="shrink-0 space-y-3">
             <div className="flex gap-2">
-              <div className="flex-1 flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3 focus-within:border-purple-500/40 transition-colors">
+              <div className="flex-1 flex items-center gap-3 bg-white/4 border border-white/8 rounded-2xl px-4 py-3 focus-within:border-purple-500/40 transition-colors">
                 <Film className="w-4 h-4 text-white/25 shrink-0" />
                 <input
                   value={url}
@@ -167,7 +167,7 @@ export default function VideoPage() {
             </button>
 
             {showOptions && (
-              <div className="space-y-3 p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+              <div className="space-y-3 p-4 rounded-2xl border border-white/6 bg-white/2">
                 {/* Focus */}
                 <div>
                   <p className="text-xs text-white/40 mb-2 font-medium">Analysis focus</p>
@@ -180,7 +180,7 @@ export default function VideoPage() {
                           "flex flex-col items-start px-3 py-2 rounded-xl border text-left transition-all text-xs",
                           focus === opt.value
                             ? "bg-purple-500/15 border-purple-500/35 text-purple-300"
-                            : "bg-white/[0.03] border-white/[0.06] text-white/50 hover:border-white/20",
+                            : "bg-white/3 border-white/6 text-white/50 hover:border-white/20",
                         )}
                       >
                         <span className="font-semibold">{opt.label}</span>
@@ -202,7 +202,7 @@ export default function VideoPage() {
                           "px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all",
                           frameCount === n
                             ? "bg-purple-500/15 border-purple-500/35 text-purple-300"
-                            : "bg-white/[0.03] border-white/[0.06] text-white/40 hover:border-white/20",
+                            : "bg-white/3 border-white/6 text-white/40 hover:border-white/20",
                         )}
                       >
                         {n}
@@ -218,7 +218,7 @@ export default function VideoPage() {
                     value={question}
                     onChange={e => setQuestion(e.target.value)}
                     placeholder="e.g. What product is being reviewed?"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
+                    className="w-full bg-white/4 border border-white/8 rounded-xl px-3.5 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-purple-500/40"
                   />
                 </div>
               </div>
@@ -238,7 +238,7 @@ export default function VideoPage() {
               {output && (
                 <div
                   ref={outputRef}
-                  className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
+                  className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-white/7 bg-white/2 p-4"
                 >
                   <pre className="text-sm text-white/75 whitespace-pre-wrap leading-relaxed font-sans">
                     {output}

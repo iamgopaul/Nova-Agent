@@ -105,8 +105,8 @@ export default function ScreenPage() {
       <div className="flex h-full flex-col overflow-hidden">
         {/* ── Ambient blobs ── */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 right-1/4 w-96 h-96 rounded-full bg-sky-500/[0.06] blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-cyan-500/[0.05] blur-3xl" />
+          <div className="absolute -top-20 right-1/4 w-96 h-96 rounded-full bg-sky-500/6 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-cyan-500/5 blur-3xl" />
         </div>
 
         <div className="relative z-10 flex flex-col h-full px-4 sm:px-6 py-4 sm:py-5 gap-4">
@@ -119,9 +119,9 @@ export default function ScreenPage() {
               disabled={isRunning}
               className={cn(
                 "group flex flex-col items-start gap-3 p-4 rounded-2xl border text-left transition-all",
-                "bg-sky-500/[0.06] border-sky-500/20 hover:border-sky-400/45 hover:bg-sky-500/[0.10]",
+                "bg-sky-500/6 border-sky-500/20 hover:border-sky-400/45 hover:bg-sky-500/10",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
-                activeAction === "screen" && mode === "streaming" && "border-sky-400/60 bg-sky-500/[0.12] shadow-[0_0_24px_oklch(0.72_0.18_215_/_0.15)]",
+                activeAction === "screen" && mode === "streaming" && "border-sky-400/60 bg-sky-500/12 shadow-[0_0_24px_oklch(0.72_0.18_215/0.15)]",
               )}
             >
               <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/25 flex items-center justify-center">
@@ -142,9 +142,9 @@ export default function ScreenPage() {
               disabled={isRunning}
               className={cn(
                 "group flex flex-col items-start gap-3 p-4 rounded-2xl border text-left transition-all",
-                "bg-teal-500/[0.06] border-teal-500/20 hover:border-teal-400/45 hover:bg-teal-500/[0.10]",
+                "bg-teal-500/6 border-teal-500/20 hover:border-teal-400/45 hover:bg-teal-500/10",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
-                activeAction === "clipboard" && mode === "streaming" && "border-teal-400/60 bg-teal-500/[0.12] shadow-[0_0_24px_oklch(0.75_0.14_175_/_0.15)]",
+                activeAction === "clipboard" && mode === "streaming" && "border-teal-400/60 bg-teal-500/12 shadow-[0_0_24px_oklch(0.75_0.14_175/0.15)]",
               )}
             >
               <div className="w-10 h-10 rounded-xl bg-teal-500/15 border border-teal-500/25 flex items-center justify-center">
@@ -176,7 +176,7 @@ export default function ScreenPage() {
                   onChange={e => setQuestion(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && activeAction) runAction(activeAction) }}
                   placeholder="e.g. What error is shown? Summarise this code."
-                  className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-sky-500/40"
+                  className="flex-1 bg-white/4 border border-white/8 rounded-xl px-3.5 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-sky-500/40"
                 />
                 {activeAction && (
                   <button
@@ -203,7 +203,7 @@ export default function ScreenPage() {
 
               <div
                 ref={outputRef}
-                className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
+                className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-white/7 bg-white/2 p-4"
               >
                 <pre className="text-sm text-white/75 whitespace-pre-wrap leading-relaxed font-sans">
                   {output}

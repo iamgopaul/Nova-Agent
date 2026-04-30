@@ -51,11 +51,11 @@ const FEATURES: Feature[] = [
     description: "Multi-model chat with web search, image generation, essay & research paper writing, read-aloud TTS, stories, and document export.",
     href: "/chat",
     icon: MessageSquare,
-    gradient: "from-blue-500/[0.18] via-cyan-500/[0.08] to-transparent",
+    gradient: "from-blue-500/18 via-cyan-500/8 to-transparent",
     border: "border-blue-500/25 hover:border-blue-400/55",
     iconBg: "bg-blue-500/15 border-blue-500/30",
     iconColor: "text-blue-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.72_0.14_220_/_0.18)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.72_0.14_220/0.18)]",
     status: "live",
   },
   {
@@ -64,11 +64,11 @@ const FEATURES: Feature[] = [
     description: "Real-time voice conversations with camera vision. Speak naturally, get instant spoken responses — fully local.",
     href: "/voice",
     icon: Mic,
-    gradient: "from-cyan-500/[0.18] via-teal-500/[0.08] to-transparent",
+    gradient: "from-cyan-500/18 via-teal-500/8 to-transparent",
     border: "border-cyan-500/25 hover:border-cyan-400/55",
     iconBg: "bg-cyan-500/15 border-cyan-500/30",
     iconColor: "text-cyan-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.80_0.12_195_/_0.18)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.80_0.12_195/0.18)]",
     status: "live",
   },
   {
@@ -77,11 +77,11 @@ const FEATURES: Feature[] = [
     description: "GAAIA teaches a topic, builds quizzes and exams, then grades your answers with detailed feedback.",
     href: "/education",
     icon: GraduationCap,
-    gradient: "from-rose-500/[0.18] via-fuchsia-500/[0.08] to-transparent",
+    gradient: "from-rose-500/18 via-fuchsia-500/8 to-transparent",
     border: "border-rose-500/25 hover:border-rose-400/55",
     iconBg: "bg-rose-500/15 border-rose-500/30",
     iconColor: "text-rose-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.72_0.16_15_/_0.18)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.72_0.16_15/0.18)]",
     status: "new",
   },
   {
@@ -90,11 +90,11 @@ const FEATURES: Feature[] = [
     description: "Two AI hosts produce a fully spoken podcast on any topic you choose. Sit back and listen.",
     href: "/podcast",
     icon: Headphones,
-    gradient: "from-violet-500/[0.15] via-purple-500/[0.07] to-transparent",
+    gradient: "from-violet-500/15 via-purple-500/7 to-transparent",
     border: "border-violet-500/20 hover:border-violet-400/45",
     iconBg: "bg-violet-500/12 border-violet-500/25",
     iconColor: "text-violet-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.65_0.18_280_/_0.15)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.65_0.18_280/0.15)]",
     status: "soon",
   },
   {
@@ -103,11 +103,11 @@ const FEATURES: Feature[] = [
     description: "Break big tasks into parallel workstreams — multiple GAAIA models working together as your AI team.",
     href: "/agents",
     icon: Network,
-    gradient: "from-emerald-500/[0.15] via-green-500/[0.07] to-transparent",
+    gradient: "from-emerald-500/15 via-green-500/7 to-transparent",
     border: "border-emerald-500/20 hover:border-emerald-400/45",
     iconBg: "bg-emerald-500/12 border-emerald-500/25",
     iconColor: "text-emerald-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.80_0.14_160_/_0.15)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.80_0.14_160/0.15)]",
     status: "soon",
   },
   {
@@ -116,11 +116,11 @@ const FEATURES: Feature[] = [
     description: "Four AI models battle through elimination rounds on any topic. Scored by a judge — one emerges champion.",
     href: "/debate",
     icon: Scale,
-    gradient: "from-orange-500/[0.15] via-amber-500/[0.07] to-transparent",
+    gradient: "from-orange-500/15 via-amber-500/7 to-transparent",
     border: "border-orange-500/20 hover:border-orange-400/45",
     iconBg: "bg-orange-500/12 border-orange-500/25",
     iconColor: "text-orange-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.80_0.16_60_/_0.15)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.80_0.16_60/0.15)]",
     status: "soon",
   },
   {
@@ -129,11 +129,11 @@ const FEATURES: Feature[] = [
     description: "AI-powered code editor. Write, debug, and ship code with GAAIA models as your co-pilot.",
     href: "/ide",
     icon: Code2,
-    gradient: "from-indigo-500/[0.15] via-blue-500/[0.07] to-transparent",
+    gradient: "from-indigo-500/15 via-blue-500/7 to-transparent",
     border: "border-indigo-500/20 hover:border-indigo-400/45",
     iconBg: "bg-indigo-500/12 border-indigo-500/25",
     iconColor: "text-indigo-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.60_0.18_250_/_0.15)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.60_0.18_250/0.15)]",
     status: "soon",
   },
   {
@@ -142,11 +142,11 @@ const FEATURES: Feature[] = [
     description: "Ask GAAIA what's on your screen or explain anything you've copied. Vision-powered, fully local.",
     href: "/screen",
     icon: Monitor,
-    gradient: "from-sky-500/[0.15] via-cyan-500/[0.07] to-transparent",
+    gradient: "from-sky-500/15 via-cyan-500/7 to-transparent",
     border: "border-sky-500/20 hover:border-sky-400/45",
     iconBg: "bg-sky-500/12 border-sky-500/25",
     iconColor: "text-sky-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.72_0.18_215_/_0.15)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.72_0.18_215/0.15)]",
     status: "new",
   },
   {
@@ -155,11 +155,11 @@ const FEATURES: Feature[] = [
     description: "Analyse YouTube videos, direct links, or local files. Frame extraction + vision LLM, no cloud.",
     href: "/video",
     icon: Film,
-    gradient: "from-purple-500/[0.15] via-violet-500/[0.07] to-transparent",
+    gradient: "from-purple-500/15 via-violet-500/7 to-transparent",
     border: "border-purple-500/20 hover:border-purple-400/45",
     iconBg: "bg-purple-500/12 border-purple-500/25",
     iconColor: "text-purple-400",
-    glow: "hover:shadow-[0_4px_32px_oklch(0.60_0.20_280_/_0.15)]",
+    glow: "hover:shadow-[0_4px_32px_oklch(0.60_0.20_280/0.15)]",
     status: "new",
   },
 ]
@@ -182,7 +182,7 @@ function StatusBadge({ status }: { status: AppStatus }) {
     )
   }
   return (
-    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/[0.06] text-white/30 border border-white/[0.08]">
+    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/6 text-white/30 border border-white/8">
       Soon
     </span>
   )
@@ -259,9 +259,9 @@ export default function HomePage() {
     <div className="min-h-screen aurora-bg relative overflow-hidden">
       {/* Ambient blobs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[480px] h-[480px] rounded-full bg-blue-500/[0.08] blur-3xl" />
-        <div className="absolute top-1/3 -right-32 w-96 h-96 rounded-full bg-violet-500/[0.08] blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 w-80 h-80 rounded-full bg-cyan-500/[0.06] blur-3xl" />
+        <div className="absolute -top-40 -left-40 w-[480px] h-[480px] rounded-full bg-blue-500/8 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 w-96 h-96 rounded-full bg-violet-500/8 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 rounded-full bg-cyan-500/6 blur-3xl" />
       </div>
 
       {/* ── Top bar ─────────────────────────────────────────────────── */}
@@ -293,9 +293,9 @@ export default function HomePage() {
                   starts directly below the header. */}
               {mounted && showMenu && createPortal(
                 <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setShowMenu(false)} />
+                  <div className="fixed inset-0 z-60" onClick={() => setShowMenu(false)} />
                   <div
-                    className="fixed w-52 rounded-2xl border border-border bg-popover shadow-2xl overflow-hidden z-[70]"
+                    className="fixed w-52 rounded-2xl border border-border bg-popover shadow-2xl overflow-hidden z-70"
                     style={{
                       right: menuPos?.right ?? 16,
                       top: menuPos?.top ?? 60,
@@ -347,7 +347,7 @@ export default function HomePage() {
         </p>
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-tight">
           What would you like to{" "}
-          <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
+          <span className="bg-linear-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
             create today?
           </span>
         </h1>
@@ -385,7 +385,7 @@ export default function HomePage() {
 
       {/* ── Bottom status bar ───────────────────────────────────────── */}
       <footer
-        className="fixed bottom-0 left-0 right-0 z-10 px-6 py-2.5 border-t border-white/[0.07] backdrop-blur-sm"
+        className="fixed bottom-0 left-0 right-0 z-10 px-6 py-2.5 border-t border-white/7 backdrop-blur-sm"
         style={{ backgroundColor: "var(--surface-2)" }}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -427,7 +427,7 @@ function AppCard({ feature: f, dimmed = false }: { feature: Feature; dimmed?: bo
     >
       {/* Gradient fill */}
       <div className={cn(
-        "absolute inset-0 rounded-2xl bg-gradient-to-br opacity-50 group-hover:opacity-80 transition-opacity duration-300",
+        "absolute inset-0 rounded-2xl bg-linear-to-br opacity-50 group-hover:opacity-80 transition-opacity duration-300",
         f.gradient
       )} />
 

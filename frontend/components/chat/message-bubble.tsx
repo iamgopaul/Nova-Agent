@@ -1404,7 +1404,7 @@ function WeatherCard({ data }: { data: WeatherData }) {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 
   return (
-    <div className={cn("mt-3 rounded-2xl border border-white/10 bg-gradient-to-br p-4 backdrop-blur-sm", grad)}>
+    <div className={cn("mt-3 rounded-2xl border border-white/10 bg-linear-to-br p-4 backdrop-blur-sm", grad)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5">
@@ -1481,7 +1481,7 @@ function LiveClock() {
   const tz      = Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ")
 
   return (
-    <div className="mt-3 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-950/40 via-slate-900/30 to-cyan-950/20 p-5 text-center backdrop-blur-sm">
+    <div className="mt-3 rounded-2xl border border-blue-500/20 bg-linear-to-br from-blue-950/40 via-slate-900/30 to-cyan-950/20 p-5 text-center backdrop-blur-sm">
       <div className="text-5xl font-mono font-light text-white tracking-wider mb-2">{timeStr}</div>
       <div className="text-sm text-white/70 mb-1">{dateStr}</div>
       <div className="flex items-center justify-center gap-1 text-xs text-white/40">
@@ -1571,7 +1571,7 @@ function WebResultsPanel({ results }: { results: WebResults }) {
                     onError={() => markError(i)}
                   />
                   {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-1.5">
+                  <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-1.5">
                     {img.title && (
                       <p className="text-white text-[9px] leading-tight line-clamp-2">{img.title}</p>
                     )}

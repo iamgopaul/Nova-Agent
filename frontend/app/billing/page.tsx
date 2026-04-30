@@ -31,7 +31,7 @@ const PLAN_ICONS: Record<string, React.ElementType> = {
 }
 
 const PLAN_COLORS: Record<string, string> = {
-  Free:  "border-white/[0.08] bg-white/[0.02]",
+  Free:  "border-white/8 bg-white/2",
   Pro:   "border-indigo-500/30 bg-indigo-500/5",
   Teams: "border-violet-500/30 bg-violet-500/5",
 }
@@ -183,7 +183,7 @@ function BillingPageContent() {
         )}
 
         {/* Billing interval toggle */}
-        <div className="flex items-center justify-center gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] w-fit mx-auto">
+        <div className="flex items-center justify-center gap-1 p-1 rounded-xl bg-white/4 border border-white/7 w-fit mx-auto">
           <button
             onClick={() => setInterval("month")}
             className={cn(
@@ -228,7 +228,7 @@ function BillingPageContent() {
                   key={plan.id}
                   className={cn(
                     "relative rounded-2xl border p-6 flex flex-col gap-5",
-                    PLAN_COLORS[plan.name] ?? "border-white/[0.08] bg-white/[0.02]",
+                    PLAN_COLORS[plan.name] ?? "border-white/8 bg-white/2",
                     plan.name === "Pro" && "ring-1 ring-indigo-500/20"
                   )}
                 >
@@ -245,7 +245,7 @@ function BillingPageContent() {
                       "w-10 h-10 rounded-xl flex items-center justify-center border",
                       plan.name === "Pro" ? "bg-indigo-500/20 border-indigo-400/25" :
                       plan.name === "Teams" ? "bg-violet-500/20 border-violet-400/25" :
-                      "bg-white/[0.07] border-white/[0.1]"
+                      "bg-white/7 border-white/10"
                     )}>
                       <Icon className={cn(
                         "w-5 h-5",
@@ -281,11 +281,11 @@ function BillingPageContent() {
                   </ul>
 
                   {isCurrentPlan ? (
-                    <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/[0.06] text-white/50 border border-white/[0.08]">
+                    <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/6 text-white/50 border border-white/8">
                       Current plan
                     </div>
                   ) : isFree ? (
-                    <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/[0.04] text-white/30 border border-white/[0.06] cursor-not-allowed">
+                    <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/4 text-white/30 border border-white/6 cursor-not-allowed">
                       Default
                     </div>
                   ) : (
@@ -326,7 +326,7 @@ function BillingPageContent() {
         )}
 
         {/* Privacy note */}
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-4 text-center">
+        <div className="rounded-xl border border-white/6 bg-white/2 px-5 py-4 text-center">
           <p className="text-xs text-muted-foreground">
             Payments are processed securely by <strong className="text-foreground">Stripe</strong>. GAAIA never stores your card details.
             All your AI data stays on your machine regardless of plan.
@@ -382,7 +382,7 @@ function FallbackPlans({
             key={plan.name}
             className={cn(
               "relative rounded-2xl border p-6 flex flex-col gap-5",
-              PLAN_COLORS[plan.name] ?? "border-white/[0.08] bg-white/[0.02]",
+              PLAN_COLORS[plan.name] ?? "border-white/8 bg-white/2",
               plan.name === "Pro" && "ring-1 ring-indigo-500/20"
             )}
           >
@@ -399,7 +399,7 @@ function FallbackPlans({
                 "w-10 h-10 rounded-xl flex items-center justify-center border",
                 plan.name === "Pro" ? "bg-indigo-500/20 border-indigo-400/25" :
                 plan.name === "Teams" ? "bg-violet-500/20 border-violet-400/25" :
-                "bg-white/[0.07] border-white/[0.1]"
+                "bg-white/7 border-white/10"
               )}>
                 <Icon className={cn(
                   "w-5 h-5",
@@ -432,11 +432,11 @@ function FallbackPlans({
             </ul>
 
             {isCurrentPlan ? (
-              <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/[0.06] text-white/50 border border-white/[0.08]">
+              <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/6 text-white/50 border border-white/8">
                 Current plan
               </div>
             ) : price === 0 ? (
-              <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/[0.04] text-white/30 border border-white/[0.06] cursor-not-allowed">
+              <div className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/4 text-white/30 border border-white/6 cursor-not-allowed">
                 Default
               </div>
             ) : (

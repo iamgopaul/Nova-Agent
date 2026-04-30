@@ -31,7 +31,7 @@ export default function SignOutPage() {
       <div className="relative z-10 flex flex-col items-center gap-6 text-center max-w-sm">
         {/* Icon */}
         <div className="relative">
-          <div className="w-20 h-20 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full bg-white/4 border border-white/8 flex items-center justify-center">
             <LogOut className="w-8 h-8 text-white/40" />
           </div>
           {/* Countdown ring */}
@@ -44,7 +44,7 @@ export default function SignOutPage() {
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
-              className="text-white/[0.06]"
+              className="text-white/6"
             />
             <circle
               cx="40" cy="40" r="36"

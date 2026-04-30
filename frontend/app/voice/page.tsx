@@ -163,11 +163,11 @@ export default function VoicePage() {
       {/* Home card: GAAIA Voice — cyan-400 icon, from-cyan-500/20 via-teal-500/10, border-cyan-500/30 */}
       <div className="relative flex h-full min-h-0 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.08] via-teal-500/[0.05] to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-br from-cyan-500/8 via-teal-500/5 to-transparent" />
           <div className="absolute -top-16 right-0 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl" />
           <div className="absolute bottom-8 left-1/4 w-72 h-72 rounded-full bg-teal-500/8 blur-3xl" />
         </div>
-        <div className="relative z-[1] flex h-full w-full min-h-0 overflow-hidden">
+        <div className="relative z-1 flex h-full w-full min-h-0 overflow-hidden">
         {/* ── Main body — stack vertically on mobile, 2-column from md+ ─── */}
         <div className="flex flex-col md:flex-row h-full min-h-0 flex-1 overflow-hidden">
 
@@ -175,7 +175,7 @@ export default function VoicePage() {
         <div className="flex flex-col w-full md:w-[40%] md:min-w-[280px] md:max-w-[480px] border-b md:border-b-0 md:border-r border-cyan-500/15 min-h-0 flex-1 md:flex-initial">
           <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: "var(--surface-0)" }}>
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-gradient-to-br from-cyan-500/12 to-teal-500/8 blur-3xl" />
+              <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-linear-to-br from-cyan-500/12 to-teal-500/8 blur-3xl" />
               <div className="absolute bottom-1/4 left-1/4 w-48 h-48 rounded-full bg-teal-500/10 blur-3xl" />
             </div>
             <VoiceConversation
@@ -195,8 +195,8 @@ export default function VoicePage() {
 
           {/* Top: Camera panel — sized to show the full frame. Smaller on
               mobile so it doesn't dominate the (already-tight) viewport. */}
-          <div className="h-40 sm:h-52 md:h-64 shrink-0 border-b border-white/[0.07] flex flex-col" style={{ backgroundColor: "var(--surface-0)" }}>
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.07] shrink-0">
+          <div className="h-40 sm:h-52 md:h-64 shrink-0 border-b border-white/7 flex flex-col" style={{ backgroundColor: "var(--surface-0)" }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/7 shrink-0">
               <div className="flex items-center gap-1.5">
                 <Camera className="w-3 h-3 text-cyan-400/70" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">GAAIA Camera</span>
@@ -218,7 +218,7 @@ export default function VoicePage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-white/[0.07] shrink-0" style={{ backgroundColor: "var(--surface-1)" }}>
+          <div className="flex border-b border-white/7 shrink-0" style={{ backgroundColor: "var(--surface-1)" }}>
             <button
               onClick={() => setRightTab("live")}
               className={cn(
@@ -248,7 +248,7 @@ export default function VoicePage() {
               <History className="w-3.5 h-3.5" />
               History
               {voiceSessions.length > 0 && (
-                <span className="ml-1 bg-white/[0.07] text-white/35 text-[10px] rounded-full px-1.5 py-0.5 font-bold">
+                <span className="ml-1 bg-white/7 text-white/35 text-[10px] rounded-full px-1.5 py-0.5 font-bold">
                   {voiceSessions.length}
                 </span>
               )}
@@ -281,7 +281,7 @@ export default function VoicePage() {
                       <div className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold mt-0.5",
                         msg.role === "gaaia"
-                          ? "bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-lg shadow-cyan-900/30"
+                          ? "bg-linear-to-br from-cyan-500 to-teal-600 text-white shadow-lg shadow-cyan-900/30"
                           : "text-white"
                       )} style={msg.role === "user" && user ? { backgroundColor: user.avatar_color } : {}}>
                         {msg.role === "gaaia" ? "N" : (user?.display_name[0].toUpperCase() ?? "U")}
@@ -289,7 +289,7 @@ export default function VoicePage() {
                       <div className={cn(
                         "px-4 py-2.5 text-sm leading-relaxed",
                         msg.role === "gaaia"
-                          ? "bg-white/[0.05] text-white/80 rounded-2xl rounded-tl-sm border border-white/[0.07]"
+                          ? "bg-white/5 text-white/80 rounded-2xl rounded-tl-sm border border-white/7"
                           : "bg-cyan-600/20 text-white/90 rounded-2xl rounded-tr-sm border border-cyan-500/20"
                       )}>
                         {msg.text}
@@ -299,7 +299,7 @@ export default function VoicePage() {
                 )}
                 <div ref={chatEndRef} />
               </div>
-              <div className="px-5 py-2.5 border-t border-white/[0.07] shrink-0 flex items-center justify-between" style={{ backgroundColor: "var(--surface-1)" }}>
+              <div className="px-5 py-2.5 border-t border-white/7 shrink-0 flex items-center justify-between" style={{ backgroundColor: "var(--surface-1)" }}>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] text-white/20">
                     {messages.length === 0 ? "Transcript will appear here" : `${messages.length} turn${messages.length !== 1 ? "s" : ""}`}
@@ -342,12 +342,12 @@ export default function VoicePage() {
                   </div>
                 </div>
               ) : (
-                <ul className="divide-y divide-white/[0.05]">
+                <ul className="divide-y divide-white/5">
                   {voiceSessions.map(s => (
                     <li key={s.id} className="group relative">
                       <button
                         onClick={() => loadSessionMessages(s.id)}
-                        className="w-full text-left px-5 py-4 hover:bg-white/[0.04] transition-colors"
+                        className="w-full text-left px-5 py-4 hover:bg-white/4 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -380,7 +380,7 @@ export default function VoicePage() {
           {/* ── History detail view ── */}
           {rightTab === "history" && selectedSession && (
             <>
-              <div className="px-4 py-3 border-b border-white/[0.07] shrink-0 flex items-center gap-3" style={{ backgroundColor: "var(--surface-1)" }}>
+              <div className="px-4 py-3 border-b border-white/7 shrink-0 flex items-center gap-3" style={{ backgroundColor: "var(--surface-1)" }}>
                 <button
                   onClick={() => setSelectedSession(null)}
                   className="text-[11px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
@@ -409,7 +409,7 @@ export default function VoicePage() {
                       <div className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold mt-0.5",
                         msg.role === "gaaia"
-                          ? "bg-gradient-to-br from-cyan-500 to-teal-600 text-white"
+                          ? "bg-linear-to-br from-cyan-500 to-teal-600 text-white"
                           : "text-white"
                       )} style={msg.role === "user" && user ? { backgroundColor: user.avatar_color } : {}}>
                         {msg.role === "gaaia" ? "N" : (user?.display_name[0].toUpperCase() ?? "U")}
@@ -417,7 +417,7 @@ export default function VoicePage() {
                       <div className={cn(
                         "px-4 py-2.5 text-sm leading-relaxed",
                         msg.role === "gaaia"
-                          ? "bg-white/[0.05] text-white/75 rounded-2xl rounded-tl-sm border border-white/[0.07]"
+                          ? "bg-white/5 text-white/75 rounded-2xl rounded-tl-sm border border-white/7"
                           : "bg-cyan-600/20 text-white/85 rounded-2xl rounded-tr-sm border border-cyan-500/20"
                       )}>
                         {msg.text}

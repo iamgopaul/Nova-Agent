@@ -174,7 +174,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 </div>
 
                 {modelRouting.constraints_applied > 0 && (
-                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.07] px-3 py-2.5">
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/7 px-3 py-2.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-300/80 leading-relaxed">
                       Some models were automatically downgraded because they need more memory than your system's RAM + VRAM budget.

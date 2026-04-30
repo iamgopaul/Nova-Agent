@@ -102,8 +102,8 @@ export function ChatHeader({ selectedModelKey, onModelChange }: ChatHeaderProps)
           "flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-150",
           "border hover:text-white",
           open
-            ? "bg-white/[0.08] border-blue-500/30 text-white"
-            : "text-white/75 border-transparent hover:bg-white/[0.06] hover:border-white/[0.08]"
+            ? "bg-white/8 border-blue-500/30 text-white"
+            : "text-white/75 border-transparent hover:bg-white/6 hover:border-white/8"
         )}
       >
         <ModelIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -122,7 +122,7 @@ export function ChatHeader({ selectedModelKey, onModelChange }: ChatHeaderProps)
 
       {/* Dropdown — right-aligned so it never clips off the edge */}
       {open && (
-        <div className="absolute top-full right-0 mt-2 w-80 rounded-2xl border border-white/[0.08] shadow-2xl shadow-black/70 z-50 overflow-hidden" style={{ backgroundColor: "var(--surface-2)" }}>
+        <div className="absolute top-full right-0 mt-2 w-80 rounded-2xl border border-white/8 shadow-2xl shadow-black/70 z-50 overflow-hidden" style={{ backgroundColor: "var(--surface-2)" }}>
           <div className="px-3 pt-3 pb-1">
             <p className="text-[9px] font-bold uppercase tracking-widest text-white/25 px-1">Select Model</p>
           </div>
@@ -139,7 +139,7 @@ export function ChatHeader({ selectedModelKey, onModelChange }: ChatHeaderProps)
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-100",
                     isSelected
                       ? "bg-blue-600/20 border border-blue-500/20 text-white"
-                      : "hover:bg-white/[0.05] text-white/55 hover:text-white/90 border border-transparent"
+                      : "hover:bg-white/5 text-white/55 hover:text-white/90 border border-transparent"
                   )}
                 >
                   <Icon className={cn("w-4 h-4 shrink-0", isSelected ? "text-blue-400" : "text-white/20")} />

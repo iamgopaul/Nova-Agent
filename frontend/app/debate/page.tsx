@@ -52,10 +52,10 @@ type Status = "idle" | "starting" | "running" | "verdict" | "done"
 const PALETTE: Record<string, {
   hex: string; text: string; bg: string; border: string; glow: string; ring: string
 }> = {
-  blue:   { hex: "#3b82f6", text: "text-blue-400",   bg: "bg-blue-500/[0.09]",   border: "border-blue-500/30",   glow: "shadow-[0_0_50px_oklch(0.65_0.2_220_/_0.5)]",  ring: "oklch(0.65_0.2_220)" },
-  violet: { hex: "#8b5cf6", text: "text-violet-400", bg: "bg-violet-500/[0.09]", border: "border-violet-500/30", glow: "shadow-[0_0_50px_oklch(0.55_0.25_275_/_0.5)]", ring: "oklch(0.55_0.25_275)" },
-  amber:  { hex: "#f59e0b", text: "text-amber-400",  bg: "bg-amber-500/[0.09]",  border: "border-amber-500/30",  glow: "shadow-[0_0_50px_oklch(0.78_0.18_55_/_0.5)]",   ring: "oklch(0.78_0.18_55)"  },
-  rose:   { hex: "#f43f5e", text: "text-rose-400",   bg: "bg-rose-500/[0.09]",   border: "border-rose-500/30",   glow: "shadow-[0_0_50px_oklch(0.65_0.25_15_/_0.5)]",  ring: "oklch(0.65_0.25_15)"  },
+  blue:   { hex: "#3b82f6", text: "text-blue-400",   bg: "bg-blue-500/9",   border: "border-blue-500/30",   glow: "shadow-[0_0_50px_oklch(0.65_0.2_220/0.5)]",  ring: "oklch(0.65_0.2_220)" },
+  violet: { hex: "#8b5cf6", text: "text-violet-400", bg: "bg-violet-500/9", border: "border-violet-500/30", glow: "shadow-[0_0_50px_oklch(0.55_0.25_275/0.5)]", ring: "oklch(0.55_0.25_275)" },
+  amber:  { hex: "#f59e0b", text: "text-amber-400",  bg: "bg-amber-500/9",  border: "border-amber-500/30",  glow: "shadow-[0_0_50px_oklch(0.78_0.18_55/0.5)]",   ring: "oklch(0.78_0.18_55)"  },
+  rose:   { hex: "#f43f5e", text: "text-rose-400",   bg: "bg-rose-500/9",   border: "border-rose-500/30",   glow: "shadow-[0_0_50px_oklch(0.65_0.25_15/0.5)]",  ring: "oklch(0.65_0.25_15)"  },
 }
 
 // Orb positions in the 100×100 SVG viewBox
@@ -91,7 +91,7 @@ function BattleArena({
   const roundScores = scores[String(currentRound)] ?? {}
 
   return (
-    <div className="relative w-full rounded-2xl border border-white/[0.07] overflow-hidden bg-[#05050d]"
+    <div className="relative w-full rounded-2xl border border-white/7 overflow-hidden bg-[#05050d]"
       style={{ aspectRatio: "16/10" }}>
 
       {/* SVG layer */}
@@ -273,8 +273,8 @@ function LiveChat({
   }, [messages, activeText])
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border border-white/[0.07] bg-[#05050d] overflow-hidden">
-      <div className="px-3.5 py-2.5 border-b border-white/[0.06] flex items-center gap-2 shrink-0"
+    <div className="flex flex-col h-full rounded-2xl border border-white/7 bg-[#05050d] overflow-hidden">
+      <div className="px-3.5 py-2.5 border-b border-white/6 flex items-center gap-2 shrink-0"
         style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
         <Zap className="w-3.5 h-3.5 text-white/30" />
         <span className="text-[11px] font-bold uppercase tracking-wider text-white/30">Live Feed</span>
@@ -345,7 +345,7 @@ function ScoreBar({
   currentRound: number
 }) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.02]">
+    <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/7 bg-white/2">
       <span className="text-[10px] text-white/25 font-bold uppercase tracking-widest shrink-0">Scores</span>
       <div className="flex flex-wrap gap-2 flex-1">
         {contestants.map(c => {
@@ -361,7 +361,7 @@ function ScoreBar({
             <div key={c.id}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] transition-all duration-500",
-                isElim ? "border-white/10 bg-white/[0.02] opacity-40" : cn(pal.border, pal.bg),
+                isElim ? "border-white/10 bg-white/2 opacity-40" : cn(pal.border, pal.bg),
               )}>
               <div className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ backgroundColor: isElim ? "#444" : pal.hex }} />
@@ -422,7 +422,7 @@ function ReportCard({
 
       {/* Best argument */}
       {report.best_argument && (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+        <div className="rounded-xl border border-white/8 bg-white/2 p-4">
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 mb-2">Winning Argument</p>
           <p className="text-sm text-white/60 italic leading-relaxed">"{report.best_argument}"</p>
         </div>
@@ -458,10 +458,10 @@ function ReportCard({
         {/* Score table */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 mb-2">Round Scores</p>
-          <div className="rounded-xl border border-white/[0.08] overflow-hidden">
+          <div className="rounded-xl border border-white/8 overflow-hidden">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="border-b border-white/[0.07]" style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
+                <tr className="border-b border-white/7" style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
                   <th className="text-left px-3 py-2 text-white/25 font-semibold">Model</th>
                   {rounds.map(r => (
                     <th key={r} className="text-center px-2 py-2 text-white/25 font-semibold">R{r}</th>
@@ -473,7 +473,7 @@ function ReportCard({
                   const pal    = PALETTE[c.color] ?? PALETTE.blue
                   const isWin  = c.id === report.winner_id
                   return (
-                    <tr key={c.id} className="border-b border-white/[0.04] last:border-0">
+                    <tr key={c.id} className="border-b border-white/4 last:border-0">
                       <td className={cn("px-3 py-2 font-semibold", pal.text)}>
                         {c.identity.replace("GAAIA ", "")}
                         {isWin && <span className="ml-1 text-yellow-400">★</span>}
@@ -497,7 +497,7 @@ function ReportCard({
 
       {/* Synthesis */}
       {report.synthesis && (
-        <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.05] p-4">
+        <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
             <p className="text-[10px] font-bold uppercase tracking-wider text-purple-400/60">
@@ -783,10 +783,10 @@ export default function DebatePage() {
       <AppShell title="Debate" titleColor="text-orange-400">
         <div className="flex h-full flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-10 relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -top-20 left-[15%] w-80 h-80 rounded-full bg-blue-500/[0.06] blur-3xl" />
-            <div className="absolute top-0 right-[20%] w-72 h-72 rounded-full bg-violet-500/[0.06] blur-3xl" />
-            <div className="absolute bottom-0 left-[25%] w-80 h-80 rounded-full bg-amber-500/[0.05] blur-3xl" />
-            <div className="absolute -bottom-10 right-[15%] w-72 h-72 rounded-full bg-rose-500/[0.05] blur-3xl" />
+            <div className="absolute -top-20 left-[15%] w-80 h-80 rounded-full bg-blue-500/6 blur-3xl" />
+            <div className="absolute top-0 right-[20%] w-72 h-72 rounded-full bg-violet-500/6 blur-3xl" />
+            <div className="absolute bottom-0 left-[25%] w-80 h-80 rounded-full bg-amber-500/5 blur-3xl" />
+            <div className="absolute -bottom-10 right-[15%] w-72 h-72 rounded-full bg-rose-500/5 blur-3xl" />
           </div>
 
           <div className="relative z-10 max-w-xl w-full space-y-8">
@@ -825,7 +825,7 @@ export default function DebatePage() {
             {/* Input */}
             <div className="space-y-3">
               <textarea
-                className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3.5 text-sm text-white/85 placeholder:text-white/25 focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.06] resize-none transition-all"
+                className="w-full rounded-2xl border border-white/10 bg-white/4 px-4 py-3.5 text-sm text-white/85 placeholder:text-white/25 focus:outline-none focus:border-orange-500/50 focus:bg-white/6 resize-none transition-all"
                 placeholder={'Ask anything — e.g. "Is remote work better than in-office?" or "What programming language should I learn first?"'}
                 rows={3}
                 value={topic}
@@ -836,7 +836,7 @@ export default function DebatePage() {
               <button
                 onClick={startDebate}
                 disabled={!topic.trim() || status === "starting"}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-violet-600 to-rose-600 text-white font-bold text-sm transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_30px_rgba(0,0,0,0.4)]"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-linear-to-r from-blue-600 via-violet-600 to-rose-600 text-white font-bold text-sm transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_30px_rgba(0,0,0,0.4)]"
               >
                 {status === "starting" ? (
                   <><Sparkles className="w-4 h-4 animate-spin" />Selecting models…</>
@@ -847,7 +847,7 @@ export default function DebatePage() {
               <p className="text-center text-[11px] text-white/20">⌘↵ to start · 4 models · 3 rounds · 1 winner</p>
 
               {startError && (
-                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/[0.08] px-3.5 py-2.5">
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/8 px-3.5 py-2.5">
                   <span className="text-red-400 mt-0.5 shrink-0">⚠</span>
                   <p className="text-xs text-red-300/80 leading-relaxed">{startError}</p>
                 </div>
@@ -873,7 +873,7 @@ export default function DebatePage() {
           </button>
         ) : (
           <button onClick={reset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.05] text-white/50 text-xs font-semibold hover:bg-white/[0.08] transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/50 text-xs font-semibold hover:bg-white/8 transition-colors">
             New Battle
           </button>
         )
@@ -882,7 +882,7 @@ export default function DebatePage() {
       <div className="flex flex-col h-full overflow-hidden">
 
         {/* ── Phase header ───────────────────────────────────────────────────── */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-2 border-b border-white/[0.06]"
+        <div className="shrink-0 flex items-center justify-between px-5 py-2 border-b border-white/6"
           style={{ backgroundColor: "var(--surface-2)" }}>
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[10px] text-white/25 font-bold shrink-0">Topic:</span>
@@ -893,13 +893,13 @@ export default function DebatePage() {
               <span className="text-[10px] font-mono text-white/30">Round {currentRound}/3</span>
             )}
             {phaseLabel && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/[0.12] border border-orange-500/25">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/12 border border-orange-500/25">
                 <Gavel className="w-2.5 h-2.5 text-orange-400" />
                 <span className="text-[10px] font-bold text-orange-300">{phaseLabel}</span>
               </div>
             )}
             {status === "verdict" && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/[0.15] border border-purple-500/30">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30">
                 <Sparkles className="w-2.5 h-2.5 text-purple-400 animate-spin" />
                 <span className="text-[10px] font-bold text-purple-300">Final Verdict</span>
               </div>
@@ -909,7 +909,7 @@ export default function DebatePage() {
 
         {/* ── Elimination toast ──────────────────────────────────────────────── */}
         {lastElim && (
-          <div className="shrink-0 mx-5 mt-2 flex items-center gap-2 px-3 py-2 rounded-xl border border-red-500/25 bg-red-500/[0.07] animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="shrink-0 mx-5 mt-2 flex items-center gap-2 px-3 py-2 rounded-xl border border-red-500/25 bg-red-500/7 animate-in fade-in slide-in-from-top-2 duration-300">
             <span className="text-red-400 text-sm">✕</span>
             <span className="text-xs text-red-300/80 font-semibold">{lastElim.identity} eliminated</span>
             <span className="text-xs text-white/30 ml-1">— {lastElim.reason}</span>
@@ -940,7 +940,7 @@ export default function DebatePage() {
 
             {/* Judge deliberating spinner (verdict tokens are raw JSON — don't show them) */}
             {status === "verdict" && !report && (
-              <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.04] p-4">
+              <div className="rounded-xl border border-purple-500/20 bg-purple-500/4 p-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-3 h-3 text-purple-400 animate-spin" />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400/60">

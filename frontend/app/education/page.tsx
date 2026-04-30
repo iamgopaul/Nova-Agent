@@ -139,10 +139,10 @@ function HistoryCard({
   const date = new Date(entry.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-black/20 overflow-hidden">
+    <div className="rounded-xl border border-white/7 bg-black/20 overflow-hidden">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/2 transition-colors"
       >
         <ScoreBadge percent={entry.percent} size="sm" />
         <div className="flex-1 min-w-0">
@@ -163,7 +163,7 @@ function HistoryCard({
       </button>
 
       {open && (
-        <div className="border-t border-white/[0.05] px-4 py-3 space-y-2.5">
+        <div className="border-t border-white/5 px-4 py-3 space-y-2.5">
           {entry.results.map(r => {
             const q = entry.questions.find(q => q.id === r.id)
             const isCorrect = r.score >= r.max
@@ -179,8 +179,8 @@ function HistoryCard({
               <div key={r.id} className={cn(
                 "rounded-lg px-3 py-2.5 border text-xs",
                 isCorrect
-                  ? "border-emerald-500/20 bg-emerald-500/[0.05]"
-                  : "border-red-500/20 bg-red-500/[0.05]"
+                  ? "border-emerald-500/20 bg-emerald-500/5"
+                  : "border-red-500/20 bg-red-500/5"
               )}>
                 <p className="text-white/70 font-medium mb-1.5">{r.question}</p>
                 <div className="space-y-1">
@@ -364,7 +364,7 @@ export default function EducationPage() {
       <div className="relative flex flex-col h-full min-h-0 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-0 page-gradient-education" />
 
-        <div className="relative z-[1] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+        <div className="relative z-1 flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-thin">
           <div className="max-w-3xl mx-auto w-full px-4 sm:px-5 py-4 sm:py-6 space-y-5 sm:space-y-7 pb-24">
 
             {/* Header */}
@@ -386,7 +386,7 @@ export default function EducationPage() {
                     "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors",
                     showHistory
                       ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                      : "border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+                      : "border-white/8 text-white/40 hover:text-white/70 hover:bg-white/4"
                   )}
                 >
                   <History className="w-3.5 h-3.5" />
@@ -397,7 +397,7 @@ export default function EducationPage() {
 
             {/* History panel */}
             {showHistory && history.length > 0 && (
-              <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+              <section className="rounded-2xl border border-white/8 bg-white/2 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-white/50 uppercase tracking-widest">Past quizzes</p>
                   <button
@@ -417,7 +417,7 @@ export default function EducationPage() {
             )}
 
             {/* Builder card */}
-            <section className="rounded-2xl border border-rose-500/15 bg-rose-500/[0.04] p-5 space-y-4">
+            <section className="rounded-2xl border border-rose-500/15 bg-rose-500/4 p-5 space-y-4">
               <div className="flex items-center gap-2 text-white/65 text-sm font-semibold">
                 <Sparkles className="w-4 h-4 text-rose-400" />
                 Create a lesson &amp; assessment
@@ -430,7 +430,7 @@ export default function EducationPage() {
                   onChange={e => setTopic(e.target.value)}
                   rows={3}
                   placeholder="e.g. Photosynthesis, World War II timelines, Python list comprehensions…"
-                  className="w-full rounded-xl border border-white/[0.09] bg-black/25 px-3.5 py-2.5 text-sm text-white/85 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/40 focus:border-rose-500/30 resize-y min-h-[88px] transition-colors"
+                  className="w-full rounded-xl border border-white/9 bg-black/25 px-3.5 py-2.5 text-sm text-white/85 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/40 focus:border-rose-500/30 resize-y min-h-[88px] transition-colors"
                 />
               </label>
 
@@ -440,7 +440,7 @@ export default function EducationPage() {
                   <select
                     value={mode}
                     onChange={e => setMode(e.target.value as Mode)}
-                    className="w-full rounded-lg border border-white/[0.09] bg-black/25 px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-rose-500/40"
+                    className="w-full rounded-lg border border-white/9 bg-black/25 px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-rose-500/40"
                   >
                     <option value="quiz">Quiz (shorter)</option>
                     <option value="exam">Exam (formal)</option>
@@ -451,7 +451,7 @@ export default function EducationPage() {
                   <select
                     value={difficulty}
                     onChange={e => setDifficulty(e.target.value as Difficulty)}
-                    className="w-full rounded-lg border border-white/[0.09] bg-black/25 px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-rose-500/40"
+                    className="w-full rounded-lg border border-white/9 bg-black/25 px-3 py-2 text-sm text-white/80 focus:outline-none focus:ring-1 focus:ring-rose-500/40"
                   >
                     <option value="elementary">Elementary</option>
                     <option value="middle">Middle school</option>
@@ -474,7 +474,7 @@ export default function EducationPage() {
                     value={degreeField}
                     onChange={e => setDegreeField(e.target.value)}
                     placeholder="e.g. Computer Science, Mechanical Engineering, Finance, Biology…"
-                    className="w-full rounded-lg border border-white/[0.09] bg-black/25 px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/40 focus:border-rose-500/30 transition-colors"
+                    className="w-full rounded-lg border border-white/9 bg-black/25 px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/40 focus:border-rose-500/30 transition-colors"
                   />
                 </label>
               )}
@@ -499,7 +499,7 @@ export default function EducationPage() {
                   value={focus}
                   onChange={e => setFocus(e.target.value)}
                   placeholder="e.g. emphasize calculations, no spoilers past chapter 3…"
-                  className="w-full rounded-lg border border-white/[0.09] bg-black/25 px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/40 focus:border-rose-500/30 transition-colors"
+                  className="w-full rounded-lg border border-white/9 bg-black/25 px-3 py-2 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/40 focus:border-rose-500/30 transition-colors"
                 />
               </label>
 
@@ -516,7 +516,7 @@ export default function EducationPage() {
                   onChange={e => { const f = e.target.files?.[0]; if (f) void handleDocUpload(f) }}
                 />
                 {docContext ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/[0.06] px-3 py-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/6 px-3 py-2">
                     <FileText className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                     <span className="text-xs text-white/65 truncate flex-1">{docContextFilename}</span>
                     <span className="text-[10px] text-white/30 shrink-0">{Math.round((docContext.length / 1000))}k chars</span>
@@ -533,7 +533,7 @@ export default function EducationPage() {
                     type="button"
                     disabled={loadingContext}
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-white/[0.12] hover:border-rose-500/30 hover:bg-rose-500/[0.04] text-white/35 hover:text-white/65 text-xs transition-all disabled:opacity-40 disabled:pointer-events-none"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-white/12 hover:border-rose-500/30 hover:bg-rose-500/4 text-white/35 hover:text-white/65 text-xs transition-all disabled:opacity-40 disabled:pointer-events-none"
                   >
                     {loadingContext ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                     {loadingContext ? "Extracting text…" : "Upload PDF or TXT"}
@@ -549,7 +549,7 @@ export default function EducationPage() {
                   className={cn(
                     "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all",
                     "bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white",
-                    "shadow-[0_0_20px_oklch(0.65_0.19_15_/_0.25)] hover:shadow-[0_0_28px_oklch(0.65_0.19_15_/_0.35)]",
+                    "shadow-[0_0_20px_oklch(0.65_0.19_15/0.25)] hover:shadow-[0_0_28px_oklch(0.65_0.19_15/0.35)]",
                     "disabled:opacity-40 disabled:pointer-events-none",
                   )}
                 >
@@ -560,7 +560,7 @@ export default function EducationPage() {
                   <button
                     type="button"
                     onClick={() => { setQuizBundle(null); resetAttempt() }}
-                    className="px-3 py-2.5 rounded-xl text-xs text-white/35 hover:text-white/65 border border-white/[0.08] hover:bg-white/[0.04] transition-colors"
+                    className="px-3 py-2.5 rounded-xl text-xs text-white/35 hover:text-white/65 border border-white/8 hover:bg-white/4 transition-colors"
                   >
                     Clear
                   </button>
@@ -578,7 +578,7 @@ export default function EducationPage() {
             {/* Lesson content */}
             {quizBundle && (
               <>
-                <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-3">
+                <section className="rounded-2xl border border-white/8 bg-white/2 p-5 space-y-3">
                   <h2 className="text-sm font-semibold text-white/85">{quizBundle.title}</h2>
                   <div className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">{quizBundle.lesson}</div>
                 </section>
@@ -591,7 +591,7 @@ export default function EducationPage() {
                   {quizBundle.questions.map((q, idx) => (
                     <div
                       key={q.id}
-                      className="rounded-xl border border-white/[0.07] bg-black/20 p-4 space-y-3"
+                      className="rounded-xl border border-white/7 bg-black/20 p-4 space-y-3"
                     >
                       <div className="flex items-center gap-2">
                         <p className="text-[10px] text-rose-400/60 font-bold uppercase tracking-widest">Q{idx + 1}</p>
@@ -607,7 +607,7 @@ export default function EducationPage() {
                                 "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 cursor-pointer transition-all",
                                 answers[q.id] === String(i)
                                   ? "border-rose-500/45 bg-rose-500/10 text-white/90"
-                                  : "border-white/[0.06] hover:border-white/15 hover:bg-white/[0.02]",
+                                  : "border-white/6 hover:border-white/15 hover:bg-white/2",
                               )}
                             >
                               <input
@@ -627,7 +627,7 @@ export default function EducationPage() {
                           onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
                           rows={3}
                           placeholder="Type your answer…"
-                          className="w-full rounded-lg border border-white/[0.09] bg-black/30 px-3 py-2 text-sm text-white/85 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/35 transition-colors"
+                          className="w-full rounded-lg border border-white/9 bg-black/30 px-3 py-2 text-sm text-white/85 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-rose-500/35 transition-colors"
                         />
                       )}
                     </div>
@@ -642,7 +642,7 @@ export default function EducationPage() {
                     className={cn(
                       "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all",
                       "bg-fuchsia-700 hover:bg-fuchsia-600 active:scale-[0.98] text-white",
-                      "shadow-[0_0_20px_oklch(0.60_0.20_330_/_0.25)]",
+                      "shadow-[0_0_20px_oklch(0.60_0.20_330/0.25)]",
                       "disabled:opacity-40 disabled:pointer-events-none",
                     )}
                   >
@@ -652,7 +652,7 @@ export default function EducationPage() {
                   <button
                     type="button"
                     onClick={resetAttempt}
-                    className="px-3 py-2.5 rounded-xl text-xs text-white/35 hover:text-white/65 border border-white/[0.08] hover:bg-white/[0.04] transition-colors"
+                    className="px-3 py-2.5 rounded-xl text-xs text-white/35 hover:text-white/65 border border-white/8 hover:bg-white/4 transition-colors"
                   >
                     Reset answers
                   </button>
@@ -662,7 +662,7 @@ export default function EducationPage() {
 
             {/* Grade results */}
             {grade && quizBundle && (
-              <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-4">
+              <section className="rounded-2xl border border-white/8 bg-white/2 p-5 space-y-4">
                 {/* Score header */}
                 <div className="flex items-center gap-4">
                   <ScoreBadge percent={grade.percent} size="md" />
@@ -693,8 +693,8 @@ export default function EducationPage() {
                         className={cn(
                           "rounded-xl border p-3.5 space-y-2 text-sm",
                           isCorrect
-                            ? "border-emerald-500/20 bg-emerald-500/[0.04]"
-                            : "border-red-500/20 bg-red-500/[0.04]"
+                            ? "border-emerald-500/20 bg-emerald-500/4"
+                            : "border-red-500/20 bg-red-500/4"
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -736,7 +736,7 @@ export default function EducationPage() {
 
                 {/* Feedback */}
                 {(grade.feedback.summary || grade.feedback.encouragement) && (
-                  <div className="space-y-3 text-sm text-white/60 leading-relaxed border-t border-white/[0.06] pt-4">
+                  <div className="space-y-3 text-sm text-white/60 leading-relaxed border-t border-white/6 pt-4">
                     {grade.feedback.summary && <p>{grade.feedback.summary}</p>}
                     {grade.feedback.strengths.length > 0 && (
                       <div>

@@ -61,9 +61,9 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] aurora-bg flex items-center justify-center px-4 py-8">
+    <div className="min-h-dvh aurora-bg flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="rounded-3xl border border-border/50 bg-card/60 backdrop-blur-md p-6 sm:p-8 shadow-[0_8px_48px_oklch(0.72_0.14_220_/_0.10)]">
+        <div className="rounded-3xl border border-border/50 bg-card/60 backdrop-blur-md p-6 sm:p-8 shadow-[0_8px_48px_oklch(0.72_0.14_220/0.10)]">
           {/* Logo */}
           <div className="flex flex-col items-center mb-7">
             <GaaiaIcon size={56} className="mb-3" />
@@ -185,7 +185,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_oklch(0.72_0.14_220_/_0.20)] mt-1"
+              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_oklch(0.72_0.14_220/0.20)] mt-1"
             >
               {loading ? "Creating account…" : "Create account"}
             </button>

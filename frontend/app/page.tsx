@@ -41,9 +41,9 @@ export default function LandingPage() {
     <div className="min-h-screen aurora-bg relative overflow-x-hidden text-foreground">
       {/* Ambient blobs */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-blue-500/[0.09] blur-3xl" />
-        <div className="absolute top-1/2 -right-40 w-96 h-96 rounded-full bg-violet-500/[0.09] blur-3xl" />
-        <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-cyan-500/[0.07] blur-3xl" />
+        <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-blue-500/9 blur-3xl" />
+        <div className="absolute top-1/2 -right-40 w-96 h-96 rounded-full bg-violet-500/9 blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full bg-cyan-500/7 blur-3xl" />
       </div>
 
       {/* ── Nav ─────────────────────────────────────────────────────── */}
@@ -61,7 +61,7 @@ export default function LandingPage() {
           </Link>
           <Link
             href="/signup"
-            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_0_20px_oklch(0.72_0.14_220_/_0.25)]"
+            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_0_20px_oklch(0.72_0.14_220/0.25)]"
           >
             Get started <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -77,7 +77,7 @@ export default function LandingPage() {
 
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08] mb-6">
           One platform.{" "}
-          <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
+          <span className="bg-linear-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
             Every AI experience.
           </span>
         </h1>
@@ -90,7 +90,7 @@ export default function LandingPage() {
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <Link
             href="/signup"
-            className="flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_0_32px_oklch(0.72_0.14_220_/_0.30)]"
+            className="flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_0_32px_oklch(0.72_0.14_220/0.30)]"
           >
             Start for free <ArrowRight className="w-4 h-4" />
           </Link>
@@ -159,9 +159,9 @@ export default function LandingPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Free */}
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex flex-col gap-5">
+          <div className="rounded-2xl border border-white/8 bg-white/2 p-6 flex flex-col gap-5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/[0.07] border border-white/[0.1] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-white/7 border border-white/10 flex items-center justify-center">
                 <Zap className="w-5 h-5 text-white/50" />
               </div>
               <div>
@@ -177,7 +177,7 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/signup" className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/[0.06] text-white/50 border border-white/[0.08] hover:bg-white/[0.10] transition-colors">
+            <Link href="/signup" className="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-white/6 text-white/50 border border-white/8 hover:bg-white/10 transition-colors">
               Get started free
             </Link>
           </div>
@@ -245,14 +245,14 @@ export default function LandingPage() {
 
       {/* ── CTA Banner ──────────────────────────────────────────────── */}
       <section className="relative z-10 max-w-3xl mx-auto px-6 pb-28 text-center">
-        <div className="rounded-3xl border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-10 py-12">
+        <div className="rounded-3xl border border-primary/20 bg-primary/6 backdrop-blur-sm px-10 py-12">
           <h2 className="text-3xl font-extrabold tracking-tight mb-3">Ready for GAAIA?</h2>
           <p className="text-muted-foreground mb-8 text-sm">
             Create your free account and start exploring every AI experience in seconds.
           </p>
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_0_32px_oklch(0.72_0.14_220_/_0.30)]"
+            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_0_32px_oklch(0.72_0.14_220/0.30)]"
           >
             Create free account <ArrowRight className="w-4 h-4" />
           </Link>

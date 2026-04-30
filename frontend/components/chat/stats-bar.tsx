@@ -164,7 +164,7 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
       {/* ── Collapsed toggle strip ──────────────────────────────────────── */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 sm:px-4 h-7 hover:bg-white/[0.03] transition-colors"
+        className="w-full flex items-center gap-2 px-3 sm:px-4 h-7 hover:bg-white/3 transition-colors"
       >
         {/* Live dot */}
         <span className={cn(
@@ -289,7 +289,7 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
           )}
 
           {/* Divider */}
-          {hasRequest && <div className="w-px h-4 bg-white/[0.08] mx-1" />}
+          {hasRequest && <div className="w-px h-4 bg-white/8 mx-1" />}
 
           {/* Last request group */}
           {hasRequest && (
@@ -321,7 +321,7 @@ export function StatsBar({ isStreaming }: StatsBarProps) {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function Sep() {
-  return <div className="w-px h-3 bg-white/[0.10] shrink-0" />
+  return <div className="w-px h-3 bg-white/10 shrink-0" />
 }
 
 function Chip({ label, value, color }: { label: string; value: string; color: string }) {
@@ -353,7 +353,7 @@ function Pill({
 function MiniBar({ percent }: { percent: number | null }) {
   const w = percent !== null ? Math.min(100, Math.max(0, percent)) : 0
   return (
-    <div className="h-1 w-10 rounded-full bg-white/[0.08] overflow-hidden">
+    <div className="h-1 w-10 rounded-full bg-white/8 overflow-hidden">
       <div
         className={cn(
           "h-full rounded-full transition-all duration-700",

@@ -107,11 +107,11 @@ function FolderPicker({ folders, currentFolder, onPick, onCreateAndPick, onClose
   return (
     <div
       ref={ref}
-      className="absolute left-full top-0 ml-1 z-50 w-48 rounded-xl border border-white/[0.1] shadow-xl overflow-hidden"
+      className="absolute left-full top-0 ml-1 z-50 w-48 rounded-xl border border-white/10 shadow-xl overflow-hidden"
       style={{ backgroundColor: "var(--surface-3)" }}
     >
       {/* Search */}
-      <div className="px-2 py-2 border-b border-white/[0.07]">
+      <div className="px-2 py-2 border-b border-white/7">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/25" />
           <input
@@ -119,7 +119,7 @@ function FolderPicker({ folders, currentFolder, onPick, onCreateAndPick, onClose
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Find folder…"
-            className="w-full pl-6 pr-2 py-1.5 text-[11px] bg-white/[0.06] rounded-lg border border-white/[0.08] focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/25"
+            className="w-full pl-6 pr-2 py-1.5 text-[11px] bg-white/6 rounded-lg border border-white/8 focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/25"
           />
         </div>
       </div>
@@ -130,12 +130,12 @@ function FolderPicker({ folders, currentFolder, onPick, onCreateAndPick, onClose
           <>
             <button
               onClick={() => { onPick(null); onClose() }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-amber-400/70 hover:bg-amber-500/[0.07] hover:text-amber-400 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-amber-400/70 hover:bg-amber-500/7 hover:text-amber-400 transition-colors"
             >
               <X className="w-3 h-3" />
               Remove from &ldquo;{currentFolder}&rdquo;
             </button>
-            <div className="border-t border-white/[0.07]" />
+            <div className="border-t border-white/7" />
           </>
         )}
 
@@ -151,7 +151,7 @@ function FolderPicker({ folders, currentFolder, onPick, onCreateAndPick, onClose
               "w-full flex items-center gap-2 px-3 py-2 text-[11px] transition-colors",
               currentFolder === folder
                 ? "bg-blue-600/15 text-blue-300"
-                : "text-white/55 hover:bg-white/[0.06] hover:text-white/80"
+                : "text-white/55 hover:bg-white/6 hover:text-white/80"
             )}
           >
             <Folder className="w-3 h-3 shrink-0" />
@@ -162,7 +162,7 @@ function FolderPicker({ folders, currentFolder, onPick, onCreateAndPick, onClose
       </div>
 
       {/* New folder */}
-      <div className="border-t border-white/[0.07] px-2 py-2">
+      <div className="border-t border-white/7 px-2 py-2">
         {creating ? (
           <div className="flex items-center gap-1">
             <input
@@ -177,7 +177,7 @@ function FolderPicker({ folders, currentFolder, onPick, onCreateAndPick, onClose
                 if (e.key === "Escape") setCreating(false)
               }}
               placeholder="Folder name…"
-              className="flex-1 px-2 py-1 text-[11px] bg-white/[0.06] rounded border border-white/[0.1] focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/25"
+              className="flex-1 px-2 py-1 text-[11px] bg-white/6 rounded border border-white/10 focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/25"
             />
             <button
               onClick={() => { const n = newName.trim(); if (n) { onCreateAndPick(n); onClose() } }}
@@ -230,12 +230,12 @@ function ChatRowMenu({ session, folders, onRename, onMove, onCreateFolderAndMove
   return (
     <div
       ref={menuRef}
-      className="absolute right-0 top-6 z-40 w-44 rounded-xl border border-white/[0.1] shadow-xl overflow-visible py-1"
+      className="absolute right-0 top-6 z-40 w-44 rounded-xl border border-white/10 shadow-xl overflow-visible py-1"
       style={{ backgroundColor: "var(--surface-3)" }}
     >
       <button
         onClick={() => { onRename(); onClose() }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-white/55 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-white/55 hover:bg-white/6 hover:text-white/80 transition-colors"
       >
         <Pencil className="w-3 h-3" />
         Rename
@@ -245,7 +245,7 @@ function ChatRowMenu({ session, folders, onRename, onMove, onCreateFolderAndMove
         <button
           ref={folderBtnRef}
           onClick={() => setShowFolderPicker(v => !v)}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-white/55 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-white/55 hover:bg-white/6 hover:text-white/80 transition-colors"
         >
           <MoveRight className="w-3 h-3" />
           Move to folder
@@ -263,10 +263,10 @@ function ChatRowMenu({ session, folders, onRename, onMove, onCreateFolderAndMove
         )}
       </div>
 
-      <div className="my-1 border-t border-white/[0.06]" />
+      <div className="my-1 border-t border-white/6" />
       <button
         onClick={() => { onDelete(); onClose() }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-red-400/70 hover:bg-red-500/[0.07] hover:text-red-400 transition-colors"
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-red-400/70 hover:bg-red-500/7 hover:text-red-400 transition-colors"
       >
         <Trash2 className="w-3 h-3" />
         Delete chat
@@ -326,7 +326,7 @@ function ChatRow({
             if (e.key === "Escape") setRenaming(false)
           }}
           onBlur={() => { onRename(session.id, renameVal.trim() || session.title); setRenaming(false) }}
-          className="w-full px-2 py-1 text-xs bg-white/[0.08] rounded border border-blue-500/40 focus:outline-none text-white/80"
+          className="w-full px-2 py-1 text-xs bg-white/8 rounded border border-blue-500/40 focus:outline-none text-white/80"
         />
       </div>
     )
@@ -346,7 +346,7 @@ function ChatRow({
         "relative group w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-100 cursor-pointer",
         isActive
           ? "bg-blue-600/20 text-white border border-blue-500/20"
-          : "text-white/45 hover:bg-white/[0.05] hover:text-white/80 border border-transparent",
+          : "text-white/45 hover:bg-white/5 hover:text-white/80 border border-transparent",
         locked && "opacity-30 cursor-not-allowed hover:!bg-transparent",
         isDragging && "opacity-50 ring-1 ring-blue-500/40"
       )}
@@ -369,8 +369,8 @@ function ChatRow({
         className={cn(
           "absolute right-1.5 top-1.5 p-1 rounded-md transition-colors",
           menuOpen
-            ? "bg-white/[0.1] text-white/70"
-            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-white/30 hover:bg-white/[0.08] hover:text-white/70"
+            ? "bg-white/10 text-white/70"
+            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-white/30 hover:bg-white/8 hover:text-white/70"
         )}
         title="Options"
       >
@@ -516,7 +516,7 @@ export function ChatSidebar({
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open chat list"
-          className="md:hidden fixed top-2 left-2 z-30 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-white/70 hover:text-white border border-white/[0.08] backdrop-blur-sm"
+          className="md:hidden fixed top-2 left-2 z-30 p-2 rounded-lg bg-white/6 hover:bg-white/10 text-white/70 hover:text-white border border-white/8 backdrop-blur-sm"
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -550,7 +550,7 @@ export function ChatSidebar({
       >
       {/* ── Top bar ── */}
       <div className={cn(
-        "flex items-center py-4 border-b border-white/[0.06] shrink-0",
+        "flex items-center py-4 border-b border-white/6 shrink-0",
         collapsed ? "md:justify-center md:px-0 justify-between px-4" : "justify-between px-4"
       )}>
         <Link href="/home" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" title="Go to Home">
@@ -563,7 +563,7 @@ export function ChatSidebar({
           {/* Mobile close button — visible only when drawer is open on <md. */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="md:hidden p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.07] transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/7 transition-colors"
             aria-label="Close chat list"
           >
             <X className="w-4 h-4" />
@@ -572,7 +572,7 @@ export function ChatSidebar({
           {!collapsed && (
             <button
               onClick={() => setCollapsed(true)}
-              className="hidden md:inline-flex p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.07] transition-colors"
+              className="hidden md:inline-flex p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/7 transition-colors"
               title="Collapse sidebar"
             >
               <PanelLeftClose className="w-4 h-4" />
@@ -610,7 +610,7 @@ export function ChatSidebar({
               placeholder="Search chats…"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-xs bg-white/[0.05] rounded-lg border border-white/[0.08] focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/20"
+              className="w-full pl-8 pr-3 py-2 text-xs bg-white/5 rounded-lg border border-white/8 focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/20"
             />
           </div>
         </div>
@@ -646,7 +646,7 @@ export function ChatSidebar({
                           "group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150 select-none",
                           isDragTarget
                             ? "bg-blue-500/15 ring-1 ring-blue-500/40"
-                            : "hover:bg-white/[0.04]"
+                            : "hover:bg-white/4"
                         )}
                         onClick={() => toggleFolder(folder)}
                       >
@@ -677,7 +677,7 @@ export function ChatSidebar({
 
                       {/* Folder contents */}
                       {isExpanded && (
-                        <div className="ml-3 pl-2 border-l border-white/[0.07] mb-1 space-y-0.5">
+                        <div className="ml-3 pl-2 border-l border-white/7 mb-1 space-y-0.5">
                           {folderSessions.length === 0 ? (
                             <p className="px-2 py-2 text-[10px] text-white/20 italic">Empty — drag chats here</p>
                           ) : (
@@ -722,7 +722,7 @@ export function ChatSidebar({
                     }}
                     onBlur={submitNewFolder}
                     placeholder="Folder name…"
-                    className="flex-1 px-2 py-1.5 text-xs bg-white/[0.06] rounded-lg border border-blue-500/30 focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/25"
+                    className="flex-1 px-2 py-1.5 text-xs bg-white/6 rounded-lg border border-blue-500/30 focus:outline-none focus:ring-1 focus:ring-blue-500/40 text-white/70 placeholder:text-white/25"
                   />
                   <button onClick={submitNewFolder} className="p-1 rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors">
                     <Plus className="w-3 h-3" />
@@ -731,7 +731,7 @@ export function ChatSidebar({
               ) : (
                 <button
                   onClick={() => setCreatingFolder(true)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-white/30 hover:text-blue-400/80 hover:bg-white/[0.04] transition-colors"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-white/30 hover:text-blue-400/80 hover:bg-white/4 transition-colors"
                 >
                   <FolderPlus className="w-3.5 h-3.5" />
                   New folder
@@ -772,7 +772,7 @@ export function ChatSidebar({
             )}
 
             {!loading && filtered.length === 0 && (
-              <p className="mx-1 px-3 py-4 rounded-xl border border-dashed border-white/[0.08] text-xs text-white/25 leading-relaxed">
+              <p className="mx-1 px-3 py-4 rounded-xl border border-dashed border-white/8 text-xs text-white/25 leading-relaxed">
                 No chats yet. Start a new one!
               </p>
             )}
@@ -791,7 +791,7 @@ export function ChatSidebar({
                   onClick={() => { if (!locked) { onSelect(session.id); setMobileOpen(false) } }}
                   className={cn(
                     "flex items-center justify-center p-2.5 rounded-lg transition-colors",
-                    isActive ? "bg-blue-600/25 text-blue-400" : "text-white/25 hover:bg-white/[0.06] hover:text-white/60",
+                    isActive ? "bg-blue-600/25 text-blue-400" : "text-white/25 hover:bg-white/6 hover:text-white/60",
                     locked && "opacity-30 cursor-not-allowed"
                   )}
                   title={session.title}
@@ -802,7 +802,7 @@ export function ChatSidebar({
             })}
             <button
               onClick={() => setCollapsed(false)}
-              className="mt-3 flex items-center justify-center w-full p-2.5 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+              className="mt-3 flex items-center justify-center w-full p-2.5 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/6 transition-colors"
               title="Expand sidebar"
             >
               <PanelLeftOpen className="w-4 h-4" />
@@ -813,10 +813,10 @@ export function ChatSidebar({
 
       {/* ── Expand chevron at the very bottom when collapsed ── */}
       {collapsed && (
-        <div className="pb-3 flex justify-center shrink-0 border-t border-white/[0.06] pt-3">
+        <div className="pb-3 flex justify-center shrink-0 border-t border-white/6 pt-3">
           <button
             onClick={() => setCollapsed(false)}
-            className="p-1.5 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+            className="p-1.5 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/6 transition-colors"
             title="Expand sidebar"
           >
             <ChevronRight className="w-4 h-4" />

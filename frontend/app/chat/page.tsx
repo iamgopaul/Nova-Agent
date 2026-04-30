@@ -1610,11 +1610,11 @@ export default function ChatPage() {
       {/* Home card: GAAIA Chat — blue-400 icon, from-blue-500/20 via-cyan-500/10, border-blue-500/30 */}
       <div className="relative flex h-full min-h-0 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.08] via-cyan-500/[0.05] to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-br from-blue-500/8 via-cyan-500/5 to-transparent" />
           <div className="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl" />
           <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full bg-cyan-500/8 blur-3xl" />
         </div>
-        <div className="relative z-[1] flex h-full w-full min-h-0 overflow-hidden">
+        <div className="relative z-1 flex h-full w-full min-h-0 overflow-hidden">
           <ChatSidebar
             sessions={sessionsForSidebar}
             folders={folders}

@@ -30,18 +30,18 @@ const PAL = {
   violet: {
     hex:    "#8b5cf6",
     text:   "text-violet-400",
-    bg:     "bg-violet-500/[0.09]",
+    bg:     "bg-violet-500/9",
     border: "border-violet-500/30",
-    glow:   "shadow-[0_0_40px_oklch(0.55_0.25_275_/_0.35)]",
-    bubble: "bg-violet-500/[0.10] border-violet-500/25",
+    glow:   "shadow-[0_0_40px_oklch(0.55_0.25_275/0.35)]",
+    bubble: "bg-violet-500/10 border-violet-500/25",
   },
   purple: {
     hex:    "#a855f7",
     text:   "text-purple-400",
-    bg:     "bg-purple-500/[0.09]",
+    bg:     "bg-purple-500/9",
     border: "border-purple-500/30",
-    glow:   "shadow-[0_0_40px_oklch(0.55_0.25_300_/_0.35)]",
-    bubble: "bg-purple-500/[0.10] border-purple-500/25",
+    glow:   "shadow-[0_0_40px_oklch(0.55_0.25_300/0.35)]",
+    bubble: "bg-purple-500/10 border-purple-500/25",
   },
 }
 
@@ -166,9 +166,9 @@ function SpeechBubble({ entry, isStreaming }: { entry: TurnEntry; isStreaming: b
 
 function SegmentBadge({ segment, label }: { segment: Segment; label: string }) {
   const colors: Record<Segment, string> = {
-    intro:      "bg-violet-500/[0.12] border-violet-500/25 text-violet-300",
-    discussion: "bg-purple-500/[0.12] border-purple-500/25 text-purple-300",
-    outro:      "bg-indigo-500/[0.12] border-indigo-500/25 text-indigo-300",
+    intro:      "bg-violet-500/12 border-violet-500/25 text-violet-300",
+    discussion: "bg-purple-500/12 border-purple-500/25 text-purple-300",
+    outro:      "bg-indigo-500/12 border-indigo-500/25 text-indigo-300",
   }
   return (
     <div className={cn(
@@ -379,8 +379,8 @@ export default function PodcastPage() {
         <div className="flex h-full flex-col items-center justify-center px-4 sm:px-6 py-6 sm:py-10 relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 page-gradient-podcast" />
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -top-20 left-1/4 w-96 h-96 rounded-full bg-violet-500/[0.07] blur-3xl" />
-            <div className="absolute bottom-1/4 right-0 w-80 h-80 rounded-full bg-purple-500/[0.06] blur-3xl" />
+            <div className="absolute -top-20 left-1/4 w-96 h-96 rounded-full bg-violet-500/7 blur-3xl" />
+            <div className="absolute bottom-1/4 right-0 w-80 h-80 rounded-full bg-purple-500/6 blur-3xl" />
           </div>
 
           <div className="relative z-10 max-w-lg w-full space-y-8">
@@ -429,7 +429,7 @@ export default function PodcastPage() {
             {/* Input */}
             <div className="space-y-3">
               <textarea
-                className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3.5 text-sm text-white/85 placeholder:text-white/25 focus:outline-none focus:border-violet-500/50 focus:bg-white/[0.06] resize-none transition-all"
+                className="w-full rounded-2xl border border-white/10 bg-white/4 px-4 py-3.5 text-sm text-white/85 placeholder:text-white/25 focus:outline-none focus:border-violet-500/50 focus:bg-white/6 resize-none transition-all"
                 placeholder={'e.g. "The future of human memory", "Why music gives us chills", "Should we terraform Mars?"'}
                 rows={3}
                 value={topic}
@@ -441,7 +441,7 @@ export default function PodcastPage() {
               <button
                 onClick={startPodcast}
                 disabled={!topic.trim() || status === "starting"}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_30px_rgba(0,0,0,0.4)]"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-linear-to-r from-violet-600 to-purple-600 text-white font-bold text-sm transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_30px_rgba(0,0,0,0.4)]"
               >
                 {status === "starting" ? (
                   <><Sparkles className="w-4 h-4 animate-spin" />Setting up hosts…</>
@@ -453,7 +453,7 @@ export default function PodcastPage() {
               <p className="text-center text-[11px] text-white/20">⌘↵ to start · 2 hosts · 8 turns · ~5 min episode</p>
 
               {startError && (
-                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/[0.08] px-3.5 py-2.5">
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/8 px-3.5 py-2.5">
                   <span className="text-red-400 mt-0.5 shrink-0">⚠</span>
                   <p className="text-xs text-red-300/80 leading-relaxed">{startError}</p>
                 </div>
@@ -467,7 +467,7 @@ export default function PodcastPage() {
                 { icon: Play,       label: "Any topic on demand",   desc: "Science, culture, philosophy, pop culture" },
                 { icon: Headphones, label: "Live transcript",        desc: "Watch the conversation build turn by turn" },
               ].map(item => (
-                <div key={item.label} className="flex items-start gap-3 p-3 rounded-xl border border-violet-500/15 bg-violet-500/[0.04]">
+                <div key={item.label} className="flex items-start gap-3 p-3 rounded-xl border border-violet-500/15 bg-violet-500/4">
                   <div className="w-7 h-7 rounded-lg bg-violet-500/15 border border-violet-500/20 flex items-center justify-center shrink-0 mt-0.5">
                     <item.icon className="w-3.5 h-3.5 text-violet-400" />
                   </div>
@@ -499,7 +499,7 @@ export default function PodcastPage() {
           </button>
         ) : (
           <button onClick={reset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.05] text-white/50 text-xs font-semibold hover:bg-white/[0.08] transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/50 text-xs font-semibold hover:bg-white/8 transition-colors">
             New Episode
           </button>
         )
@@ -509,7 +509,7 @@ export default function PodcastPage() {
 
         {/* ── Episode header bar ─────────────────────────────────────────────── */}
         <div
-          className="shrink-0 flex items-center justify-between px-5 py-2 border-b border-white/[0.06]"
+          className="shrink-0 flex items-center justify-between px-5 py-2 border-b border-white/6"
           style={{ backgroundColor: "var(--surface-2)" }}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -518,7 +518,7 @@ export default function PodcastPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-3">
             {status === "done" && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/[0.12] border border-green-500/25">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/12 border border-green-500/25">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
                 <span className="text-[10px] font-bold text-green-300">Episode complete</span>
               </div>
@@ -545,10 +545,10 @@ export default function PodcastPage() {
           )}
 
           {/* Centre: transcript */}
-          <div className="flex-1 min-w-0 flex flex-col rounded-2xl border border-white/[0.07] bg-[#05050d] overflow-hidden">
+          <div className="flex-1 min-w-0 flex flex-col rounded-2xl border border-white/7 bg-[#05050d] overflow-hidden">
             {/* Transcript header */}
             <div
-              className="px-4 py-2.5 border-b border-white/[0.06] flex items-center gap-2 shrink-0"
+              className="px-4 py-2.5 border-b border-white/6 flex items-center gap-2 shrink-0"
               style={{ backgroundColor: "rgba(255,255,255,0.02)" }}
             >
               <Radio className="w-3.5 h-3.5 text-white/25" />

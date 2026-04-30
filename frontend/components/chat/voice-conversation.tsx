@@ -1707,14 +1707,14 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
         <div
           className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full transition-opacity duration-1000",
-            "bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-cyan-500/10 blur-3xl",
+            "bg-linear-to-br from-blue-500/10 via-purple-500/10 to-cyan-500/10 blur-3xl",
             state === "speaking" ? "opacity-60" : "opacity-30"
           )}
         />
         <div
           className={cn(
             "absolute top-1/4 right-1/4 w-[300px] h-[300px] rounded-full transition-opacity duration-1000",
-            "bg-gradient-to-br from-cyan-500/10 to-transparent blur-3xl",
+            "bg-linear-to-br from-cyan-500/10 to-transparent blur-3xl",
             state === "listening" ? "opacity-50" : "opacity-20"
           )}
         />
@@ -1844,7 +1844,7 @@ function encodeWav16kMono(samples: Float32Array): ArrayBuffer {
             onClick={handleStart}
             className={cn(
               "px-6 py-3 rounded-full font-medium transition-all text-white",
-              "bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 shadow-lg shadow-blue-500/30"
+              "bg-linear-to-br from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 shadow-lg shadow-blue-500/30"
             )}
             aria-label="Start listening"
           >

@@ -67,7 +67,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
     <footer
       className={cn(
         fixed ? "fixed bottom-0 left-0 right-0 z-50" : "shrink-0",
-        "border-t border-white/[0.07] backdrop-blur-md px-3 sm:px-5 py-2",
+        "border-t border-white/7 backdrop-blur-md px-3 sm:px-5 py-2",
         className
       )}
       style={{
@@ -82,7 +82,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
           <button
             ref={buttonRef}
             onClick={() => setShowMenu(prev => !prev)}
-            className="flex items-center gap-2.5 px-2 py-1 rounded-lg hover:bg-white/[0.06] transition-colors group"
+            className="flex items-center gap-2.5 px-2 py-1 rounded-lg hover:bg-white/6 transition-colors group"
           >
             {user ? (
               <>
@@ -115,9 +115,9 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
               clip it when the footer is rendered with fixed={false}. */}
           {mounted && showMenu && user && createPortal(
             <>
-              <div className="fixed inset-0 z-[60]" onClick={() => setShowMenu(false)} />
+              <div className="fixed inset-0 z-60" onClick={() => setShowMenu(false)} />
               <div
-                className="fixed w-52 rounded-2xl border border-white/[0.09] shadow-2xl overflow-hidden z-[70]"
+                className="fixed w-52 rounded-2xl border border-white/9 shadow-2xl overflow-hidden z-70"
                 style={{
                   left: menuPos?.left ?? 0,
                   bottom: menuPos?.bottom ?? 56,
@@ -126,7 +126,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                 }}
               >
                 {/* User card */}
-                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.07] bg-white/[0.02]">
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/7 bg-white/2">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
                     style={{ backgroundColor: user.avatar_color }}
@@ -143,7 +143,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   <Link
                     href="/settings"
                     onClick={() => setShowMenu(false)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/[0.07] transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/7 transition-colors"
                   >
                     <Cog className="w-4 h-4" />
                     Settings
@@ -151,7 +151,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   <Link
                     href="/settings?tab=profile"
                     onClick={() => setShowMenu(false)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/[0.07] transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/7 transition-colors"
                   >
                     <UserCircle className="w-4 h-4" />
                     Edit profile
@@ -159,7 +159,7 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   <Link
                     href="/settings?tab=security"
                     onClick={() => setShowMenu(false)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/[0.07] transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/7 transition-colors"
                   >
                     <ShieldCheck className="w-4 h-4" />
                     Security &amp; 2FA
@@ -167,12 +167,12 @@ export function AppFooter({ className, fixed = true }: AppFooterProps) {
                   <Link
                     href="/billing"
                     onClick={() => setShowMenu(false)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/[0.07] transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/55 hover:text-white hover:bg-white/7 transition-colors"
                   >
                     <CreditCard className="w-4 h-4" />
                     Billing &amp; Plans
                   </Link>
-                  <div className="my-1 border-t border-white/[0.06]" />
+                  <div className="my-1 border-t border-white/6" />
                   <button
                     onClick={() => void handleSignOut()}
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors"

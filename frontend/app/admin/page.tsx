@@ -128,7 +128,7 @@ function AdminPageContent() {
     <AppShell title="Admin">
       <div className="flex h-full overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-48 shrink-0 border-r border-white/[0.07] px-3 py-5 space-y-1 bg-[#0d0d12]">
+        <aside className="w-48 shrink-0 border-r border-white/7 px-3 py-5 space-y-1 bg-[#0d0d12]">
           <div className="px-3 py-2 mb-3">
             <p className="text-xs font-bold uppercase tracking-wider text-white/30">Admin Panel</p>
           </div>
@@ -143,7 +143,7 @@ function AdminPageContent() {
                 "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
                 activeTab === tab.id
                   ? "bg-indigo-600/20 text-white border border-indigo-500/20"
-                  : "text-white/35 hover:text-white/70 hover:bg-white/[0.05] border border-transparent"
+                  : "text-white/35 hover:text-white/70 hover:bg-white/5 border border-transparent"
               )}
             >
               {tab.label}
@@ -206,7 +206,7 @@ function OverviewTab({ stats, loading }: { stats: Stats | null; loading: boolean
         {CARDS.map(card => {
           const Icon = card.icon
           return (
-            <div key={card.label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-5 py-4 space-y-2">
+            <div key={card.label} className="rounded-xl border border-white/7 bg-white/2 px-5 py-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Icon className={cn("w-4 h-4", card.color)} />
                 <span className="text-xs text-muted-foreground">{card.label}</span>
@@ -253,8 +253,8 @@ function UsersTab({
           <Loader2 className="w-4 h-4 animate-spin" /> Loading users…
         </div>
       ) : (
-        <div className="rounded-xl border border-white/[0.07] overflow-hidden">
-          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-0 text-[10px] font-bold uppercase tracking-wider text-white/30 px-4 py-2.5 bg-white/[0.03] border-b border-white/[0.07]">
+        <div className="rounded-xl border border-white/7 overflow-hidden">
+          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-0 text-[10px] font-bold uppercase tracking-wider text-white/30 px-4 py-2.5 bg-white/3 border-b border-white/7">
             <span className="w-8" />
             <span>User</span>
             <span className="w-24 text-center">Plan</span>
@@ -262,9 +262,9 @@ function UsersTab({
             <span className="w-20 text-center">Admin</span>
           </div>
 
-          <ul className="divide-y divide-white/[0.04]">
+          <ul className="divide-y divide-white/4">
             {users.map(user => (
-              <li key={user.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-0 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+              <li key={user.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-0 px-4 py-3 hover:bg-white/2 transition-colors">
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold mr-3 shrink-0"
                   style={{ backgroundColor: user.avatar_color }}
@@ -302,7 +302,7 @@ function UsersTab({
                       "flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-all disabled:opacity-50",
                       user.is_admin
                         ? "border-amber-400/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                        : "border-white/[0.08] text-white/30 hover:text-white/60 hover:bg-white/[0.05]"
+                        : "border-white/8 text-white/30 hover:text-white/60 hover:bg-white/5"
                     )}
                   >
                     {adminToggles[user.id] ? (
@@ -353,9 +353,9 @@ function AuditTab({
       ) : logs.length === 0 ? (
         <div className="text-center py-10 text-sm text-muted-foreground">No audit logs yet.</div>
       ) : (
-        <div className="rounded-xl border border-white/[0.07] overflow-hidden divide-y divide-white/[0.04]">
+        <div className="rounded-xl border border-white/7 overflow-hidden divide-y divide-white/4">
           {logs.map(log => (
-            <div key={log.id} className="flex items-center gap-4 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+            <div key={log.id} className="flex items-center gap-4 px-4 py-3 hover:bg-white/2 transition-colors">
               <span className={cn(
                 "text-[10px] px-2 py-0.5 rounded-full border font-medium shrink-0",
                 ACTION_COLORS[log.action] ?? "border-white/10 text-white/30"
