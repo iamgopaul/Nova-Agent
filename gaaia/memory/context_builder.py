@@ -57,12 +57,12 @@ class ContextBuilder:
         self._max_turns = max_turns
         self._max_facts = max_facts
 
-    def build(self, session_id: str) -> dict:
+    def build(self, session_id: str, user_id: str | None = None) -> dict:
         messages = self._store.get_recent_turns(session_id, self._max_turns)
-        facts = self._store.get_facts()[: self._max_facts]
-        primary_user = self._store.get_fact_value("user_name", "").strip()
-        display_user = self._store.get_fact_value("user_display_name", "").strip()
-        last_speaker = self._store.get_fact_value("last_speaker", "").strip()
+        facts = self._store.get_facts(user_id=user_id)[: self._max_facts]
+        primary_user = self._store.get_fact_value("user_name", "", user_id=user_id).strip()
+        display_user = self._store.get_fact_value("user_display_name", "", user_id=user_id).strip()
+        last_speaker = self._store.get_fact_value("last_speaker", "", user_id=user_id).strip()
 
         # Truncate long messages before injecting into the LLM context window.
         # Essays and research papers can be 8000+ words; including them in full

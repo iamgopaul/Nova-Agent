@@ -2394,7 +2394,7 @@ async def chat(
         _explicit = _extract_weather_location(body.message)
         _w_loc = resolve_weather_location(
             _explicit,
-            memory_location_fact=memory.get_fact_value("location", ""),
+            memory_location_fact=memory.get_fact_value("location", "", user_id=current_user.id),
             app_home_location=_browser_location or (_app_home or "").strip(),
             server_location_context=_loc_ctx,
         )
@@ -2699,6 +2699,8 @@ async def chat(
                 display_message=body.message,
                 # Browser GPS location overrides the server-side IP geolocation for the system prompt.
                 location_ctx_override=_gps_location_ctx or None,
+                # Scope all fact reads and writes to the authenticated user.
+                user_id=current_user.id,
             )
             stats_tracker.request_finished(_req_start, _total_chars)
             full_response = "".join(_response_parts).strip()

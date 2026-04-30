@@ -983,6 +983,7 @@ Your job:
         stream_callback: Callable[[str], None] | None,
         status_callback: Callable[[str], None] | None,
         primary_model: str,
+        user_id: str | None = None,
     ) -> str:
         """
         Parallel pipeline:
@@ -1101,18 +1102,19 @@ Your job:
         display_message: str | None = None,
         min_predict: int | None = None,  # force a minimum num_predict (e.g. for longform essays)
         location_ctx_override: str | None = None,  # GPS-accurate location from browser, overrides IP geolocation
+        user_id: str | None = None,  # authenticated user — scopes facts/memory reads and writes
     ) -> str:
         # display_message: clean human-readable text stored in memory & facts.
         # user_message: full context (may include system tags) sent only to the LLM.
         mem_message = display_message if display_message is not None else user_message
 
-        direct_memory_response = self._execute_memory_request_route(user_message, status_callback)
+        direct_memory_response = self._execute_memory_request_route(user_message, status_callback, user_id=user_id)
         if direct_memory_response is not None:
             if stream_callback and direct_memory_response:
                 stream_callback(direct_memory_response)
             self._memory.save_turn(session_id, "user", mem_message)
             self._memory.save_turn(session_id, "assistant", direct_memory_response)
-            self._maybe_extract_facts(mem_message)
+            self._maybe_extract_facts(mem_message, user_id=user_id)
             return direct_memory_response
 
         # ── Compute clean message early — needed for both routing and search ────
@@ -1162,7 +1164,7 @@ Your job:
             self._emit_status(status_callback, "Live lookup mode enabled")
             self._emit_status(status_callback, "Searching online")
             _search_task = asyncio.create_task(
-                self._fetch_search_context_async(user_message, _search_msg)
+                self._fetch_search_context_async(user_message, _search_msg, user_id=user_id)
             )
 
         # Fire LLM routing in parallel (no-op if not auto-routing).
@@ -1206,7 +1208,7 @@ Your job:
                 _llm_route_result = None  # keyword fallback used below
 
         self._emit_status(status_callback, "Building conversation context")
-        ctx = self._context.build(session_id)
+        ctx = self._context.build(session_id, user_id=user_id)
         history: list[dict] = ctx["messages"]
         injected_facts: str = ctx["injected_facts"]
 
@@ -1440,6 +1442,7 @@ Your job:
                     stream_callback=stream_callback,
                     status_callback=status_callback,
                     primary_model=selected_model,
+                    user_id=user_id,
                 )
             else:
                 response_text = await asyncio.to_thread(
@@ -1453,6 +1456,7 @@ Your job:
                     _search_task is not None,   # skip_live_route
                     _llm_cache_ok,
                     min_predict,
+                    user_id,
                 )
         except Exception as exc:
             response_text = self._handle_ollama_error(exc)
@@ -1461,18 +1465,18 @@ Your job:
 
         self._memory.save_turn(session_id, "user", mem_message)
         self._memory.save_turn(session_id, "assistant", response_text)
-        self._maybe_extract_facts(mem_message)
+        self._maybe_extract_facts(mem_message, user_id=user_id)
 
         return response_text
 
-    def _maybe_extract_facts(self, text: str) -> None:
+    def _maybe_extract_facts(self, text: str, user_id: str | None = None) -> None:
         lowered = text.lower().strip()
         for pattern, key in _FACT_PATTERNS:
             m = re.search(pattern, lowered, re.IGNORECASE)
             if m:
                 value = m.group(1).strip().rstrip(".")
                 if value:
-                    self._memory.save_fact(key, _format_extracted_fact_value(key, value))
+                    self._memory.save_fact(key, _format_extracted_fact_value(key, value), user_id=user_id)
 
     # ── Internal loop ─────────────────────────────────────────────────
 
@@ -1487,6 +1491,7 @@ Your job:
         skip_live_route: bool = False,
         llm_cache_ok: bool = False,
         min_predict: int | None = None,
+        user_id: str | None = None,
     ) -> str:
         # Downgrade model if RAM is under pressure before building options
         import gaaia.services.resource_advisor as _ra
@@ -1546,11 +1551,11 @@ Your job:
                 )
         latest_user_message = self._latest_user_message(messages)
 
-        direct_memory_result = self._execute_memory_request_route(latest_user_message, status_callback)
+        direct_memory_result = self._execute_memory_request_route(latest_user_message, status_callback, user_id=user_id)
         if direct_memory_result is not None:
             if stream_callback and direct_memory_result:
                 stream_callback(direct_memory_result)
-            self._maybe_extract_facts(latest_user_message)
+            self._maybe_extract_facts(latest_user_message, user_id=user_id)
             return direct_memory_result
 
         # Skip the blocking sync search when orchestrator.run() already launched a
@@ -1559,7 +1564,7 @@ Your job:
         # caller — doing a second search here would cause a duplicate blocking hang.
         if not skip_live_route:
             route_intent = _effective_search_query_message(latest_user_message)
-            direct_live_result = self._execute_live_request_route(route_intent, status_callback)
+            direct_live_result = self._execute_live_request_route(route_intent, status_callback, user_id=user_id)
             if direct_live_result is not None:
                 if stream_callback and direct_live_result:
                     stream_callback(direct_live_result)
@@ -2076,7 +2081,7 @@ Your job:
         "the", "for", "you", "do", "it",
     ]
 
-    def _extract_location_from_query(self, text: str) -> str:
+    def _extract_location_from_query(self, text: str, user_id: str | None = None) -> str:
         lowered = text.lower().strip()
         lowered = re.sub(r"[?!.]+", "", lowered)
 
@@ -2092,7 +2097,7 @@ Your job:
         app_home = (self._settings.app.get("user_home_location") or "").strip()
         return resolve_weather_location(
             location,
-            memory_location_fact=self._memory.get_fact_value("location", ""),
+            memory_location_fact=self._memory.get_fact_value("location", "", user_id=user_id),
             app_home_location=app_home,
             server_location_context=self._location_ctx,
         )
@@ -2121,14 +2126,15 @@ Your job:
         self,
         user_message: str,
         status_callback: Callable[[str], None] | None,
+        user_id: str | None = None,
     ) -> str | None:
         text = (user_message or "").strip()
         if not text or not self._is_memory_request(text):
             return None
 
-        known_name = self._memory.get_fact_value("user_name", "").strip()
-        last_speaker = self._memory.get_fact_value("last_speaker", "").strip()
-        facts = {fact["key"]: fact["value"] for fact in self._memory.get_facts()}
+        known_name = self._memory.get_fact_value("user_name", "", user_id=user_id).strip()
+        last_speaker = self._memory.get_fact_value("last_speaker", "", user_id=user_id).strip()
+        facts = {fact["key"]: fact["value"] for fact in self._memory.get_facts(user_id=user_id)}
 
         self._emit_status(status_callback, "Checking saved memory")
 
@@ -2160,7 +2166,7 @@ Your job:
         if text.lower().startswith("remember "):
             note = text[len("remember "):].strip().rstrip(".")
             if note:
-                self._memory.save_fact("note", note)
+                self._memory.save_fact("note", note, user_id=user_id)
                 return f"Got it. I’ll remember that {note}."
 
         return None
@@ -2169,6 +2175,7 @@ Your job:
         self,
         user_message: str,
         search_query_text: str | None = None,
+        user_id: str | None = None,
     ) -> str | None:
         """
         Lightweight search helper used by the parallel-search path in run().
@@ -2191,7 +2198,7 @@ Your job:
             tool_result = await self._registry.async_execute("get_news", {"topic": topic}, timeout=8.0)
 
         elif self._is_weather_request(text) and self._registry.has("get_weather"):
-            location = self._extract_location_from_query(text)
+            location = self._extract_location_from_query(text, user_id=user_id)
             tool_result = await self._registry.async_execute("get_weather", {"location": location}, timeout=8.0)
 
         elif self._is_online_search_request(text) and self._registry.has("search_web"):
@@ -2268,6 +2275,7 @@ Your job:
         self,
         user_message: str,
         status_callback: Callable[[str], None] | None,
+        user_id: str | None = None,
     ) -> str | None:
         """Sync version used only from _run_loop (worker thread context)."""
         if not self._registry:
@@ -2285,7 +2293,7 @@ Your job:
             tool_result = self._registry.execute("get_news", {"topic": topic})
 
         elif self._is_weather_request(text) and self._registry.has("get_weather"):
-            location = self._extract_location_from_query(text)
+            location = self._extract_location_from_query(text, user_id=user_id)
             self._emit_status(status_callback, "Live lookup mode enabled")
             self._emit_status(status_callback, "Fetching live weather data")
             tool_result = self._registry.execute("get_weather", {"location": location})
