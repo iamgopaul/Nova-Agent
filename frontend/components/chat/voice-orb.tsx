@@ -43,6 +43,10 @@ export function VoiceOrb({ state, className }: VoiceOrbProps) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    // The non-null assertion is paired with the runtime guard below — `ctx`
+    // can in principle be null, but if it is we bail out before any draw()
+    // call. The assertion lets `draw()` (a nested function) read `ctx`
+    // without TypeScript losing the narrowing across the closure boundary.
     const ctx = canvas.getContext("2d")!
     if (!ctx) return
 
