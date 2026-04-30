@@ -14,6 +14,7 @@ import {
 } from "@/lib/chat-messages-persist"
 import { tryHandleSuggestionAction } from "@/lib/suggestion-actions"
 import { chatMessagesStore } from "@/lib/chat-messages-store"
+import { useGpsLocation } from "@/hooks/use-gps-location"
 
 const _EMPTY_MESSAGES: Message[] = []
 
@@ -399,6 +400,7 @@ const MODEL_LABELS: Record<ChatModelKey, { name: string; backend: string }> = {
 }
 
 export default function ChatPage() {
+  useGpsLocation()
   const [sessions, setSessions] = useState<ChatSessionSummary[]>([])
   const [folders, setFolders] = useState<string[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -834,9 +836,16 @@ export default function ChatPage() {
       })()
     }
 
+    const _gpsRaw = typeof window !== "undefined" ? localStorage.getItem("gaaia_user_location") : null
+    const _gpsLoc = _gpsRaw ? (() => { try { return JSON.parse(_gpsRaw) } catch { return null } })() : null
+    const _locHeader = _gpsLoc?.city ? `${_gpsLoc.city}, ${_gpsLoc.region}, ${_gpsLoc.country}`.replace(/, ,/g, ",").replace(/,\s*$/, "") : ""
+
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(_locHeader ? { "X-User-Location": _locHeader } : {}),
+      },
       body: JSON.stringify({
         message: text,
         session_id: sessionId,

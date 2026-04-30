@@ -360,7 +360,8 @@ function ChatRow({
         <p className="text-[10px] text-white/25 mt-0.5 line-clamp-1">{session.preview}</p>
       </div>
 
-      {/* Action menu trigger */}
+      {/* Action menu trigger — pointer-events-none when hidden so mobile taps
+          on the row reach onSelect instead of the invisible button. */}
       <button
         type="button"
         onMouseDown={e => { e.stopPropagation(); setMenuOpen(v => !v) }}
@@ -369,7 +370,7 @@ function ChatRow({
           "absolute right-1.5 top-1.5 p-1 rounded-md transition-colors",
           menuOpen
             ? "bg-white/[0.1] text-white/70"
-            : "opacity-0 group-hover:opacity-100 text-white/30 hover:bg-white/[0.08] hover:text-white/70"
+            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-white/30 hover:bg-white/[0.08] hover:text-white/70"
         )}
         title="Options"
       >

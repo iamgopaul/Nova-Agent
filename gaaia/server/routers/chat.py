@@ -2367,9 +2367,22 @@ async def chat(
     # Essay + images mode: suppress text streaming so the user sees the completed
     # illustrated essay (with images inline) all at once instead of text first then images.
 
+    # ── Browser GPS location (sent as X-User-Location header) ────────────────
+    # This is GPS-accurate — far more precise than IP geolocation which maps to the
+    # ISP's routing hub (e.g. Boynton Beach instead of the user's actual city).
+    _browser_location: str = (request.headers.get("X-User-Location") or "").strip()
+    _gps_location_ctx: str = ""
+    if _browser_location:
+        _gps_location_ctx = (
+            f"\n\n# User Location\nThe user is currently in {_browser_location}. "
+            "Source: browser GPS (high accuracy). "
+            "Use this for weather, local info, and time — never ask them where they are."
+        )
+        print(f"[Chat] GPS location from browser: {_browser_location}", flush=True)
+
     # ── Weather: start fetching immediately so data is ready before the LLM ────
-    # Priority: explicit place in message → app user_home_location → memory "I live in…" →
-    # IP from location_context → "" (wttr uses request IP — often wrong for hosted backends / VPNs).
+    # Priority: explicit place in message → browser GPS → app user_home_location →
+    # memory "I live in…" → IP from location_context → "" (wttr uses request IP).
     _weather_task: asyncio.Task[dict | None] | None = None
     _weather_prefetched: dict | None = None  # set inside run_orchestrator before LLM
     if _wants_weather:
@@ -2382,13 +2395,13 @@ async def chat(
         _w_loc = resolve_weather_location(
             _explicit,
             memory_location_fact=memory.get_fact_value("location", ""),
-            app_home_location=(_app_home or "").strip(),
+            app_home_location=_browser_location or (_app_home or "").strip(),
             server_location_context=_loc_ctx,
         )
         _weather_task = asyncio.create_task(fetch_weather_data(_w_loc))
         print(
             f"[Chat] Weather fetch started for "
-            f"'{(_w_loc or 'ip-auto')}' (explicit='{_explicit or '-'}' app_home={bool(_app_home.strip())})",
+            f"'{(_w_loc or 'ip-auto')}' (explicit='{_explicit or '-'}' gps={bool(_browser_location)})",
             flush=True,
         )
 
@@ -2684,6 +2697,8 @@ async def chat(
                 # Store the original clean message — not the internal-tag-polluted one —
                 # so history context doesn't confuse the model on subsequent turns.
                 display_message=body.message,
+                # Browser GPS location overrides the server-side IP geolocation for the system prompt.
+                location_ctx_override=_gps_location_ctx or None,
             )
             stats_tracker.request_finished(_req_start, _total_chars)
             full_response = "".join(_response_parts).strip()

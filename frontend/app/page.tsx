@@ -23,13 +23,13 @@ import { GaaiaIcon } from "@/components/icons/gaaia-icon"
 import { cn } from "@/lib/utils"
 
 const FEATURES = [
-  { icon: MessageSquare, label: "GAAIA Chat",      color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",    description: "Multi-model conversations with web search, image generation & document creation." },
-  { icon: Mic,           label: "GAAIA Voice",     color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20",    description: "Real-time voice conversations. Speak naturally, get spoken responses." },
-  { icon: GraduationCap, label: "GAAIA Education", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20",    description: "AI-powered lessons, quizzes, and exams — graded with instant feedback." },
-  { icon: Headphones,    label: "GAAIA Podcast",   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",description: "Two AI models host a dynamic podcast on any topic you choose." },
-  { icon: Network,       label: "GAAIA Agents",    color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", description: "Assign tasks to specialised GAAIA models working in parallel." },
-  { icon: Scale,         label: "GAAIA Debate",    color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20", description: "Watch two AI models argue opposing sides of any topic." },
-  { icon: Code2,         label: "GAAIA IDE",       color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20", description: "AI-powered code editor — write, debug, and ship with GAAIA as co-pilot." },
+  { icon: MessageSquare, label: "GAAIA Chat",      color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",    description: "Multi-model chat with web search, image generation, essay & research paper writing, read-aloud TTS, and document export." },
+  { icon: Mic,           label: "GAAIA Voice",     color: "text-cyan-400",    bg: "bg-cyan-500/10 border-cyan-500/20",    description: "Real-time voice conversations with camera vision. Speak naturally, get spoken responses instantly." },
+  { icon: GraduationCap, label: "GAAIA Education", color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20",    description: "AI-powered lessons, quizzes, and exams — graded with detailed instant feedback." },
+  { icon: Headphones,    label: "GAAIA Podcast",   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",description: "Two AI hosts produce a fully spoken podcast on any topic you choose." },
+  { icon: Network,       label: "GAAIA Agents",    color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", description: "Break big tasks into parallel workstreams — multiple GAAIA models working as your AI team." },
+  { icon: Scale,         label: "GAAIA Debate",    color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20", description: "Four AI models battle through elimination rounds on any topic. One emerges champion." },
+  { icon: Code2,         label: "GAAIA IDE",       color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20", description: "AI-powered code editor — write, debug, and ship with GAAIA as your co-pilot." },
 ]
 
 const PILLARS = [

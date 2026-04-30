@@ -48,7 +48,7 @@ const FEATURES: Feature[] = [
   {
     key: "chat",
     label: "GAAIA Chat",
-    description: "Intelligent multi-model conversations with web search, image generation, and document creation.",
+    description: "Multi-model chat with web search, image generation, essay & research paper writing, read-aloud TTS, stories, and document export.",
     href: "/chat",
     icon: MessageSquare,
     gradient: "from-blue-500/[0.18] via-cyan-500/[0.08] to-transparent",
@@ -61,7 +61,7 @@ const FEATURES: Feature[] = [
   {
     key: "voice",
     label: "GAAIA Voice",
-    description: "Real-time voice conversations with GAAIA. Speak naturally and get spoken responses with camera support.",
+    description: "Real-time voice conversations with camera vision. Speak naturally, get instant spoken responses — fully local.",
     href: "/voice",
     icon: Mic,
     gradient: "from-cyan-500/[0.18] via-teal-500/[0.08] to-transparent",
@@ -87,7 +87,7 @@ const FEATURES: Feature[] = [
   {
     key: "podcast",
     label: "GAAIA Podcast",
-    description: "Two AI models host a dynamic podcast on any topic you choose. Sit back and listen.",
+    description: "Two AI hosts produce a fully spoken podcast on any topic you choose. Sit back and listen.",
     href: "/podcast",
     icon: Headphones,
     gradient: "from-violet-500/[0.15] via-purple-500/[0.07] to-transparent",
@@ -100,7 +100,7 @@ const FEATURES: Feature[] = [
   {
     key: "agents",
     label: "GAAIA Agents",
-    description: "Assign tasks to specialized GAAIA models working in parallel — like your own AI team.",
+    description: "Break big tasks into parallel workstreams — multiple GAAIA models working together as your AI team.",
     href: "/agents",
     icon: Network,
     gradient: "from-emerald-500/[0.15] via-green-500/[0.07] to-transparent",
@@ -113,7 +113,7 @@ const FEATURES: Feature[] = [
   {
     key: "debate",
     label: "GAAIA Debate",
-    description: "Watch two AI models argue opposing sides of any topic. Moderated, scored, and insightful.",
+    description: "Four AI models battle through elimination rounds on any topic. Scored by a judge — one emerges champion.",
     href: "/debate",
     icon: Scale,
     gradient: "from-orange-500/[0.15] via-amber-500/[0.07] to-transparent",

@@ -1100,6 +1100,7 @@ Your job:
         model_key: str | None = None,
         display_message: str | None = None,
         min_predict: int | None = None,  # force a minimum num_predict (e.g. for longform essays)
+        location_ctx_override: str | None = None,  # GPS-accurate location from browser, overrides IP geolocation
     ) -> str:
         # display_message: clean human-readable text stored in memory & facts.
         # user_message: full context (may include system tags) sent only to the LLM.
@@ -1222,8 +1223,9 @@ Your job:
         _needs_feed = any(kw in _clean_msg.lower() for kw in _NEWS_KEYWORDS)
         live_knowledge = self._memory.get_fact_value("live_knowledge_feed", "") if _needs_feed else ""
 
+        _effective_loc_ctx = location_ctx_override if location_ctx_override else self._location_ctx
         system_text = build_system_prompt(
-            self._settings, injected_facts, self._location_ctx, live_knowledge=live_knowledge
+            self._settings, injected_facts, _effective_loc_ctx, live_knowledge=live_knowledge
         )
         if mode == "fast":
             system_text += (

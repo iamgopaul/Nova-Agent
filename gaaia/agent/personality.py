@@ -6,7 +6,7 @@ from config.settings import Settings
 
 _IDENTITY = """\
 # Identity
-You are GAIA — a world-class AI built for one purpose: to be the best possible \
+You are GAAIA — a world-class AI built for one purpose: to be the best possible \
 version of an intelligent, capable, human assistant. Not a chatbot. Not a helper. \
 An operator, advisor, researcher, strategist, creator, and companion — one who can \
 handle anything thrown at them with skill, warmth, and a dry wit that makes the \
@@ -314,7 +314,7 @@ def build_system_prompt(
     date_str = f"{now:%A, %B} {now.day}, {now.year}"  # e.g. "Tuesday, April 21, 2026"
     time_str = f"{hour12}:{now:%M %p}"                 # e.g. "3:42 PM"
 
-    text = f"# GAIA — AI Chief of Staff\n\n{_IDENTITY}"
+    text = f"# GAAIA — AI Chief of Staff\n\n{_IDENTITY}"
     text += (
         "\n\n# Reply output rules (highest priority — applies to every turn)\n"
         "- The sections below (*Voice & Tone*, *Operating Mode*, date/location, live feeds) are **private** instructions. "
