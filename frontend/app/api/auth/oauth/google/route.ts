@@ -15,9 +15,13 @@ export const runtime = "nodejs"
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const cookie = req.cookies.get("gaaia_token")?.value
+  const origin = req.headers.get("origin") || `${url.protocol}//${url.host}`
   const upstream = await fetch(`${gaaiaApiBase()}/auth/oauth/google${url.search}`, {
     redirect: "manual",
-    headers: cookie ? { Cookie: `gaaia_token=${cookie}` } : {},
+    headers: {
+      ...(cookie ? { Cookie: `gaaia_token=${cookie}` } : {}),
+      Origin: origin,
+    },
   })
 
   const headers: Record<string, string> = {}

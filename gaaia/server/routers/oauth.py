@@ -157,7 +157,7 @@ GOOGLE_AUTH_URL      = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL     = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL  = "https://www.googleapis.com/oauth2/v3/userinfo"
 GOOGLE_REDIRECT_URI  = os.environ.get(
-    "GOOGLE_REDIRECT_URI", "http://127.0.0.1:8765/auth/oauth/google/callback"
+    "GOOGLE_REDIRECT_URI", f"{FRONTEND_URL}/api/auth/oauth/google/callback"
 )
 
 
@@ -268,7 +268,7 @@ GITHUB_TOKEN_URL     = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL      = "https://api.github.com/user"
 GITHUB_EMAIL_URL     = "https://api.github.com/user/emails"
 GITHUB_REDIRECT_URI  = os.environ.get(
-    "GITHUB_REDIRECT_URI", "http://127.0.0.1:8765/auth/oauth/github/callback"
+    "GITHUB_REDIRECT_URI", f"{FRONTEND_URL}/api/auth/oauth/github/callback"
 )
 
 _AVATAR_COLORS = ["#818cf8", "#34d399", "#fb923c", "#f472b6", "#a78bfa", "#38bdf8"]

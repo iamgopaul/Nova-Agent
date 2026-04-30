@@ -421,7 +421,7 @@ function AccountTab({ user, onUserChange }: { user: UserInfo | null; onUserChang
               </span>
             ) : (
               <a
-                href="http://127.0.0.1:8765/auth/oauth/google?link=1"
+                href="/api/auth/oauth/google?link=1"
                 className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
               >
                 Link account
@@ -446,7 +446,7 @@ function AccountTab({ user, onUserChange }: { user: UserInfo | null; onUserChang
               </span>
             ) : (
               <a
-                href="http://127.0.0.1:8765/auth/oauth/github?link=1"
+                href="/api/auth/oauth/github?link=1"
                 className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
               >
                 Link account
