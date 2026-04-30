@@ -23,19 +23,37 @@ export function useGpsLocation() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch("/api/geo", {
+          // Step 1: reverse geocode lat/lon → city/region/country
+          const geoRes = await fetch("/api/geo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
           })
-          if (!res.ok) return
-          const data = await res.json()
-          if (data.city) {
-            localStorage.setItem(
-              STORAGE_KEY,
-              JSON.stringify({ ...data, savedAt: Date.now() })
-            )
-          }
+          if (!geoRes.ok) return
+          const data = await geoRes.json()
+          if (!data.city) return
+
+          const locationString = [data.city, data.region, data.country]
+            .filter(Boolean)
+            .join(", ")
+
+          // Step 2: cache locally for immediate use (sent as X-User-Location header)
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ ...data, savedAt: Date.now() })
+          )
+
+          // Step 3: persist as a server-side memory fact so the model knows it
+          // for weather, time, and local queries — survives across sessions
+          await fetch("/api/memory/facts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: "location",
+              value: locationString,
+              source: "browser_gps",
+            }),
+          })
         } catch {
           // silently ignore — location is best-effort
         }
