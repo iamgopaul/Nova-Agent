@@ -188,6 +188,7 @@ def google_initiate(request: Request, link: bool = False) -> RedirectResponse:
         "scope":         "openid email profile",
         "state":         _new_state(mode=mode, user_id=user_id, frontend_url=frontend_url),
         "access_type":   "online",
+        "prompt":        "select_account",
     })
     return RedirectResponse(f"{GOOGLE_AUTH_URL}?{params}")
 

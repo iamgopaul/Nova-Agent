@@ -2,20 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from gaaia.memory.models import User
-from gaaia.server.dependencies import get_current_user
+from gaaia.memory.store import MemoryStore
+from gaaia.server.dependencies import get_current_user, get_memory
 
 router = APIRouter()
-
-# In-memory run store: run_id → config dict
-_runs: dict[str, dict[str, Any]] = {}
 
 
 class AgentRunBody(BaseModel):
@@ -29,12 +25,19 @@ def _sse(obj: dict) -> str:
 @router.post("/run")
 async def start_run(
     body: AgentRunBody,
-    request: Request,
     user: User = Depends(get_current_user),
+    memory: MemoryStore = Depends(get_memory),
 ) -> dict:
-    run_id = str(uuid.uuid4())
-    _runs[run_id] = {"request": body.request.strip(), "user_id": user.id}
-    return {"run_id": run_id}
+    run = memory.create_agent_run(user.id, body.request.strip())
+    return {"run_id": run.id}
+
+
+@router.get("/runs")
+async def list_runs(
+    user: User = Depends(get_current_user),
+    memory: MemoryStore = Depends(get_memory),
+) -> list[dict]:
+    return memory.list_agent_runs(user.id)
 
 
 @router.get("/{run_id}/stream")
@@ -42,11 +45,15 @@ async def stream_run(
     run_id: str,
     request: Request,
     user: User = Depends(get_current_user),
+    memory: MemoryStore = Depends(get_memory),
 ) -> StreamingResponse:
-    if run_id not in _runs:
+    run = memory.get_agent_run(run_id, user_id=user.id)
+    if not run:
         raise HTTPException(status_code=404, detail="Agent run not found.")
+    if run.status not in ("running", "pending"):
+        raise HTTPException(status_code=409, detail="Agent run already completed.")
 
-    cfg = _runs.pop(run_id)
+    user_request = run.request
     settings = request.app.state.settings
 
     async def generate():
@@ -55,13 +62,14 @@ async def stream_run(
         runner = WorkflowRunner(settings)
         loop = asyncio.get_event_loop()
         q: asyncio.Queue[dict | None] = asyncio.Queue()
+        task_db_ids: dict[str, int] = {}  # agent_id → AgentTask.id
 
         def _cb(event: dict) -> None:
             loop.call_soon_threadsafe(q.put_nowait, event)
 
         async def _run() -> None:
             try:
-                await runner.run(cfg["request"], event_callback=_cb)
+                await runner.run(user_request, event_callback=_cb)
             except Exception as exc:
                 _cb({"type": "error", "message": str(exc)})
             finally:
@@ -69,12 +77,45 @@ async def stream_run(
 
         asyncio.create_task(_run())
 
+        goal_set = False
+
         while True:
             event = await q.get()
             if event is None:
                 break
+
+            etype = event.get("type")
+
+            if etype == "plan" and not goal_set:
+                memory.update_agent_run(run_id, status="running", goal=event.get("goal"))
+                goal_set = True
+            elif etype == "agent_start":
+                agent_id = event.get("agent_id", "")
+                t = memory.create_agent_task(
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    agent_name=event.get("agent_name", ""),
+                    task=event.get("task", ""),
+                )
+                task_db_ids[agent_id] = t.id
+            elif etype == "agent_done":
+                agent_id = event.get("agent_id", "")
+                if agent_id in task_db_ids:
+                    memory.update_agent_task(task_db_ids[agent_id], status="done")
+            elif etype == "agent_error":
+                agent_id = event.get("agent_id", "")
+                if agent_id in task_db_ids:
+                    memory.update_agent_task(
+                        task_db_ids[agent_id], status="error",
+                        output=event.get("error", ""),
+                    )
+            elif etype == "done":
+                memory.update_agent_run(run_id, status="done", output=event.get("output", ""))
+            elif etype == "error":
+                memory.update_agent_run(run_id, status="error", output=event.get("message", ""))
+
             yield _sse(event)
-            if event.get("type") in ("done", "error"):
+            if etype in ("done", "error"):
                 break
 
     return StreamingResponse(

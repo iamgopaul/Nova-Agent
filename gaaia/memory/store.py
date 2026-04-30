@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
 
 import uuid as _uuid_mod
 
-from sqlalchemy import and_, create_engine, event, func, select, text
+from sqlalchemy import and_, create_engine, delete, event, func, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session as DBSession
 
 from gaaia.memory.models import (
+    AgentRun,
+    AgentTask,
     AuditLog,
     AuthBase,
     DataBase,
@@ -305,15 +307,25 @@ class MemoryStore:
                 db.commit()
                 return True
 
-            existing_folder = db.get(Folder, folder_name)
+            existing_folder = self._get_folder(db, folder_name, user_id)
             if not existing_folder:
-                db.add(Folder(name=folder_name, user_id=user_id))
+                if not user_id:
+                    return False
+                db.add(Folder(id=str(_uuid_mod.uuid4()), name=folder_name, user_id=user_id))
             elif user_id is not None and existing_folder.user_id != user_id:
                 return False
 
             row.folder_name = folder_name
             db.commit()
             return True
+
+    @staticmethod
+    def _get_folder(db: DBSession, name: str, user_id: str | None) -> Folder | None:
+        """Look up a folder by (user_id, name) — the logical unique key."""
+        q = select(Folder).where(Folder.name == name)
+        if user_id is not None:
+            q = q.where(Folder.user_id == user_id)
+        return db.scalar(q)
 
     def list_folders(self, user_id: str | None = None) -> list[dict[str, object]]:
         with self._data_sess() as db:
@@ -338,10 +350,13 @@ class MemoryStore:
             folder_name = folder_name[:120].rstrip()
 
         with self._data_sess() as db:
-            existing = db.get(Folder, folder_name)
+            existing = self._get_folder(db, folder_name, user_id)
             if existing:
+                # Belongs to a different user — refuse silently
+                if user_id is not None and existing.user_id != user_id:
+                    return False
                 return True
-            db.add(Folder(name=folder_name, user_id=user_id))
+            db.add(Folder(id=str(_uuid_mod.uuid4()), name=folder_name, user_id=user_id or ""))
             db.commit()
             return True
 
@@ -351,12 +366,13 @@ class MemoryStore:
             return False
 
         with self._data_sess() as db:
-            folder = db.get(Folder, folder_name)
+            folder = self._get_folder(db, folder_name, user_id)
             if not folder:
                 return False
             if user_id is not None and folder.user_id != user_id:
                 return False
 
+            # Null out sessions that reference this folder (application-level cascade)
             q = select(Session).where(Session.folder_name == folder_name)
             if user_id is not None:
                 q = q.where(Session.user_id == user_id)
@@ -658,8 +674,9 @@ class MemoryStore:
     # ── SQLite backward-compat migrations ─────────────────────────────
 
     def _ensure_sqlite_migrations(self) -> None:
-        """Add columns introduced after the initial schema (SQLite ALTER TABLE)."""
+        """Idempotent schema migrations for SQLite (ALTER TABLE + table recreation)."""
         with self._engine.begin() as conn:
+            # ── users ─────────────────────────────────────────────────────────
             user_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(users)")).fetchall()}
             if "avatar_color" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN avatar_color VARCHAR(20) NOT NULL DEFAULT '#38bdf8'"))
@@ -669,6 +686,7 @@ class MemoryStore:
             if "token_version" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
 
+            # ── sessions ──────────────────────────────────────────────────────
             session_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(sessions)")).fetchall()}
             if "custom_title" not in session_cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN custom_title VARCHAR(160)"))
@@ -679,16 +697,60 @@ class MemoryStore:
             if "source" not in session_cols:
                 conn.execute(text("ALTER TABLE sessions ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'chat'"))
 
-            folder_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(folders)")).fetchall()}
-            if "user_id" not in folder_cols:
-                conn.execute(text("ALTER TABLE folders ADD COLUMN user_id VARCHAR(36)"))
-
+            # ── facts ─────────────────────────────────────────────────────────
             fact_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(facts)")).fetchall()}
             if "user_id" not in fact_cols:
                 conn.execute(text("ALTER TABLE facts ADD COLUMN user_id VARCHAR(36)"))
 
-            # oauth_identities is created by AuthBase.metadata.create_all; just
-            # ensure the unique indexes exist for older databases that predate create_all.
+            # ── folders → migrate to UUID PK + UniqueConstraint(user_id, name) ─
+            # Old schema: name VARCHAR(120) PRIMARY KEY, user_id nullable
+            # New schema: id UUID PK, user_id NOT NULL, UNIQUE(user_id, name)
+            # We also recreate sessions to remove the stale FK on folder_name.
+            folder_cols = {str(c[1]) for c in conn.execute(text("PRAGMA table_info(folders)")).fetchall()}
+            if "id" not in folder_cols:
+                conn.execute(text("PRAGMA foreign_keys=OFF"))
+
+                # Migrate folders
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS folders_new (
+                        id      VARCHAR(36)  NOT NULL PRIMARY KEY,
+                        user_id VARCHAR(36)  NOT NULL DEFAULT '',
+                        name    VARCHAR(120) NOT NULL,
+                        created_at DATETIME,
+                        UNIQUE (user_id, name)
+                    )
+                """))
+                old_folders = conn.execute(text("SELECT name, user_id, created_at FROM folders")).fetchall()
+                for row in old_folders:
+                    conn.execute(
+                        text("INSERT OR IGNORE INTO folders_new (id, user_id, name, created_at) "
+                             "VALUES (:id, :uid, :name, :cat)"),
+                        {"id": str(_uuid_mod.uuid4()), "uid": row[1] or "", "name": row[0], "cat": row[2]},
+                    )
+                conn.execute(text("DROP TABLE folders"))
+                conn.execute(text("ALTER TABLE folders_new RENAME TO folders"))
+
+                # Recreate sessions without the FK constraint on folder_name
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS sessions_new (
+                        id           VARCHAR(36)  NOT NULL PRIMARY KEY,
+                        user_id      VARCHAR(36),
+                        custom_title VARCHAR(160),
+                        folder_name  VARCHAR(120),
+                        source       VARCHAR(16)  NOT NULL DEFAULT 'chat',
+                        created_at   DATETIME
+                    )
+                """))
+                conn.execute(text(
+                    "INSERT INTO sessions_new SELECT id, user_id, custom_title, folder_name, source, created_at FROM sessions"
+                ))
+                conn.execute(text("DROP TABLE sessions"))
+                conn.execute(text("ALTER TABLE sessions_new RENAME TO sessions"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sessions_user_id ON sessions(user_id)"))
+
+                conn.execute(text("PRAGMA foreign_keys=ON"))
+
+            # ── oauth_identities indexes (older DBs pre-create_all) ───────────
             conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_oauth_provider_user "
                 "ON oauth_identities(provider, provider_user_id)"
@@ -1233,6 +1295,146 @@ class MemoryStore:
             {"score": score, "key": r.key, "value": r.value}
             for score, r in scored[:top_k]
         ]
+
+    # ── Agent runs ───────────────────────────────────────────────────
+
+    def create_agent_run(self, user_id: str, request: str) -> AgentRun:
+        run = AgentRun(
+            id=str(_uuid_mod.uuid4()),
+            user_id=user_id,
+            request=request,
+            status="running",
+        )
+        with self._data_sess() as db:
+            db.add(run)
+            db.commit()
+            db.refresh(run)
+        return run
+
+    def get_agent_run(self, run_id: str, user_id: str | None = None) -> AgentRun | None:
+        with self._data_sess() as db:
+            run = db.get(AgentRun, run_id)
+            if run is None:
+                return None
+            if user_id is not None and run.user_id != user_id:
+                return None
+            return run
+
+    def update_agent_run(
+        self, run_id: str, *, status: str, output: str | None = None, goal: str | None = None
+    ) -> None:
+        with self._data_sess() as db:
+            run = db.get(AgentRun, run_id)
+            if run:
+                run.status = status
+                if output is not None:
+                    run.output = output
+                if goal is not None:
+                    run.goal = goal
+                db.commit()
+
+    def create_agent_task(
+        self, run_id: str, agent_id: str, agent_name: str, task: str
+    ) -> AgentTask:
+        t = AgentTask(
+            run_id=run_id,
+            agent_id=agent_id,
+            agent_name=agent_name,
+            task=task,
+            status="running",
+        )
+        with self._data_sess() as db:
+            db.add(t)
+            db.commit()
+            db.refresh(t)
+        return t
+
+    def update_agent_task(
+        self, task_id: int, *, status: str, output: str | None = None
+    ) -> None:
+        with self._data_sess() as db:
+            t = db.get(AgentTask, task_id)
+            if t:
+                t.status = status
+                if output is not None:
+                    t.output = output
+                db.commit()
+
+    def list_agent_runs(self, user_id: str, limit: int = 20) -> list[dict]:
+        with self._data_sess() as db:
+            runs = db.scalars(
+                select(AgentRun)
+                .where(AgentRun.user_id == user_id)
+                .order_by(AgentRun.created_at.desc())
+                .limit(limit)
+            ).all()
+        return [
+            {
+                "id": r.id,
+                "request": r.request,
+                "goal": r.goal,
+                "output": r.output,
+                "status": r.status,
+                "created_at": r.created_at,
+            }
+            for r in runs
+        ]
+
+    # ── Data retention ────────────────────────────────────────────────
+
+    def purge_old_data(self, audit_log_days: int = 90) -> dict:
+        """Delete audit_logs older than audit_log_days. Safe to call on a schedule."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=audit_log_days)
+        with self._auth_sess() as db:
+            count = db.scalar(
+                select(func.count()).select_from(AuditLog)
+                .where(AuditLog.created_at < cutoff)
+            ) or 0
+            db.execute(delete(AuditLog).where(AuditLog.created_at < cutoff))
+            db.commit()
+        return {"audit_logs_deleted": count}
+
+    def delete_user_data(self, user_id: str) -> None:
+        """
+        Hard-delete all data for a user across both schemas.
+        Called when an account is permanently removed.
+        """
+        with self._data_sess() as db:
+            # Collect IDs for tables that need manual cascade
+            file_ids = list(db.scalars(
+                select(UploadedFile.id).where(UploadedFile.user_id == user_id)
+            ))
+            run_ids = list(db.scalars(
+                select(AgentRun.id).where(AgentRun.user_id == user_id)
+            ))
+            session_ids = list(db.scalars(
+                select(Session.id).where(Session.user_id == user_id)
+            ))
+
+            if file_ids:
+                db.execute(delete(FileChunk).where(FileChunk.file_id.in_(file_ids)))
+            if run_ids:
+                db.execute(delete(AgentTask).where(AgentTask.run_id.in_(run_ids)))
+            if session_ids:
+                db.execute(delete(Message).where(Message.session_id.in_(session_ids)))
+
+            db.execute(delete(Session).where(Session.user_id == user_id))
+            db.execute(delete(Folder).where(Folder.user_id == user_id))
+            db.execute(delete(Fact).where(Fact.user_id == user_id))
+            db.execute(delete(WatchedTopic).where(WatchedTopic.user_id == user_id))
+            db.execute(delete(ScheduledTask).where(ScheduledTask.user_id == user_id))
+            db.execute(delete(UploadedFile).where(UploadedFile.user_id == user_id))
+            db.execute(delete(AgentRun).where(AgentRun.user_id == user_id))
+            db.commit()
+
+        with self._auth_sess() as db:
+            db.execute(delete(OAuthIdentity).where(OAuthIdentity.user_id == user_id))
+            db.execute(delete(EmailOTPCode).where(EmailOTPCode.user_id == user_id))
+            db.execute(delete(Subscription).where(Subscription.user_id == user_id))
+            db.execute(delete(OrgMembership).where(OrgMembership.user_id == user_id))
+            db.execute(delete(AuditLog).where(AuditLog.user_id == user_id))
+            db.execute(delete(User).where(User.id == user_id))
+            db.commit()
 
     # ── Admin ─────────────────────────────────────────────────────────
 

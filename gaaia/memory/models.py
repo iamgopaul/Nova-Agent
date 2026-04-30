@@ -200,15 +200,27 @@ class DataBase(DeclarativeBase):
 
 
 class Folder(DataBase):
-    __tablename__ = "folders"
+    """
+    User-owned folder for grouping chat sessions.
 
-    name: Mapped[str] = mapped_column(String(120), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    PK is a UUID so different users can have folders with the same name without
+    collision.  The (user_id, name) pair is enforced as unique at the DB level.
+    Sessions reference the folder by name string (not FK) so the join is loose
+    and user-scoped; see MemoryStore for the query pattern.
+    """
+    __tablename__ = "folders"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_folder_user_name"),
+        Index("ix_folder_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    sessions: Mapped[list[Session]] = relationship(back_populates="folder")
 
 
 class Session(DataBase):
@@ -217,17 +229,15 @@ class Session(DataBase):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     custom_title: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    folder_name: Mapped[str | None] = mapped_column(
-        String(120),
-        ForeignKey("folders.name", ondelete="SET NULL"),
-        nullable=True,
-    )
+    # Stores the folder name as a plain string — no FK constraint so that the
+    # Folder table can use a proper composite PK without requiring a composite FK here.
+    # Referential integrity is maintained at the application layer (MemoryStore).
+    folder_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     source: Mapped[str] = mapped_column(String(16), default="chat", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    folder: Mapped[Folder | None] = relationship(back_populates="sessions")
     messages: Mapped[list[Message]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
@@ -290,9 +300,10 @@ class WatchedTopic(DataBase):
 
 class AgentRun(DataBase):
     __tablename__ = "agent_runs"
+    __table_args__ = (Index("ix_agent_run_user_id", "user_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     request: Mapped[str] = mapped_column(Text, nullable=False)
     goal: Mapped[str | None] = mapped_column(Text, nullable=True)
     output: Mapped[str | None] = mapped_column(Text, nullable=True)
