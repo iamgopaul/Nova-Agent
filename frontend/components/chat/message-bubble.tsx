@@ -2029,6 +2029,45 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
       }
     }
 
+    // iOS Safari: ReadableStream body is unreliable and audio.play() is blocked
+    // after any await (gesture revoked). Go straight to the non-streaming blob
+    // path and decode through the pre-warmed AudioContext instead.
+    const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent)
+    if (isIOS) {
+      try {
+        const res = await fetch("/api/voice/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: clean }),
+        })
+        if (!res.ok) throw new Error("speak failed")
+        const raw = await res.arrayBuffer()
+        const ctx = preWarmedCtx
+        if (!ctx || stopRequestedRef.current) return
+        // Resume in case the context suspended while we were fetching
+        if (ctx.state === "suspended") { try { await ctx.resume() } catch { /* */ } }
+        if (stopRequestedRef.current || ctx.state === "closed") return
+        const audioBuf = await ctx.decodeAudioData(raw.slice(0))
+        if (stopRequestedRef.current) return
+        // Single-range highlight: proportional interpolation across the full audio
+        sentenceWordRangesRef.current = [{ start: 0, end: allWordsRef.current.length }]
+        const t = ctx.currentTime + 0.05
+        chunkTimelinesRef.current.push({ startTime: t, endTime: t + audioBuf.duration, chunkIdx: 0 })
+        const src = ctx.createBufferSource()
+        src.buffer = audioBuf
+        src.connect(ctx.destination)
+        src.start(t)
+        currentChunkIdxRef.current = 1
+        startHighlightRAF(ctx)
+        const waitMs = Math.max(0, audioBuf.duration * 1000) + 200
+        await new Promise<void>(r => { setTimeout(r, waitMs) })
+        if (!stopRequestedRef.current) finishReading()
+      } catch {
+        stopSpeaking()
+      }
+      return
+    }
+
     // Streaming endpoint — plays first WAV chunk immediately
     try {
       const res = await fetch("/api/voice/speak/stream", {
@@ -2225,7 +2264,9 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
 
       await Promise.all([readStream(), playQueue()])
     } catch {
-      // Fallback: non-streaming single request
+      // Fallback: non-streaming single request.
+      // Prefer Web Audio (pre-warmed ctx) over <audio> — this avoids the iOS
+      // gesture-revoked DOMException on audio.play() that occurs after awaits.
       try {
         const res2 = await fetch("/api/voice/speak", {
           method: "POST",
@@ -2233,16 +2274,38 @@ export function MessageBubble({ message, onSuggestionClick }: MessageBubbleProps
           body: JSON.stringify({ text: clean }),
         })
         if (!res2.ok) { stopSpeaking(); return }
-        const blob = await res2.blob()
-        const url  = URL.createObjectURL(blob)
-        const audio = new Audio(url)
-        audioRef.current = audio
         sentenceWordRangesRef.current = [{ start: 0, end: allWordsRef.current.length }]
-        currentChunkIdxRef.current = 0
-        audio.onloadedmetadata = () => startWordTracker(audio)
-        audio.onended = () => { currentAudioElRef.current = null; URL.revokeObjectURL(url); finishReading() }
-        audio.onerror = () => { currentAudioElRef.current = null; stopSpeaking(); URL.revokeObjectURL(url) }
-        audio.play().catch(() => { currentAudioElRef.current = null; stopSpeaking(); URL.revokeObjectURL(url) })
+        if (preWarmedCtx && preWarmedCtx.state !== "closed") {
+          // Web Audio path — safe on iOS because the context was unlocked in the gesture
+          const raw = await res2.arrayBuffer()
+          const ctx = preWarmedCtx
+          if (stopRequestedRef.current) return
+          if (ctx.state === "suspended") { try { await ctx.resume() } catch { /* */ } }
+          const audioBuf = await ctx.decodeAudioData(raw.slice(0))
+          if (stopRequestedRef.current) return
+          const t = ctx.currentTime + 0.05
+          chunkTimelinesRef.current.push({ startTime: t, endTime: t + audioBuf.duration, chunkIdx: 0 })
+          const src = ctx.createBufferSource()
+          src.buffer = audioBuf
+          src.connect(ctx.destination)
+          src.start(t)
+          currentChunkIdxRef.current = 1
+          startHighlightRAF(ctx)
+          const waitMs = Math.max(0, audioBuf.duration * 1000) + 200
+          await new Promise<void>(r => { setTimeout(r, waitMs) })
+          if (!stopRequestedRef.current) finishReading()
+        } else {
+          // Last resort: <audio> element (works on desktop; may be blocked on iOS)
+          const blob = await res2.blob()
+          const url  = URL.createObjectURL(blob)
+          const audio = new Audio(url)
+          audioRef.current = audio
+          currentChunkIdxRef.current = 0
+          audio.onloadedmetadata = () => startWordTracker(audio)
+          audio.onended = () => { currentAudioElRef.current = null; URL.revokeObjectURL(url); finishReading() }
+          audio.onerror = () => { currentAudioElRef.current = null; stopSpeaking(); URL.revokeObjectURL(url) }
+          audio.play().catch(() => { currentAudioElRef.current = null; stopSpeaking(); URL.revokeObjectURL(url) })
+        }
       } catch {
         stopSpeaking()
       }

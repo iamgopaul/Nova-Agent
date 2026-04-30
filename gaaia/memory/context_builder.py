@@ -64,8 +64,22 @@ class ContextBuilder:
         display_user = self._store.get_fact_value("user_display_name", "").strip()
         last_speaker = self._store.get_fact_value("last_speaker", "").strip()
 
+        # Truncate long messages before injecting into the LLM context window.
+        # Essays and research papers can be 8000+ words; including them in full
+        # blows the context budget and crowds out recent turns the model needs.
+        # The stored database content is never modified — only the LLM view is capped.
+        _USER_LIMIT = 600    # internal-tag-heavy messages can be long; keep essential text
+        _ASST_LIMIT = 1200   # enough for the model to reference what it said without overflow
+        _TRUNCATE_SUFFIX = " […]"
+
+        def _trim(role: str, content: str) -> str:
+            limit = _USER_LIMIT if role == "user" else _ASST_LIMIT
+            if len(content) <= limit:
+                return content
+            return content[:limit].rsplit(" ", 1)[0] + _TRUNCATE_SUFFIX
+
         chat_messages = [
-            {"role": message["role"], "content": message["content"]}
+            {"role": message["role"], "content": _trim(message["role"], message["content"])}
             for message in messages
             if not _is_corrupt(message.get("content", ""))
         ]

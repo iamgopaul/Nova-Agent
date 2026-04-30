@@ -59,6 +59,9 @@ _ECHO_ABORT_PATTERNS: list[re.Pattern] = [
     ),
     re.compile(r"conversational AI named GAAIA.+(?:guidelines|These guidelines|various aspects)", re.IGNORECASE | re.DOTALL),
     re.compile(r"By following these rules, GAAIA aims to provide", re.IGNORECASE),
+    # Model pivots from a factual question into creative writing it wasn't asked for
+    re.compile(r"^[Oo]n\s+request,?\s+I\s+will\s+(write|create|compose|tell)", re.IGNORECASE),
+    re.compile(r"^[Ii]\s+will\s+(write|create|compose|tell)\s+a?\s*(short\s+)?story\s+about", re.IGNORECASE),
 ]
 
 # SD quality tags — used to detect when the LLM leaks an image prompt into its text.
@@ -2678,6 +2681,9 @@ async def chat(
                 # Essays/papers need far more tokens than the 768-token default.
                 # 24576 ≈ 10k words; orchestrator sets num_ctx = min(24576+4096, 32768) = 28672.
                 min_predict=24576 if _is_essay_mode else None,
+                # Store the original clean message — not the internal-tag-polluted one —
+                # so history context doesn't confuse the model on subsequent turns.
+                display_message=body.message,
             )
             stats_tracker.request_finished(_req_start, _total_chars)
             full_response = "".join(_response_parts).strip()
