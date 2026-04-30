@@ -1,7 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   MessageSquare,
@@ -39,26 +37,6 @@ const PILLARS = [
 ]
 
 export default function LandingPage() {
-  const router = useRouter()
-  const [resuming, setResuming] = useState(false)
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then(r => {
-        if (r.ok) { setResuming(true); router.replace("/home") }
-      })
-      .catch(() => {})
-  }, [router])
-
-  if (resuming) {
-    return (
-      <div className="min-h-screen aurora-bg flex flex-col items-center justify-center gap-4 text-foreground">
-        <GaaiaIcon size={56} className="animate-pulse" />
-        <p className="text-sm text-muted-foreground">Resuming your session…</p>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen aurora-bg relative overflow-x-hidden text-foreground">
       {/* Ambient blobs */}
